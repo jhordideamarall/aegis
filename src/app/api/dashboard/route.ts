@@ -216,19 +216,25 @@ export async function GET(request: Request) {
     const startDateOnly = startDate // Use original date string from frontend
     const endDateOnly = endDate
     const isSingleDay = startDateOnly === endDateOnly
-    
+
     const salesByDate: Record<string, number> = {}
     orders?.forEach(order => {
       if (isSingleDay) {
-        // Group by hour for single day (use LOCAL hours)
+        // Group by hour for single day (use LOCAL Indonesian time - WIB)
         const orderDate = new Date(order.created_at)
-        const hour = orderDate.getHours() // Local hour
+        // Convert to WIB (UTC+7)
+        const utcTime = orderDate.getTime() + (orderDate.getTimezoneOffset() * 60000)
+        const wibTime = new Date(utcTime + (3600000 * 7)) // WIB is UTC+7
+        const hour = wibTime.getHours()
         const hourKey = `${startDateOnly}T${String(hour).padStart(2, '0')}:00`
         salesByDate[hourKey] = (salesByDate[hourKey] || 0) + order.total
       } else {
-        // Group by date for multiple days
+        // Group by date for multiple days (use local date)
         const orderDate = new Date(order.created_at)
-        const date = toLocalISODate(orderDate) // Use local date
+        // Convert to WIB for consistent date
+        const utcTime = orderDate.getTime() + (orderDate.getTimezoneOffset() * 60000)
+        const wibTime = new Date(utcTime + (3600000 * 7))
+        const date = wibTime.toISOString().split('T')[0]
         salesByDate[date] = (salesByDate[date] || 0) + order.total
       }
     })
