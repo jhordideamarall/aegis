@@ -91,7 +91,7 @@ export default function SetupWizard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      <div className="max-w-3xl mx-auto px-4 py-12">
+      <div className="max-w-3xl mx-auto px-4 py-12 pt-8">
         <div className="mb-8">
           <div className="flex justify-between mb-2"><span className="text-sm font-medium">Step {step} of 3</span><span className="text-sm text-gray-500">{Math.round((step/3)*100)}%</span></div>
           <div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-blue-600 h-2 rounded-full transition-all" style={{ width: `${(step/3)*100}%` }}></div></div>
