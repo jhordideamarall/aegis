@@ -1,16 +1,21 @@
 {
-  "name": "pos-system",
-  "version": "0.1.0",
+  "name": "aegis-pos",
+  "version": "1.0.0",
   "private": true,
+  "description": "AEGIS POS - Smart POS System for Modern Businesses",
+  "author": "SocialBrand1980",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "lint": "next lint"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.99.0",
     "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "react-feather": "^2.0.10"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
