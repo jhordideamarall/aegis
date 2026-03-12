@@ -31,14 +31,18 @@ export async function GET(request: Request) {
     }
 
     // Parse dates - treat input as local dates (YYYY-MM-DD format from frontend)
+    // Convert to Indonesian time (WIB - UTC+7)
     const [startYear, startMonth, startDay] = startDate.split('-').map(Number)
     const [endYear, endMonth, endDay] = endDate.split('-').map(Number)
+
+    // Create dates in WIB timezone (UTC+7)
+    // Start of day for startDate in WIB
+    let rangeStart = new Date(Date.UTC(startYear, (startMonth || 1) - 1, startDay || 1, 0, 0, 0, 0))
+    rangeStart = new Date(rangeStart.getTime() - (7 * 3600000)) // Convert to UTC (subtract 7 hours)
     
-    // Create dates in LOCAL timezone to match user's expectation
-    // Start of day for startDate
-    let rangeStart = new Date(startYear, (startMonth || 1) - 1, startDay || 1, 0, 0, 0, 0)
-    // End of day for endDate  
-    let rangeEnd = new Date(endYear, (endMonth || 1) - 1, endDay || 1, 23, 59, 59, 999)
+    // End of day for endDate in WIB
+    let rangeEnd = new Date(Date.UTC(endYear, (endMonth || 1) - 1, endDay || 1, 23, 59, 59, 999))
+    rangeEnd = new Date(rangeEnd.getTime() - (7 * 3600000)) // Convert to UTC (subtract 7 hours)
 
     if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) {
       return NextResponse.json(
@@ -220,20 +224,20 @@ export async function GET(request: Request) {
     const salesByDate: Record<string, number> = {}
     orders?.forEach(order => {
       if (isSingleDay) {
-        // Group by hour for single day (use LOCAL Indonesian time - WIB)
+        // Group by hour for single day (convert UTC to WIB - UTC+7)
         const orderDate = new Date(order.created_at)
-        // Convert to WIB (UTC+7)
-        const utcTime = orderDate.getTime() + (orderDate.getTimezoneOffset() * 60000)
-        const wibTime = new Date(utcTime + (3600000 * 7)) // WIB is UTC+7
+        // Get UTC time, then add 7 hours for WIB
+        const utcTime = orderDate.getTime()
+        const wibTime = new Date(utcTime + (7 * 3600000)) // WIB is UTC+7
         const hour = wibTime.getHours()
         const hourKey = `${startDateOnly}T${String(hour).padStart(2, '0')}:00`
         salesByDate[hourKey] = (salesByDate[hourKey] || 0) + order.total
       } else {
-        // Group by date for multiple days (use local date)
+        // Group by date for multiple days (convert to WIB date)
         const orderDate = new Date(order.created_at)
-        // Convert to WIB for consistent date
-        const utcTime = orderDate.getTime() + (orderDate.getTimezoneOffset() * 60000)
-        const wibTime = new Date(utcTime + (3600000 * 7))
+        // Convert UTC to WIB for consistent date
+        const utcTime = orderDate.getTime()
+        const wibTime = new Date(utcTime + (7 * 3600000))
         const date = wibTime.toISOString().split('T')[0]
         salesByDate[date] = (salesByDate[date] || 0) + order.total
       }

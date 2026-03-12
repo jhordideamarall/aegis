@@ -48,6 +48,7 @@ export async function GET(request: Request) {
     }
 
     // Parse dates - treat input as local dates (YYYY-MM-DD format from frontend)
+    // Convert to Indonesian time (WIB - UTC+7)
     let rangeStart: Date | null = null
     let rangeEnd: Date | null = null
 
@@ -55,8 +56,12 @@ export async function GET(request: Request) {
       const [startYear, startMonth, startDay] = startDate.split('-').map(Number)
       const [endYear, endMonth, endDay] = endDate.split('-').map(Number)
 
-      rangeStart = new Date(startYear, (startMonth || 1) - 1, startDay || 1, 0, 0, 0, 0)
-      rangeEnd = new Date(endYear, (endMonth || 1) - 1, endDay || 1, 23, 59, 59, 999)
+      // Create dates in WIB timezone (UTC+7), then convert to UTC for database
+      rangeStart = new Date(Date.UTC(startYear, (startMonth || 1) - 1, startDay || 1, 0, 0, 0, 0))
+      rangeStart = new Date(rangeStart.getTime() - (7 * 3600000)) // Convert WIB to UTC
+      
+      rangeEnd = new Date(Date.UTC(endYear, (endMonth || 1) - 1, endDay || 1, 23, 59, 59, 999))
+      rangeEnd = new Date(rangeEnd.getTime() - (7 * 3600000)) // Convert WIB to UTC
 
       if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) {
         return NextResponse.json(
@@ -71,10 +76,13 @@ export async function GET(request: Request) {
         rangeEnd = temp
       }
     } else if (startDate) {
-      // Only startDate provided - treat as single day
+      // Only startDate provided - treat as single day in WIB
       const [year, month, day] = startDate.split('-').map(Number)
-      rangeStart = new Date(year, (month || 1) - 1, day || 1, 0, 0, 0, 0)
-      rangeEnd = new Date(year, (month || 1) - 1, day || 1, 23, 59, 59, 999)
+      rangeStart = new Date(Date.UTC(year, (month || 1) - 1, day || 1, 0, 0, 0, 0))
+      rangeStart = new Date(rangeStart.getTime() - (7 * 3600000)) // Convert WIB to UTC
+      
+      rangeEnd = new Date(Date.UTC(year, (month || 1) - 1, day || 1, 23, 59, 59, 999))
+      rangeEnd = new Date(rangeEnd.getTime() - (7 * 3600000)) // Convert WIB to UTC
     }
 
     let query = supabaseAdmin
