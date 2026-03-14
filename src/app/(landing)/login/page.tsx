@@ -51,6 +51,66 @@ export default function LoginPage() {
     }
   }, [])
 
+  useEffect(() => {
+    let active = true
+
+    const redirectAuthenticatedUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!active || !session?.access_token) {
+        return
+      }
+
+      const businessRes = await fetch('/api/businesses/my', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      })
+
+      if (!businessRes.ok || !active) {
+        return
+      }
+
+      const businessData = await businessRes.json()
+      const businessSubdomain = normalizeSubdomain(businessData.business?.subdomain)
+
+      if (!businessSubdomain) {
+        router.replace('/dashboard')
+        return
+      }
+
+      const currentTenantSubdomain = extractTenantSubdomain(window.location.host)
+
+      if (currentTenantSubdomain === businessSubdomain) {
+        router.replace('/dashboard')
+        return
+      }
+
+      const refreshToken = session.refresh_token
+
+      if (!refreshToken) {
+        router.replace('/dashboard')
+        return
+      }
+
+      window.location.replace(
+        buildTenantAuthBridgeUrl(
+          businessSubdomain,
+          session.access_token,
+          refreshToken,
+          '/dashboard',
+          window.location.origin
+        )
+      )
+    }
+
+    redirectAuthenticatedUser()
+
+    return () => {
+      active = false
+    }
+  }, [router])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)

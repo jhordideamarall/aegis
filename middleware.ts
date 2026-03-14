@@ -12,7 +12,7 @@ export function middleware(request: NextRequest) {
   const url = request.nextUrl.clone()
 
   if (url.pathname === '/') {
-    url.pathname = '/pos'
+    url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
