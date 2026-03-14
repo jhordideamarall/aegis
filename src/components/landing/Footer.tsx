@@ -79,13 +79,13 @@ export default function Footer() {
             <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-400 mb-4">Product</h3>
             <ul className="space-y-3">
               <li>
-                <Link href="/#features" className="text-gray-300 hover:text-white transition-colors flex items-center gap-2 group">
+                <Link href="/features" className="text-gray-300 hover:text-white transition-colors flex items-center gap-2 group">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 group-hover:bg-white transition-colors"></span>
                   Features
                 </Link>
               </li>
               <li>
-                <Link href="/pos" className="text-gray-300 hover:text-white transition-colors flex items-center gap-2 group">
+                <Link href="/features#pos-flow" className="text-gray-300 hover:text-white transition-colors flex items-center gap-2 group">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 group-hover:bg-white transition-colors"></span>
                   POS System
                 </Link>
@@ -122,25 +122,25 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/products" className="text-gray-300 hover:text-white transition-colors flex items-center gap-2 group">
+                <Link href="/features#inventory" className="text-gray-300 hover:text-white transition-colors flex items-center gap-2 group">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 group-hover:bg-white transition-colors"></span>
                   Inventory
                 </Link>
               </li>
               <li>
-                <Link href="/orders" className="text-gray-300 hover:text-white transition-colors flex items-center gap-2 group">
+                <Link href="/features#reporting" className="text-gray-300 hover:text-white transition-colors flex items-center gap-2 group">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 group-hover:bg-white transition-colors"></span>
                   Orders
                 </Link>
               </li>
               <li>
-                <Link href="/members" className="text-gray-300 hover:text-white transition-colors flex items-center gap-2 group">
+                <Link href="/features#loyalty" className="text-gray-300 hover:text-white transition-colors flex items-center gap-2 group">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 group-hover:bg-white transition-colors"></span>
                   Loyalty Program
                 </Link>
               </li>
               <li>
-                <Link href="/dashboard" className="text-gray-300 hover:text-white transition-colors flex items-center gap-2 group">
+                <Link href="/features#reporting" className="text-gray-300 hover:text-white transition-colors flex items-center gap-2 group">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 group-hover:bg-white transition-colors"></span>
                   Analytics
                 </Link>
@@ -153,9 +153,15 @@ export default function Footer() {
             <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-400 mb-4">Company</h3>
             <ul className="space-y-3">
               <li>
-                <Link href="/#about" className="text-gray-300 hover:text-white transition-colors flex items-center gap-2 group">
+                <Link href="/about" className="text-gray-300 hover:text-white transition-colors flex items-center gap-2 group">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 group-hover:bg-white transition-colors"></span>
                   About
+                </Link>
+              </li>
+              <li>
+                <Link href="/updates" className="text-gray-300 hover:text-white transition-colors flex items-center gap-2 group">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 group-hover:bg-white transition-colors"></span>
+                  Update Fitur
                 </Link>
               </li>
               <li>
@@ -214,9 +220,9 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/admin" className="text-gray-300 hover:text-white transition-colors flex items-center gap-2 group">
+                <Link href="/cloud-pos-system" className="text-gray-300 hover:text-white transition-colors flex items-center gap-2 group">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 group-hover:bg-white transition-colors"></span>
-                  Admin
+                  Cloud POS System
                 </Link>
               </li>
             </ul>

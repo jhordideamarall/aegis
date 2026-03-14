@@ -11,6 +11,11 @@ export interface Order {
   id: string
   total: number
   payment_method: string
+  payment_provider?: string | null
+  payment_proof_url?: string | null
+  payment_proof_path?: string | null
+  payment_proof_uploaded_at?: string | null
+  payment_notes?: string | null
   created_at: string
   member_id?: string
   points_earned?: number

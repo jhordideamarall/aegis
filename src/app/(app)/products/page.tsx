@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { getClientCache, setClientCache } from '@/lib/clientCache'
+import { getClientAuthHeaders } from '@/lib/clientAuth'
 import { formatIDR } from '@/lib/utils'
 import { Product } from '@/lib/types'
 import Modal from '@/components/Modal'
@@ -57,7 +58,9 @@ export default function ProductsPage() {
       if (searchQuery) params.set('q', searchQuery)
       if (selectedCategory && selectedCategory !== 'all') params.set('category', selectedCategory)
 
-      const res = await fetch(`/api/products?${params.toString()}`)
+      const res = await fetch(`/api/products?${params.toString()}`, {
+        headers: await getClientAuthHeaders()
+      })
       if (res.ok) {
         const result = await res.json()
         setProducts(result.data || [])
@@ -84,7 +87,8 @@ export default function ProductsPage() {
 
     try {
       const res = await fetch(`/api/products/${id}?business_id=${business.id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: await getClientAuthHeaders()
       })
 
       if (res.ok) {
@@ -384,7 +388,7 @@ function ProductFormModal({ product, businessId, onClose, onSuccess }: ProductFo
 
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getClientAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ ...formData, business_id: businessId })
       })
 

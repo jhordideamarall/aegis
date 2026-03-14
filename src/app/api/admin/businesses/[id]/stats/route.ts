@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { getAdminUserFromRequest } from '@/lib/adminAuth'
 import { supabaseAdmin } from '@/lib/supabase'
 
 export async function GET(
@@ -6,6 +7,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const adminUser = await getAdminUserFromRequest(request)
+
+    if (!adminUser) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     const { id: businessId } = await params
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get('startDate')

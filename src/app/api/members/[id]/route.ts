@@ -1,22 +1,30 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { assertBusinessActive } from '@/lib/business'
+import {
+  forbiddenResponse,
+  getBusinessContextFromRequest,
+  unauthorizedResponse
+} from '@/lib/requestAuth'
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const businessContext = await getBusinessContextFromRequest(request)
+
+    if (!businessContext) {
+      return unauthorizedResponse()
+    }
+
     const { id } = await params
     const body = await request.json()
     const { name, phone, email, points, business_id } = body
+    const resolvedBusinessId = businessContext.businessId
 
-    // Validation
-    if (!business_id) {
-      return NextResponse.json(
-        { error: 'business_id is required' },
-        { status: 400 }
-      )
+    if (business_id && business_id !== resolvedBusinessId) {
+      return forbiddenResponse('You do not have access to this business')
     }
 
-    const statusCheck = await assertBusinessActive(business_id)
+    const statusCheck = await assertBusinessActive(resolvedBusinessId)
     if (!statusCheck.ok) {
       return NextResponse.json(
         { error: statusCheck.message },
@@ -29,7 +37,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       .from('members')
       .select('id')
       .eq('id', id)
-      .eq('business_id', business_id)
+      .eq('business_id', resolvedBusinessId)
       .single()
 
     if (!existing) {
@@ -44,7 +52,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       const { data: duplicate } = await supabaseAdmin
         .from('members')
         .select('id')
-        .eq('business_id', business_id)
+        .eq('business_id', resolvedBusinessId)
         .eq('phone', phone)
         .neq('id', id)
         .single()
@@ -67,7 +75,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         updated_at: new Date().toISOString()
       })
       .eq('id', id)
-      .eq('business_id', business_id)
+      .eq('business_id', resolvedBusinessId)
       .select()
       .single()
 
@@ -84,18 +92,22 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const businessContext = await getBusinessContextFromRequest(request)
+
+    if (!businessContext) {
+      return unauthorizedResponse()
+    }
+
     const { id } = await params
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('business_id')
+    const resolvedBusinessId = businessContext.businessId
 
-    if (!businessId) {
-      return NextResponse.json(
-        { error: 'business_id is required' },
-        { status: 400 }
-      )
+    if (businessId && businessId !== resolvedBusinessId) {
+      return forbiddenResponse('You do not have access to this business')
     }
 
-    const statusCheck = await assertBusinessActive(businessId)
+    const statusCheck = await assertBusinessActive(resolvedBusinessId)
     if (!statusCheck.ok) {
       return NextResponse.json(
         { error: statusCheck.message },
@@ -107,7 +119,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       .from('members')
       .delete()
       .eq('id', id)
-      .eq('business_id', businessId)
+      .eq('business_id', resolvedBusinessId)
 
     if (error) throw error
     return NextResponse.json({ success: true })

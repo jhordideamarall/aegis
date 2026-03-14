@@ -1,17 +1,27 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { verifySetupToken } from '@/lib/setupToken'
 
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { business_id, full_name, email, password } = body
+    const { business_id, full_name, email, password, setup_token } = body
 
     // Validate input
-    if (!business_id || !email || !password) {
+    if (!business_id || !email || !password || !setup_token) {
       console.error('Missing required fields')
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
+      )
+    }
+
+    const tokenVerification = verifySetupToken(setup_token, business_id)
+
+    if (!tokenVerification.ok) {
+      return NextResponse.json(
+        { error: tokenVerification.error },
+        { status: 403 }
       )
     }
 
@@ -88,7 +98,8 @@ export async function POST(request: Request) {
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true
+      email_confirm: true,
+      user_metadata: full_name ? { full_name } : undefined
     })
 
     if (authError) {

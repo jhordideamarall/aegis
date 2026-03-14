@@ -25,6 +25,7 @@ DECLARE
     v_total INTEGER;
     v_points_earned INTEGER;
     v_payment_method TEXT;
+    v_payment_provider TEXT;
     i INTEGER;
     j INTEGER;
 BEGIN
@@ -109,7 +110,12 @@ BEGIN
         END IF;
         
         -- Random payment method
-        v_payment_method := (ARRAY['cash', 'debit', 'credit', 'gopay', 'ovo', 'dana'])[floor(random() * 6 + 1)::INTEGER];
+        v_payment_method := (ARRAY['cash', 'debit', 'qris', 'bank_transfer'])[floor(random() * 4 + 1)::INTEGER];
+        v_payment_provider := NULL;
+
+        IF v_payment_method = 'qris' THEN
+            v_payment_provider := (ARRAY['general', 'gopay', 'dana', 'ovo', 'shopeepay', 'bank_qris', 'other'])[floor(random() * 7 + 1)::INTEGER];
+        END IF;
         
         -- Generate 1-5 items per order
         v_total := 0;
@@ -122,12 +128,13 @@ BEGIN
         v_points_earned := floor(v_total / 10000);
         
         -- Insert order
-        INSERT INTO orders (business_id, member_id, total, payment_method, points_earned, points_used, discount, created_at)
+        INSERT INTO orders (business_id, member_id, total, payment_method, payment_provider, points_earned, points_used, discount, created_at)
         VALUES (
             v_business_id,
             v_member_id,
             v_total,
             v_payment_method,
+            v_payment_provider,
             v_points_earned,
             0,
             0,

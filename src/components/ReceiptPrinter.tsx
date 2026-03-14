@@ -1,13 +1,19 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { getClientAuthHeaders } from '@/lib/clientAuth'
 import Modal from '@/components/Modal'
+import { formatPaymentDisplay } from '@/lib/payments'
 
 interface ReceiptPrinterProps {
   order: {
     id: string
     total: number
     payment_method: string
+    payment_provider?: string | null
+    payment_proof_url?: string | null
+    payment_proof_uploaded_at?: string | null
+    payment_notes?: string | null
     created_at: string
     member_id?: string | null
     points_earned?: number
@@ -79,7 +85,9 @@ export default function ReceiptPrinter({ order, onClose, businessId }: ReceiptPr
   const fetchSettings = async () => {
     try {
       const url = businessId ? `/api/settings?business_id=${businessId}` : '/api/settings'
-      const res = await fetch(url)
+      const res = await fetch(url, {
+        headers: await getClientAuthHeaders()
+      })
       const data = await res.json()
       const nextSettings: ReceiptSettings = {
         receipt_header: data.receipt_header || defaultSettings.receipt_header,
@@ -134,12 +142,81 @@ export default function ReceiptPrinter({ order, onClose, businessId }: ReceiptPr
   const taxAmount = settings.tax_enabled ? Math.round((taxableBase * settings.tax_rate) / 100) : 0
   const serviceAmount = settings.service_enabled ? Math.round((taxableBase * settings.service_rate) / 100) : 0
   const grandTotal = taxableBase + taxAmount + serviceAmount
+  const paymentDisplay = formatPaymentDisplay(order.payment_method, order.payment_provider)
 
   return (
     <Modal isOpen={true} onClose={onClose} title="Cetak Struk" size="xl">
+      <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
+        <h3 className="mb-4 text-base font-semibold text-gray-900">Detail Pembayaran</h3>
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-gray-400">Metode</p>
+              <p className="text-sm font-medium text-gray-900">{paymentDisplay}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-gray-400">Status Bukti</p>
+              <p className={`text-sm font-medium ${order.payment_proof_url ? 'text-emerald-600' : 'text-gray-500'}`}>
+                {order.payment_proof_url ? 'Bukti pembayaran tersedia' : 'Tidak ada bukti pembayaran'}
+              </p>
+              {order.payment_proof_uploaded_at && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Diunggah {formatDate(order.payment_proof_uploaded_at)}
+                </p>
+              )}
+            </div>
+            {order.payment_notes && (
+              <div>
+                <p className="text-xs uppercase tracking-wide text-gray-400">Catatan</p>
+                <p className="text-sm leading-6 text-gray-700">{order.payment_notes}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-3">
+            {order.payment_proof_url ? (
+              <div className="space-y-3">
+                <img
+                  src={order.payment_proof_url}
+                  alt={`Bukti pembayaran order ${order.id.slice(0, 8).toUpperCase()}`}
+                  className="h-56 w-full rounded-lg object-cover border border-gray-200 bg-white"
+                />
+                <a
+                  href={order.payment_proof_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex text-sm font-medium text-blue-600 hover:underline"
+                >
+                  Buka gambar penuh
+                </a>
+              </div>
+            ) : (
+              <div className="flex h-56 items-center justify-center rounded-lg bg-white text-center text-sm text-gray-400">
+                Bukti pembayaran belum diunggah
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Printer Selection */}
       <div className="mb-6 p-4 bg-gray-50 rounded-lg">
         <h3 className="font-semibold mb-3">Pengaturan Printer</h3>
+
+        {order.payment_proof_url && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Bukti pembayaran tersedia.
+            {' '}
+            <a
+              href={order.payment_proof_url}
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium underline"
+            >
+              Lihat foto
+            </a>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -195,7 +272,8 @@ export default function ReceiptPrinter({ order, onClose, businessId }: ReceiptPr
             <div className="text-left mb-2" style={{ fontSize: paperSize === '58mm' ? '8px' : '10px' }}>
               <p>No: {order.id.slice(0, 8).toUpperCase()}</p>
               <p>Tanggal: {formatDate(order.created_at)}</p>
-              <p>Payment: {order.payment_method.toUpperCase()}</p>
+              <p>Payment: {paymentDisplay}</p>
+              {order.payment_notes && <p>Catatan: {order.payment_notes}</p>}
               {member && (
                 <>
                   <p>Member: {member.name}</p>

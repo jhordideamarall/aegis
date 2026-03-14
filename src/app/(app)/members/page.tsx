@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { getClientCache, setClientCache } from '@/lib/clientCache'
+import { getClientAuthHeaders } from '@/lib/clientAuth'
 import { formatIDR } from '@/lib/utils'
 import { Member } from '@/lib/types'
 import Modal from '@/components/Modal'
@@ -46,7 +47,9 @@ export default function MembersPage() {
       })
       if (searchQuery) params.set('q', searchQuery)
 
-      const res = await fetch(`/api/members?${params.toString()}`)
+      const res = await fetch(`/api/members?${params.toString()}`, {
+        headers: await getClientAuthHeaders()
+      })
       if (res.ok) {
         const result = await res.json()
         setMembers(result.data || [])
@@ -70,7 +73,8 @@ export default function MembersPage() {
 
     try {
       const res = await fetch(`/api/members/${id}?business_id=${business.id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: await getClientAuthHeaders()
       })
       if (res.ok) {
         setMembers(prev => prev.filter(m => m.id !== id))
@@ -350,7 +354,7 @@ function MemberFormModal({ member, businessId, onClose, onSuccess }: MemberFormM
 
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getClientAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ ...formData, business_id: businessId })
       })
 

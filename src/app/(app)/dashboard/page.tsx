@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { getClientCache, setClientCache } from '@/lib/clientCache'
+import { formatPaymentDisplay, getPaymentMethodLabel } from '@/lib/payments'
 import { supabase } from '@/lib/supabase'
 import { formatIDR, isSameLocalDate, toLocalISODate } from '@/lib/utils'
 import {
@@ -101,7 +102,12 @@ export default function DashboardPage() {
 
     try {
       const url = `/api/dashboard?business_id=${business.id}&startDate=${startDate}&endDate=${endDate}`
-      const res = await fetch(url)
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(url, {
+        headers: session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : {}
+      })
       if (res.ok) {
         const result = await res.json()
         setData(result)
@@ -435,7 +441,7 @@ export default function DashboardPage() {
                   return (
                     <div key={method}>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-700 capitalize">{method}</span>
+                        <span className="text-sm font-medium text-gray-700">{getPaymentMethodLabel(method)}</span>
                         <span className="text-sm text-gray-500">{count} ({percentage.toFixed(0)}%)</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
@@ -582,8 +588,8 @@ export default function DashboardPage() {
                             {order.order_items?.length || 0} items
                           </td>
                           <td className="py-3 px-2 md:px-4 text-xs md:text-sm">
-                            <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium capitalize">
-                              {order.payment_method}
+                            <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium">
+                              {formatPaymentDisplay(order.payment_method, order.payment_provider)}
                             </span>
                           </td>
                           <td className="py-3 px-2 md:px-4 text-xs md:text-sm text-right">

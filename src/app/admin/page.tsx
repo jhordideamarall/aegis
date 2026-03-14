@@ -5,11 +5,18 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import {
+  buildFeatureUpdateWhatsAppMessage,
+  buildWhatsAppUrl,
+  getFeatureUpdateUrl,
+  normalizeWhatsAppNumber
+} from '@/lib/featureUpdates'
+import {
   TrendingUp,
   DollarSign,
   ShoppingBag,
   Users,
   BarChart,
+  Bell,
   Mail,
   Phone,
   Edit,
@@ -35,6 +42,7 @@ interface Business {
   business_name: string
   email: string | null
   phone: string | null
+  pic_name: string | null
   industry: string | null
   status: string
   created_at: string
@@ -45,6 +53,33 @@ interface Business {
   address: string | null
   logo_url: string | null
   settings: BusinessSettings | null
+}
+
+interface FeatureUpdateItem {
+  id: string
+  slug: string
+  title: string
+  version: string | null
+  summary: string
+  content: string
+  highlights: string[]
+  status: 'draft' | 'published'
+  featured: boolean
+  published_at: string | null
+  email_sent_at: string | null
+  email_recipient_count: number
+  email_last_error: string | null
+  created_by_email: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface WhatsAppRecipient {
+  id: string
+  businessName: string
+  picName: string | null
+  phone: string
+  waNumber: string
 }
 
 interface BusinessStats {
@@ -75,7 +110,7 @@ export default function AdminDashboard() {
   const [statusValue, setStatusValue] = useState('active')
   const [saving, setSaving] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'top' | 'all'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'top' | 'all' | 'updates'>('overview')
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -83,6 +118,25 @@ export default function AdminDashboard() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [searchQuery, setSearchQuery] = useState('')
   const [statsMap, setStatsMap] = useState<Record<string, BusinessStats>>({})
+  const [featureUpdates, setFeatureUpdates] = useState<FeatureUpdateItem[]>([])
+  const [updatesLoading, setUpdatesLoading] = useState(false)
+  const [updatesError, setUpdatesError] = useState('')
+  const [announcementNotice, setAnnouncementNotice] = useState('')
+  const [publishingUpdate, setPublishingUpdate] = useState(false)
+  const [announcementForm, setAnnouncementForm] = useState({
+    version: '',
+    title: '',
+    summary: '',
+    content: '',
+    highlights: '',
+    publishNow: true,
+    featured: false
+  })
+  const [whatsAppPreview, setWhatsAppPreview] = useState<{
+    update: FeatureUpdateItem
+    recipients: WhatsAppRecipient[]
+    sampleMessage: string
+  } | null>(null)
 
   useEffect(() => {
     checkAdmin()
@@ -97,7 +151,7 @@ export default function AdminDashboard() {
 
   const checkAdmin = async () => {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !user.email?.includes('admin@')) {
+    if (!user) {
       router.push('/')
       return
     }
@@ -125,6 +179,11 @@ export default function AdminDashboard() {
         }
       })
 
+      if (res.status === 401 || res.status === 403) {
+        router.push('/')
+        return
+      }
+
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}))
         throw new Error(errorData.error || 'Failed to fetch businesses')
@@ -139,6 +198,7 @@ export default function AdminDashboard() {
 
       // Fetch stats for all businesses (all time)
       await fetchStatsForTimeRange(businessesList)
+      await fetchFeatureUpdates(accessToken)
 
       setLoading(false)
     } catch (error: any) {
@@ -281,6 +341,131 @@ export default function AdminDashboard() {
     window.open(`https://wa.me/${waNumber}`, '_blank')
   }
 
+  const fetchFeatureUpdates = async (tokenArg?: string) => {
+    const token = tokenArg || accessToken
+    if (!token) return
+
+    try {
+      setUpdatesLoading(true)
+      setUpdatesError('')
+
+      const res = await fetch('/api/admin/feature-updates', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to fetch feature updates')
+      }
+
+      const data = await res.json()
+      setFeatureUpdates(data.updates || [])
+    } catch (error: any) {
+      setUpdatesError(error.message || 'Failed to fetch feature updates')
+    } finally {
+      setUpdatesLoading(false)
+    }
+  }
+
+  const handleCreateFeatureUpdate = async () => {
+    if (!accessToken) return
+
+    try {
+      setPublishingUpdate(true)
+      setUpdatesError('')
+      setAnnouncementNotice('')
+
+      const res = await fetch('/api/admin/feature-updates', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(announcementForm)
+      })
+
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to create feature update')
+      }
+
+      setAnnouncementForm({
+        version: '',
+        title: '',
+        summary: '',
+        content: '',
+        highlights: '',
+        publishNow: true,
+        featured: false
+      })
+
+      setAnnouncementNotice('Feature update berhasil dibuat.')
+      await fetchFeatureUpdates(accessToken)
+    } catch (error: any) {
+      setUpdatesError(error.message || 'Failed to create feature update')
+    } finally {
+      setPublishingUpdate(false)
+    }
+  }
+
+  const getWhatsAppRecipients = () => {
+    return businesses
+      .filter((biz) => ['active', 'demo'].includes(biz.status))
+      .map((biz) => ({
+        id: biz.id,
+        businessName: biz.business_name,
+        picName: biz.pic_name,
+        phone: biz.phone || '',
+        waNumber: normalizeWhatsAppNumber(biz.phone)
+      }))
+      .filter((biz) => Boolean(biz.waNumber))
+  }
+
+  const handleOpenWhatsAppBroadcast = (update: FeatureUpdateItem) => {
+    setUpdatesError('')
+    setAnnouncementNotice('')
+
+    if (update.status !== 'published') {
+      setUpdatesError('Publish update ini dulu supaya link detail update bisa dibuka dari WhatsApp.')
+      return
+    }
+
+    const recipients = getWhatsAppRecipients()
+    if (recipients.length === 0) {
+      setUpdatesError('Belum ada bisnis aktif/demo yang memiliki nomor WhatsApp.')
+      return
+    }
+
+    const sampleMessage = buildFeatureUpdateWhatsAppMessage({
+      businessName: recipients[0].businessName,
+      picName: recipients[0].picName,
+      updateTitle: update.title,
+      version: update.version,
+      summary: update.summary,
+      highlights: update.highlights,
+      updateUrl: getFeatureUpdateUrl(update.slug)
+    })
+
+    setWhatsAppPreview({
+      update,
+      recipients,
+      sampleMessage
+    })
+  }
+
+  const handleCopyWhatsAppTemplate = async () => {
+    if (!whatsAppPreview) return
+
+    try {
+      await navigator.clipboard.writeText(whatsAppPreview.sampleMessage)
+      setAnnouncementNotice('Template WhatsApp berhasil disalin.')
+    } catch {
+      setUpdatesError('Gagal menyalin template WhatsApp.')
+    }
+  }
+
   const fetchBusinessStats = async (businessId: string, startDate?: string, endDate?: string): Promise<BusinessStats> => {
     try {
       let url = `/api/admin/businesses/${businessId}/stats`
@@ -291,8 +476,12 @@ export default function AdminDashboard() {
       if (params.toString()) {
         url += `?${params.toString()}`
       }
-      
-      const res = await fetch(url)
+      const authHeaders = accessToken
+        ? { Authorization: `Bearer ${accessToken}` }
+        : undefined
+      const res = await fetch(url, {
+        headers: authHeaders
+      })
       if (!res.ok) return defaultStats()
       const data = await res.json()
       return data
@@ -340,6 +529,8 @@ export default function AdminDashboard() {
     return value
   }
 
+  const whatsappRecipientsCount = getWhatsAppRecipients().length
+
   const getFilteredBusinesses = () => {
     let filtered = [...businesses]
     
@@ -348,6 +539,7 @@ export default function AdminDashboard() {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(biz => 
         biz.business_name.toLowerCase().includes(query) ||
+        (biz.pic_name && biz.pic_name.toLowerCase().includes(query)) ||
         (biz.email && biz.email.toLowerCase().includes(query)) ||
         (biz.phone && biz.phone.toLowerCase().includes(query)) ||
         (biz.industry && biz.industry.toLowerCase().includes(query)) ||
@@ -506,6 +698,18 @@ export default function AdminDashboard() {
                   {totalBusinesses}
                 </span>
               </button>
+
+              <button
+                onClick={() => { setActiveTab('updates'); setSidebarOpen(false); void fetchFeatureUpdates() }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                  activeTab === 'updates'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <Bell size={18} strokeWidth={2} />
+                <span className="text-sm font-medium">Feature Updates</span>
+              </button>
             </div>
 
             {/* Quick Stats */}
@@ -578,15 +782,18 @@ export default function AdminDashboard() {
                   {activeTab === 'overview' && 'Overview'}
                   {activeTab === 'top' && 'Top Performing Businesses'}
                   {activeTab === 'all' && 'All Businesses'}
+                  {activeTab === 'updates' && 'Feature Updates'}
                 </h2>
                 <p className="text-sm text-gray-600 mt-1">
                   {activeTab === 'overview' && 'Monitor all businesses performance and activities'}
                   {activeTab === 'top' && 'Ranked by revenue performance'}
                   {activeTab === 'all' && 'Detailed overview of all registered businesses'}
+                  {activeTab === 'updates' && 'Publish release announcements and prepare feature update WhatsApp broadcasts'}
                 </p>
               </div>
               
               {/* Time Filter */}
+              {activeTab !== 'updates' && (
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <select
@@ -622,6 +829,7 @@ export default function AdminDashboard() {
                   </div>
                 )}
               </div>
+              )}
             </div>
           </div>
         </div>
@@ -769,6 +977,7 @@ export default function AdminDashboard() {
                         <td className="px-4 py-3">
                           <div>
                             <p className="font-semibold text-gray-900 text-sm">{biz.business_name}</p>
+                            {biz.pic_name && <p className="text-xs text-gray-500">PIC: {biz.pic_name}</p>}
                             <p className="text-xs text-gray-500 truncate max-w-[200px]">{biz.email}</p>
                           </div>
                         </td>
@@ -870,6 +1079,7 @@ export default function AdminDashboard() {
                         <td className="px-4 py-3">
                           <div>
                             <p className="font-semibold text-gray-900 text-sm">{biz.business_name}</p>
+                            {biz.pic_name && <p className="text-xs text-gray-500">PIC: {biz.pic_name}</p>}
                             <p className="text-xs text-gray-500 truncate max-w-[200px]">{biz.email}</p>
                             {biz.phone && <p className="text-xs text-gray-500">{biz.phone}</p>}
                           </div>
@@ -941,6 +1151,243 @@ export default function AdminDashboard() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'updates' && (
+            <div className="space-y-6">
+              <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+                <div className="rounded-xl border border-gray-200 bg-white p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">Buat Pengumuman Update</h3>
+                      <p className="mt-1 text-sm text-gray-600">
+                        Update ini akan tampil di halaman publik `Update Fitur` dan bisa disebarkan lewat WhatsApp.
+                      </p>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      whatsappRecipientsCount > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {whatsappRecipientsCount > 0 ? `${whatsappRecipientsCount} Nomor WA Siap` : 'Belum Ada Nomor WA'}
+                    </span>
+                  </div>
+
+                  <div className="mt-6 space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-gray-700">Version</label>
+                        <input
+                          type="text"
+                          value={announcementForm.version}
+                          onChange={(e) => setAnnouncementForm((prev) => ({ ...prev, version: e.target.value }))}
+                          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="e.g., v1.3.0"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-gray-700">Title</label>
+                        <input
+                          type="text"
+                          value={announcementForm.title}
+                          onChange={(e) => setAnnouncementForm((prev) => ({ ...prev, title: e.target.value }))}
+                          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Judul pembaruan fitur"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">Summary</label>
+                      <textarea
+                        value={announcementForm.summary}
+                        onChange={(e) => setAnnouncementForm((prev) => ({ ...prev, summary: e.target.value }))}
+                        rows={3}
+                        className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Ringkasan singkat yang muncul di halaman update dan WhatsApp."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">Detailed Content</label>
+                      <textarea
+                        value={announcementForm.content}
+                        onChange={(e) => setAnnouncementForm((prev) => ({ ...prev, content: e.target.value }))}
+                        rows={7}
+                        className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Tulis penjelasan lengkap. Pisahkan paragraf dengan satu baris kosong."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">Highlights</label>
+                      <textarea
+                        value={announcementForm.highlights}
+                        onChange={(e) => setAnnouncementForm((prev) => ({ ...prev, highlights: e.target.value }))}
+                        rows={5}
+                        className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder={'Satu highlight per baris\nContoh: QRIS sekarang mendukung provider general dan bank'}
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+                      <label className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={announcementForm.publishNow}
+                          onChange={(e) => setAnnouncementForm((prev) => ({ ...prev, publishNow: e.target.checked }))}
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                        <span>Publish langsung ke halaman Update Fitur</span>
+                      </label>
+                      <label className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={announcementForm.featured}
+                          onChange={(e) => setAnnouncementForm((prev) => ({ ...prev, featured: e.target.checked }))}
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                        <span>Tandai sebagai featured release</span>
+                      </label>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        onClick={handleCreateFeatureUpdate}
+                        disabled={publishingUpdate}
+                        className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {publishingUpdate ? 'Menyimpan...' : 'Simpan Pengumuman'}
+                      </button>
+                      <Link
+                        href="/updates"
+                        target="_blank"
+                        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-5 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                      >
+                        Lihat Halaman Publik
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 bg-white p-6">
+                  <h3 className="text-lg font-bold text-gray-900">Panduan Publish</h3>
+                  <div className="mt-5 space-y-4 text-sm leading-7 text-gray-600">
+                    <p>
+                      Gunakan halaman ini untuk mengumumkan perubahan penting pada sistem seperti fitur baru,
+                      penyempurnaan alur transaksi, pembaruan laporan, atau perubahan operasional yang perlu diketahui user.
+                    </p>
+                    <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sky-900">
+                      <p className="font-semibold">Flow yang direkomendasikan</p>
+                      <ol className="mt-2 list-decimal space-y-2 pl-5">
+                        <li>Tulis judul, summary, detail lengkap, dan highlights.</li>
+                        <li>Centang `Publish langsung` jika update sudah siap tampil ke publik.</li>
+                        <li>Setelah tersimpan, buka broadcast WhatsApp dari daftar update di bawah.</li>
+                      </ol>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                      <p className="font-semibold text-gray-900">Catatan WhatsApp</p>
+                      <p className="mt-2">
+                        Flow ini tidak butuh SMTP. Sistem akan menyiapkan template pesan berdasarkan update fitur, lalu admin
+                        bisa membuka chat WhatsApp ke bisnis yang punya nomor terdaftar.
+                      </p>
+                    </div>
+                    {announcementNotice && (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-700">
+                        {announcementNotice}
+                      </div>
+                    )}
+                    {updatesError && (
+                      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+                        {updatesError}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Riwayat Feature Updates</h3>
+                    <p className="mt-1 text-sm text-gray-600">Kelola post yang sudah dipublikasikan atau siap dibroadcast lewat WhatsApp.</p>
+                  </div>
+                  <button
+                    onClick={() => void fetchFeatureUpdates()}
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                <div className="p-6">
+                  {updatesLoading ? (
+                    <div className="rounded-xl border border-dashed border-gray-300 px-6 py-12 text-center text-gray-500">
+                      Loading feature updates...
+                    </div>
+                  ) : featureUpdates.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-gray-300 px-6 py-12 text-center text-gray-500">
+                      Belum ada pengumuman update fitur.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {featureUpdates.map((update) => (
+                        <div key={update.id} className="rounded-2xl border border-gray-200 p-5">
+                          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                            <div className="max-w-3xl">
+                              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wider">
+                                <span className={`rounded-full px-3 py-1 ${
+                                  update.status === 'published'
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : 'bg-amber-100 text-amber-700'
+                                }`}>
+                                  {update.status}
+                                </span>
+                                {update.featured && (
+                                  <span className="rounded-full bg-sky-100 px-3 py-1 text-sky-700">featured</span>
+                                )}
+                                {update.version && (
+                                  <span className="rounded-full border border-gray-200 px-3 py-1 text-gray-600">{update.version}</span>
+                                )}
+                              </div>
+                              <h4 className="mt-3 text-xl font-semibold text-gray-900">{update.title}</h4>
+                              <p className="mt-2 text-sm leading-7 text-gray-600">{update.summary}</p>
+                              {update.highlights.length > 0 && (
+                                <div className="mt-4 flex flex-wrap gap-2">
+                                  {update.highlights.slice(0, 4).map((item) => (
+                                    <span key={item} className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600">
+                                      {item}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="mt-4 text-xs text-gray-500">
+                                Published: {formatDateTime(update.published_at)} • Nomor WA siap: {whatsappRecipientsCount}
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Link
+                                href={`/updates/${update.slug}`}
+                                target="_blank"
+                                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                              >
+                                Open Page
+                              </Link>
+                              <button
+                                onClick={() => handleOpenWhatsAppBroadcast(update)}
+                                disabled={whatsappRecipientsCount === 0}
+                                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Broadcast WA
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -1055,6 +1502,7 @@ export default function AdminDashboard() {
                 </DetailSection>
 
                 <DetailSection title="Contact & Location">
+                  <DetailRow label="PIC Brand/Toko" value={formatText(detailBusiness.pic_name)} />
                   <DetailRow label="Email" value={formatText(detailBusiness.email)} />
                   <DetailRow label="Phone" value={formatText(detailBusiness.phone)} />
                   <DetailRow label="City" value={formatText(detailBusiness.city)} />
@@ -1080,6 +1528,88 @@ export default function AdminDashboard() {
                     </pre>
                   </div>
                 </DetailSection>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {whatsAppPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Broadcast WhatsApp</h3>
+                <p className="mt-1 text-sm text-gray-600">
+                  {whatsAppPreview.update.title} • {whatsAppPreview.recipients.length} bisnis siap dihubungi
+                </p>
+              </div>
+              <button
+                onClick={() => setWhatsAppPreview(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} strokeWidth={2} />
+              </button>
+            </div>
+
+            <div className="grid gap-0 lg:grid-cols-[0.95fr_1.05fr]">
+              <div className="border-b border-gray-200 p-6 lg:border-b-0 lg:border-r">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900">Template Pesan</h4>
+                    <p className="mt-1 text-xs text-gray-500">Pesan sudah disusun otomatis dari data update fitur.</p>
+                  </div>
+                  <button
+                    onClick={() => void handleCopyWhatsAppTemplate()}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
+                  >
+                    Copy Template
+                  </button>
+                </div>
+                <pre className="mt-4 max-h-[55vh] overflow-auto whitespace-pre-wrap rounded-xl bg-gray-50 p-4 text-sm leading-7 text-gray-700">
+                  {whatsAppPreview.sampleMessage}
+                </pre>
+              </div>
+
+              <div className="p-6">
+                <h4 className="text-sm font-semibold text-gray-900">Daftar Penerima</h4>
+                <p className="mt-1 text-xs text-gray-500">
+                  Klik tombol chat untuk membuka WhatsApp dengan pesan yang sudah dipersonalisasi.
+                </p>
+                <div className="mt-4 max-h-[55vh] space-y-3 overflow-auto">
+                  {whatsAppPreview.recipients.map((recipient) => {
+                    const message = buildFeatureUpdateWhatsAppMessage({
+                      businessName: recipient.businessName,
+                      picName: recipient.picName,
+                      updateTitle: whatsAppPreview.update.title,
+                      version: whatsAppPreview.update.version,
+                      summary: whatsAppPreview.update.summary,
+                      highlights: whatsAppPreview.update.highlights,
+                      updateUrl: getFeatureUpdateUrl(whatsAppPreview.update.slug)
+                    })
+
+                    return (
+                      <div key={recipient.id} className="flex flex-col gap-3 rounded-xl border border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="font-semibold text-gray-900">{recipient.businessName}</p>
+                          <p className="text-sm text-gray-500">
+                            {recipient.picName ? `PIC: ${recipient.picName} • ` : ''}
+                            {recipient.phone}
+                          </p>
+                        </div>
+                        <a
+                          href={buildWhatsAppUrl(recipient.waNumber, message)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700"
+                        >
+                          <Phone size={16} strokeWidth={2} />
+                          Chat WhatsApp
+                        </a>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           </div>

@@ -1,17 +1,16 @@
 'use client'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Navbar from '@/components/landing/Navbar'
 import Footer from '@/components/landing/Footer'
+import { buildBusinessAppUrl, buildTenantAuthBridgeUrl } from '@/lib/tenant'
 
 export default function SetupWizard() {
-  const router = useRouter()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [formData, setFormData] = useState({
-    business_name: '', industry: 'general', email: '', phone: '', address: '', city: '',
+    business_name: '', industry: 'general', email: '', phone: '', pic_name: '', address: '', city: '',
     full_name: '', owner_email: '', password: '', confirm_password: '',
     receipt_header: '', receipt_footer: 'Terima Kasih!', paper_size: '58mm'
   })
@@ -36,6 +35,7 @@ export default function SetupWizard() {
           industry: formData.industry,
           email: formData.email,
           phone: formData.phone,
+          pic_name: formData.pic_name,
           address: formData.address,
           city: formData.city
         })
@@ -48,6 +48,7 @@ export default function SetupWizard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           business_id: bizData.business_id,
+          setup_token: bizData.setup_token,
           full_name: formData.full_name,
           email: formData.owner_email,
           password: formData.password
@@ -56,7 +57,7 @@ export default function SetupWizard() {
       const userData = await userRes.json()
       if (!userRes.ok) throw new Error(userData.error || 'User creation failed')
       // Step 4: Sign in the user
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: formData.owner_email,
         password: formData.password
       })
@@ -67,6 +68,7 @@ export default function SetupWizard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           business_id: bizData.business_id,
+          setup_token: bizData.setup_token,
           settings: {
             receipt_header: formData.receipt_header || formData.business_name,
             receipt_footer: formData.receipt_footer,
@@ -78,8 +80,24 @@ export default function SetupWizard() {
         const completeData = await completeRes.json()
         throw new Error(completeData.error || 'Setup failed')
       }
-      // Step 6: Redirect to dashboard
-      router.push('/dashboard')
+      // Step 6: Redirect to the tenant POS app
+      const accessToken = signInData.session?.access_token
+      const refreshToken = signInData.session?.refresh_token
+
+      if (accessToken && refreshToken) {
+        window.location.assign(
+          buildTenantAuthBridgeUrl(
+            bizData.subdomain,
+            accessToken,
+            refreshToken,
+            '/dashboard',
+            window.location.origin
+          )
+        )
+        return
+      }
+
+      window.location.assign(buildBusinessAppUrl(bizData.subdomain, '/dashboard', window.location.origin))
     } catch (err: any) {
       console.error('Setup error:', err)
       setError(err.message || 'Setup failed. Please try again.')
@@ -107,6 +125,7 @@ export default function SetupWizard() {
                 <div><label className="block text-sm font-medium mb-2">Industry *</label><select value={formData.industry} onChange={(e) => updateFormData('industry', e.target.value)} className="w-full px-4 py-3 border rounded-lg"><option value="general">General</option><option value="fnb">Food & Beverage</option><option value="retail">Retail</option><option value="services">Services</option></select></div>
                 <div><label className="block text-sm font-medium mb-2">Email *</label><input type="email" value={formData.email} onChange={(e) => updateFormData('email', e.target.value)} className="w-full px-4 py-3 border rounded-lg" placeholder="business@example.com" required /></div>
                 <div><label className="block text-sm font-medium mb-2">Phone</label><input type="tel" value={formData.phone} onChange={(e) => updateFormData('phone', e.target.value)} className="w-full px-4 py-3 border rounded-lg" placeholder="0812-3456-7890" /></div>
+                <div><label className="block text-sm font-medium mb-2">PIC Brand/Toko</label><input type="text" value={formData.pic_name} onChange={(e) => updateFormData('pic_name', e.target.value)} className="w-full px-4 py-3 border rounded-lg" placeholder="e.g., Budi Santoso" /></div>
                 <div><label className="block text-sm font-medium mb-2">Address</label><textarea value={formData.address} onChange={(e) => updateFormData('address', e.target.value)} rows={2} className="w-full px-4 py-3 border rounded-lg" placeholder="Street address" /></div>
               </div>
             </div>

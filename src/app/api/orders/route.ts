@@ -1,6 +1,27 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { assertBusinessActive } from '@/lib/business'
+import { getOrderPaymentColumnSupport } from '@/lib/orderPaymentColumns'
+import { isValidPaymentMethod, isValidPaymentProvider } from '@/lib/payments'
+import {
+  forbiddenResponse,
+  getBusinessContextFromRequest,
+  unauthorizedResponse
+} from '@/lib/requestAuth'
+
+interface OrdersListRow {
+  id: string
+  member_id: string | null
+  total: number
+  payment_method: string
+  payment_provider?: string | null
+  payment_proof_url?: string | null
+  payment_proof_uploaded_at?: string | null
+  payment_notes?: string | null
+  created_at: string
+  order_items?: Array<{ id: string }>
+  member?: { name: string; phone: string } | Array<{ name: string; phone: string }> | null
+}
 
 // Helper to format date as local YYYY-MM-DD
 function toLocalISODate(date: Date): string {
@@ -12,6 +33,12 @@ function toLocalISODate(date: Date): string {
 
 export async function GET(request: Request) {
   try {
+    const businessContext = await getBusinessContextFromRequest(request)
+
+    if (!businessContext) {
+      return unauthorizedResponse()
+    }
+
     const { searchParams } = new URL(request.url)
     const orderId = searchParams.get('id')
     const businessId = searchParams.get('business_id')
@@ -24,12 +51,11 @@ export async function GET(request: Request) {
     const from = (page - 1) * limit
     const to = from + limit - 1
 
-    if (!businessId) {
-      return NextResponse.json(
-        { error: 'business_id is required' },
-        { status: 400 }
-      )
+    if (businessId && businessId !== businessContext.businessId) {
+      return forbiddenResponse('Cannot access another business')
     }
+
+    const resolvedBusinessId = businessContext.businessId
 
     if (orderId) {
       const { data: order, error: orderError } = await supabaseAdmin
@@ -40,12 +66,29 @@ export async function GET(request: Request) {
           member:members(name, phone)
         `)
         .eq('id', orderId)
-        .eq('business_id', businessId)
+        .eq('business_id', resolvedBusinessId)
         .single()
 
       if (orderError) throw orderError
       return NextResponse.json(order)
     }
+
+    const paymentColumnSupport = await getOrderPaymentColumnSupport()
+    const listSelect = [
+      'id',
+      'member_id',
+      'total',
+      'payment_method',
+      paymentColumnSupport.provider ? 'payment_provider' : null,
+      paymentColumnSupport.proof ? 'payment_proof_url' : null,
+      paymentColumnSupport.proof ? 'payment_proof_uploaded_at' : null,
+      paymentColumnSupport.notes ? 'payment_notes' : null,
+      'created_at',
+      'order_items(id)',
+      'member:members(name, phone)'
+    ]
+      .filter(Boolean)
+      .join(',\n        ')
 
     // Parse dates - treat input as local dates (YYYY-MM-DD format from frontend)
     // Convert to Indonesian time (WIB - UTC+7)
@@ -87,16 +130,8 @@ export async function GET(request: Request) {
 
     let query = supabaseAdmin
       .from('orders')
-      .select(`
-        id,
-        member_id,
-        total,
-        payment_method,
-        created_at,
-        order_items(id),
-        member:members(name, phone)
-      `, { count: 'exact' })
-      .eq('business_id', businessId)
+      .select(listSelect, { count: 'exact' })
+      .eq('business_id', resolvedBusinessId)
 
     if (rangeStart) {
       query = query.gte('created_at', rangeStart.toISOString())
@@ -118,7 +153,7 @@ export async function GET(request: Request) {
       const { data: matchingMembers, error: memberSearchError } = await supabaseAdmin
         .from('members')
         .select('id')
-        .eq('business_id', businessId)
+        .eq('business_id', resolvedBusinessId)
         .or(`name.ilike.%${search}%,phone.ilike.%${search}%`)
 
       if (memberSearchError) {
@@ -135,39 +170,36 @@ export async function GET(request: Request) {
       const { data: allOrders, error: fetchError } = await query.range(from, to)
       
       if (fetchError) throw fetchError
+      const normalizedAllOrders = ((allOrders || []) as unknown) as OrdersListRow[]
       
       // Filter orders in memory
-      let filteredOrders = allOrders?.filter((order: any) => {
+      let filteredOrders = normalizedAllOrders.filter((order) => {
         // Match by order ID
         if (order.id.toLowerCase().includes(search.toLowerCase())) return true
         // Match by payment method
         if (order.payment_method.toLowerCase().includes(search.toLowerCase())) return true
+        // Match by payment provider
+        if (paymentColumnSupport.provider && order.payment_provider?.toLowerCase().includes(search.toLowerCase())) return true
         // Match by member ID
         if (memberIds.length > 0 && order.member_id && memberIds.includes(order.member_id)) return true
         return false
-      }) || []
+      })
       
       // Also fetch matching member orders that might be outside the current page
       if (memberIds.length > 0) {
         const { data: extraMemberOrders } = await supabaseAdmin
           .from('orders')
-          .select(`
-            id,
-            member_id,
-            total,
-            payment_method,
-            created_at,
-            order_items(id),
-            member:members(name, phone)
-          `)
-          .eq('business_id', businessId)
+          .select(listSelect)
+          .eq('business_id', resolvedBusinessId)
           .in('member_id', memberIds)
           .order('created_at', { ascending: false })
           .limit(100)
         
-        if (extraMemberOrders) {
+        const normalizedExtraMemberOrders = ((extraMemberOrders || []) as unknown) as OrdersListRow[]
+
+        if (normalizedExtraMemberOrders.length > 0) {
           const existingIds = new Set(filteredOrders.map(o => o.id))
-          extraMemberOrders.forEach(o => {
+          normalizedExtraMemberOrders.forEach(o => {
             if (!existingIds.has(o.id)) {
               filteredOrders.push(o)
             }
@@ -206,7 +238,7 @@ export async function GET(request: Request) {
     let summaryQuery = supabaseAdmin
       .from('orders')
       .select('total', { count: 'exact' })
-      .eq('business_id', businessId)
+      .eq('business_id', resolvedBusinessId)
 
     if (rangeStart) {
       summaryQuery = summaryQuery.gte('created_at', rangeStart.toISOString())
@@ -226,7 +258,7 @@ export async function GET(request: Request) {
       const { data: matchingMembers } = await supabaseAdmin
         .from('members')
         .select('id')
-        .eq('business_id', businessId)
+        .eq('business_id', resolvedBusinessId)
         .or(`name.ilike.%${search}%,phone.ilike.%${search}%`)
       
       if (matchingMembers && matchingMembers.length > 0) {
@@ -235,9 +267,17 @@ export async function GET(request: Request) {
       
       // Build the filter conditions
       if (memberIds.length > 0) {
-        summaryQuery = summaryQuery.or(`id.ilike.%${search}%,payment_method.ilike.%${search}%,member_id.in.(${memberIds.join(',')})`)
+        summaryQuery = summaryQuery.or(
+          paymentColumnSupport.provider
+            ? `id.ilike.%${search}%,payment_method.ilike.%${search}%,payment_provider.ilike.%${search}%,member_id.in.(${memberIds.join(',')})`
+            : `id.ilike.%${search}%,payment_method.ilike.%${search}%,member_id.in.(${memberIds.join(',')})`
+        )
       } else {
-        summaryQuery = summaryQuery.or(`id.ilike.%${search}%,payment_method.ilike.%${search}%`)
+        summaryQuery = summaryQuery.or(
+          paymentColumnSupport.provider
+            ? `id.ilike.%${search}%,payment_method.ilike.%${search}%,payment_provider.ilike.%${search}%`
+            : `id.ilike.%${search}%,payment_method.ilike.%${search}%`
+        )
       }
     }
 
@@ -268,10 +308,18 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const businessContext = await getBusinessContextFromRequest(request)
+
+    if (!businessContext) {
+      return unauthorizedResponse()
+    }
+
     const body = await request.json()
     const {
       total,
       payment_method,
+      payment_provider,
+      payment_notes,
       member_id,
       points_earned = 0,
       points_used = 0,
@@ -281,12 +329,11 @@ export async function POST(request: Request) {
     } = body
 
     // Validation
-    if (!business_id) {
-      return NextResponse.json(
-        { error: 'business_id is required' },
-        { status: 400 }
-      )
+    if (business_id && business_id !== businessContext.businessId) {
+      return forbiddenResponse('Cannot create order for another business')
     }
+
+    const resolvedBusinessId = businessContext.businessId
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json(
@@ -295,7 +342,23 @@ export async function POST(request: Request) {
       )
     }
 
-    const statusCheck = await assertBusinessActive(business_id)
+    if (!payment_method || typeof payment_method !== 'string' || !isValidPaymentMethod(payment_method)) {
+      return NextResponse.json(
+        { error: 'Invalid payment_method' },
+        { status: 400 }
+      )
+    }
+
+    if (payment_provider && (typeof payment_provider !== 'string' || !isValidPaymentProvider(payment_provider))) {
+      return NextResponse.json(
+        { error: 'Invalid payment_provider' },
+        { status: 400 }
+      )
+    }
+
+    const paymentColumnSupport = await getOrderPaymentColumnSupport()
+
+    const statusCheck = await assertBusinessActive(resolvedBusinessId)
     if (!statusCheck.ok) {
       return NextResponse.json(
         { error: statusCheck.message },
@@ -303,18 +366,28 @@ export async function POST(request: Request) {
       )
     }
 
+    const orderPayload: Record<string, unknown> = {
+      total,
+      payment_method,
+      member_id: member_id || null,
+      points_earned,
+      points_used,
+      discount,
+      business_id: resolvedBusinessId
+    }
+
+    if (paymentColumnSupport.provider && payment_method === 'qris' && payment_provider) {
+      orderPayload.payment_provider = payment_provider
+    }
+
+    if (paymentColumnSupport.notes && typeof payment_notes === 'string' && payment_notes.trim()) {
+      orderPayload.payment_notes = payment_notes.trim()
+    }
+
     // Create order
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .insert([{
-        total,
-        payment_method,
-        member_id: member_id || null,
-        points_earned,
-        points_used,
-        discount,
-        business_id
-      }])
+      .insert([orderPayload])
       .select()
       .single()
 
@@ -326,7 +399,7 @@ export async function POST(request: Request) {
       product_id: item.product_id,
       qty: item.qty,
       price: item.price,
-      business_id
+      business_id: resolvedBusinessId
     }))
 
     const { error: itemsError } = await supabaseAdmin

@@ -5,11 +5,30 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { getClientCache, setClientCache } from '@/lib/clientCache'
+import { getClientAuthHeaders } from '@/lib/clientAuth'
+import { supabase } from '@/lib/supabase'
+import {
+  PAYMENT_METHOD_OPTIONS,
+  QRIS_PROVIDER_OPTIONS,
+  formatPaymentDisplay,
+  getPaymentMethodLabel,
+  getPaymentProviderLabel,
+  paymentMethodRequiresProof,
+  type PaymentMethod,
+  type PaymentProvider
+} from '@/lib/payments'
 import { formatIDR } from '@/lib/utils'
 import { Product, CartItem, Member } from '@/lib/types'
 import Modal from '@/components/Modal'
 import MemberSearch from '@/components/MemberSearch'
 import { ShoppingCart, Plus, Minus, X, Search, User, CreditCard, Package } from 'react-feather'
+
+interface PaymentSubmission {
+  method: PaymentMethod
+  provider: PaymentProvider | null
+  notes: string
+  proofFile: File | null
+}
 
 interface PaymentModalProps {
   total: number
@@ -20,7 +39,7 @@ interface PaymentModalProps {
   serviceEnabled: boolean
   serviceRate: number
   onClose: () => void
-  onConfirm: (paymentMethod: string, redeemPoints: number) => void
+  onConfirm: (payment: PaymentSubmission, redeemPoints: number) => void
   onAddMember: (member: Member) => void
 }
 
@@ -36,7 +55,10 @@ function PaymentModal({
   onConfirm,
   onAddMember
 }: PaymentModalProps) {
-  const [paymentMethod, setPaymentMethod] = useState('cash')
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
+  const [paymentProvider, setPaymentProvider] = useState<PaymentProvider | null>(null)
+  const [paymentNotes, setPaymentNotes] = useState('')
+  const [proofFile, setProofFile] = useState<File | null>(null)
   const [redeemPoints, setRedeemPoints] = useState(0)
   const [processing, setProcessing] = useState(false)
   const [showAddMember, setShowAddMember] = useState(false)
@@ -51,10 +73,30 @@ function PaymentModal({
   const taxAmount = taxEnabled ? Math.round((taxableBase * taxRate) / 100) : 0
   const serviceAmount = serviceEnabled ? Math.round((taxableBase * serviceRate) / 100) : 0
   const finalTotal = taxableBase + taxAmount + serviceAmount
+  const requiresProof = paymentMethodRequiresProof(paymentMethod)
+
+  const handleMethodSelect = (method: PaymentMethod) => {
+    setPaymentMethod(method)
+
+    if (method === 'qris') {
+      setPaymentProvider((current) => current || 'general')
+      return
+    }
+
+    setPaymentProvider(null)
+  }
 
   const handleSubmit = async () => {
     setProcessing(true)
-    await onConfirm(paymentMethod, pointsUsed)
+    await onConfirm(
+      {
+        method: paymentMethod,
+        provider: paymentMethod === 'qris' ? (paymentProvider || 'general') : null,
+        notes: paymentNotes.trim(),
+        proofFile
+      },
+      pointsUsed
+    )
     setProcessing(false)
   }
 
@@ -118,21 +160,97 @@ function PaymentModal({
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
             <div className="grid grid-cols-3 gap-3">
-              {['cash', 'debit', 'credit', 'gopay', 'ovo', 'dana'].map((method) => (
+              {PAYMENT_METHOD_OPTIONS.map((method) => (
                 <button
-                  key={method}
-                  onClick={() => setPaymentMethod(method)}
-                  className={`py-3 px-4 rounded-lg border-2 font-medium capitalize transition-all ${
-                    paymentMethod === method
+                  key={method.value}
+                  onClick={() => handleMethodSelect(method.value)}
+                  className={`py-3 px-4 rounded-lg border-2 font-medium transition-all ${
+                    paymentMethod === method.value
                       ? 'border-blue-500 bg-blue-50 text-blue-600'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  {method}
+                  {method.label}
                 </button>
               ))}
             </div>
           </div>
+
+          {paymentMethod === 'qris' && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">QRIS Provider</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {QRIS_PROVIDER_OPTIONS.map((provider) => (
+                    <button
+                      key={provider.value}
+                      onClick={() => setPaymentProvider(provider.value)}
+                      className={`py-3 px-4 rounded-lg border-2 text-sm font-medium transition-all ${
+                        paymentProvider === provider.value
+                          ? 'border-blue-500 bg-blue-50 text-blue-600'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      {provider.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+                Metode tersimpan sebagai {formatPaymentDisplay(paymentMethod, paymentProvider || 'general')}.
+              </div>
+            </div>
+          )}
+
+          {requiresProof && (
+            <div className="space-y-4 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Foto Bukti Pembayaran
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => setProofFile(e.target.files?.[0] || null)}
+                  className="block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-gray-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white"
+                />
+                <p className="mt-2 text-xs text-gray-500">
+                  Opsional. Di perangkat mobile biasanya akan langsung menawarkan kamera.
+                </p>
+                {proofFile && (
+                  <div className="mt-2 flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm text-gray-700">
+                    <span className="truncate">{proofFile.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setProofFile(null)}
+                      className="ml-3 text-red-500 hover:text-red-700"
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Catatan Pembayaran
+                </label>
+                <textarea
+                  value={paymentNotes}
+                  onChange={(e) => setPaymentNotes(e.target.value)}
+                  rows={2}
+                  placeholder={
+                    paymentMethod === 'bank_transfer'
+                      ? 'Contoh: Transfer BCA a.n. Toko Pusat'
+                      : `Contoh: ${getPaymentMethodLabel(paymentMethod)} via ${paymentProvider ? getPaymentProviderLabel(paymentProvider) : 'QRIS'}`
+                  }
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          )}
 
           {points > 0 && (
             <div className="bg-green-50 p-4 rounded-lg">
@@ -218,7 +336,12 @@ function AddMemberQuickForm({ onClose, onSuccess }: AddMemberQuickFormProps) {
 
     try {
       // Get business_id from localStorage or context
-      const res = await fetch('/api/businesses/my')
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/businesses/my', {
+        headers: session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : {}
+      })
       const bizData = await res.json()
       
       if (!bizData.business?.id) {
@@ -227,7 +350,9 @@ function AddMemberQuickForm({ onClose, onSuccess }: AddMemberQuickFormProps) {
 
       const memberRes = await fetch('/api/members', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getClientAuthHeaders({
+          'Content-Type': 'application/json'
+        }),
         body: JSON.stringify({
           ...formData,
           business_id: bizData.business.id
@@ -404,7 +529,9 @@ export default function POSPage() {
         setCharges(cached)
       }
 
-      const res = await fetch(`/api/settings?business_id=${business.id}`)
+      const res = await fetch(`/api/settings?business_id=${business.id}`, {
+        headers: await getClientAuthHeaders()
+      })
       if (res.ok) {
         const data = await res.json()
         const nextCharges = {
@@ -430,7 +557,9 @@ export default function POSPage() {
         page: '1',
         limit: '1000'
       })
-      const res = await fetch(`/api/products?${params.toString()}`)
+      const res = await fetch(`/api/products?${params.toString()}`, {
+        headers: await getClientAuthHeaders()
+      })
       if (res.ok) {
         const data = await res.json()
         setProducts(data.data || [])
@@ -667,7 +796,7 @@ export default function POSPage() {
     </>
   )
 
-  const handleCheckout = async (paymentMethod: string, redeemPoints: number) => {
+  const handleCheckout = async (payment: PaymentSubmission, redeemPoints: number) => {
     if (!business || cart.length === 0) return
 
     setProcessing(true)
@@ -682,7 +811,9 @@ export default function POSPage() {
       const orderData = {
         business_id: business.id,
         total: finalTotal,
-        payment_method: paymentMethod,
+        payment_method: payment.method,
+        payment_provider: payment.provider,
+        payment_notes: payment.notes || null,
         member_id: selectedMember?.id || null,
         points_earned: pointsToEarn,
         points_used: pointsUsed,
@@ -694,9 +825,13 @@ export default function POSPage() {
         }))
       }
 
+      const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch('/api/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
+        },
         body: JSON.stringify(orderData)
       })
 
@@ -706,9 +841,30 @@ export default function POSPage() {
       }
 
       const order = await res.json()
+
+      let checkoutMessage = 'Order successful!'
+
+      if (payment.proofFile) {
+        const proofFormData = new FormData()
+        proofFormData.append('business_id', business.id)
+        proofFormData.append('file', payment.proofFile)
+
+        const proofRes = await fetch(`/api/orders/${order.id}/proof`, {
+          method: 'POST',
+          headers: session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {},
+          body: proofFormData
+        })
+
+        if (!proofRes.ok) {
+          const proofError = await proofRes.json().catch(() => null)
+          checkoutMessage = `${checkoutMessage} Bukti pembayaran gagal diunggah${proofError?.error ? `: ${proofError.error}` : '.'}`
+        }
+      }
       
       // Show success and print receipt
-      if (window.confirm('Order successful! Print receipt?')) {
+      if (window.confirm(`${checkoutMessage} Print receipt?`)) {
         // Redirect to orders page with print option
         router.push(`/orders?id=${order.id}&print=true`)
       } else {

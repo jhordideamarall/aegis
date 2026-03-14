@@ -1,6 +1,7 @@
 import { MetadataRoute } from "next";
+import { getSiteUrl } from "@/lib/site";
 
-const baseUrl = "https://aegis.id";
+const baseUrl = getSiteUrl();
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -12,13 +13,20 @@ export default function robots(): MetadataRoute.Robots {
           "/api/",
           "/admin/",
           "/_next/",
+          "/dashboard/",
+          "/orders/",
+          "/members/",
+          "/products/",
+          "/pos/",
+          "/settings/",
+          "/locked/",
           "/setup/",
         ],
       },
       {
         userAgent: "Googlebot",
         allow: "/",
-        disallow: ["/api/", "/admin/", "/_next/"],
+        disallow: ["/api/", "/admin/", "/_next/", "/dashboard/", "/orders/", "/members/", "/products/", "/pos/", "/settings/", "/locked/"],
       },
       {
         userAgent: "Googlebot-Image",

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { getClientAuthHeaders } from '@/lib/clientAuth'
 import { Member } from '@/lib/types'
 import Modal from './Modal'
 
@@ -27,7 +28,9 @@ export default function MemberSearch({ onSelect, onClose, businessId }: MemberSe
             page: '1',
             limit: '20'
           })
-          const res = await fetch(`/api/members?${params.toString()}`)
+          const res = await fetch(`/api/members?${params.toString()}`, {
+            headers: await getClientAuthHeaders()
+          })
           const data = await res.json()
           setMembers(data.data || [])
         } catch (error) {
@@ -44,7 +47,9 @@ export default function MemberSearch({ onSelect, onClose, businessId }: MemberSe
             page: '1',
             limit: '10'
           })
-          const res = await fetch(`/api/members?${params.toString()}`)
+          const res = await fetch(`/api/members?${params.toString()}`, {
+            headers: await getClientAuthHeaders()
+          })
           const data = await res.json()
           setMembers(data.data || [])
         } catch (error) {
@@ -174,7 +179,7 @@ function AddMemberForm({ businessId, onSuccess, onCancel }: AddMemberFormProps) 
     try {
       const res = await fetch('/api/members', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getClientAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ ...formData, business_id: businessId })
       })
 

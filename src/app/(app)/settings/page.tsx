@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { getClientCache, setClientCache } from '@/lib/clientCache'
+import { getClientAccessToken, getClientAuthHeaders } from '@/lib/clientAuth'
+import { supabase } from '@/lib/supabase'
+import { getBusinessDisplayName, getBusinessInitials } from '@/lib/businessBranding'
 
 interface Settings {
   receipt_header: string
@@ -15,7 +18,7 @@ interface Settings {
 }
 
 export default function SettingsPage() {
-  const { business, loading } = useAuth()
+  const { business, loading, refresh } = useAuth()
   const [settings, setSettings] = useState<Settings>({
     receipt_header: '',
     receipt_footer: 'Terima Kasih!',
@@ -27,9 +30,19 @@ export default function SettingsPage() {
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [picName, setPicName] = useState('')
+  const [logoUploading, setLogoUploading] = useState(false)
+  const [logoRemoving, setLogoRemoving] = useState(false)
+  const [passwordForm, setPasswordForm] = useState({
+    newPassword: '',
+    confirmPassword: ''
+  })
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [passwordNotice, setPasswordNotice] = useState('')
 
   useEffect(() => {
     if (!loading && business) {
+      setPicName(business.pic_name || '')
       fetchSettings()
     }
   }, [loading, business])
@@ -43,7 +56,9 @@ export default function SettingsPage() {
         setSettings(cached)
       }
 
-      const res = await fetch(`/api/settings?business_id=${business.id}`)
+      const res = await fetch(`/api/settings?business_id=${business.id}`, {
+        headers: await getClientAuthHeaders()
+      })
       if (res.ok) {
         const data = await res.json()
         const nextSettings: Settings = {
@@ -69,9 +84,31 @@ export default function SettingsPage() {
     setSaved(false)
 
     try {
+      const token = await getClientAccessToken()
+
+      if (!token) {
+        throw new Error('Session expired. Please login again.')
+      }
+
+      const businessRes = await fetch('/api/businesses/my', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          pic_name: picName
+        })
+      })
+
+      if (!businessRes.ok) {
+        const businessError = await businessRes.json()
+        throw new Error(businessError.error || 'Failed to save business profile')
+      }
+
       const res = await fetch('/api/settings', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getClientAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           business_id: business.id,
           settings: {
@@ -91,12 +128,113 @@ export default function SettingsPage() {
         throw new Error(error.error || 'Failed to save settings')
       }
 
+      await refresh()
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (error: any) {
       alert(error.message || 'Failed to save settings')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleLogoUpload = async (file: File | null) => {
+    if (!business || !file) return
+
+    setLogoUploading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
+      if (!token) {
+        throw new Error('Session expired. Please login again.')
+      }
+
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch('/api/businesses/my/logo', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: formData
+      })
+
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || 'Failed to upload logo')
+      }
+
+      await refresh()
+    } catch (error: any) {
+      alert(error.message || 'Failed to upload logo')
+    } finally {
+      setLogoUploading(false)
+    }
+  }
+
+  const handleLogoRemove = async () => {
+    if (!business) return
+
+    setLogoRemoving(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
+      if (!token) {
+        throw new Error('Session expired. Please login again.')
+      }
+
+      const res = await fetch('/api/businesses/my/logo', {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
+
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || 'Failed to remove logo')
+      }
+
+      await refresh()
+    } catch (error: any) {
+      alert(error.message || 'Failed to remove logo')
+    } finally {
+      setLogoRemoving(false)
+    }
+  }
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setPasswordSaving(true)
+    setPasswordNotice('')
+
+    try {
+      if (passwordForm.newPassword.length < 6) {
+        throw new Error('Password baru minimal 6 karakter.')
+      }
+
+      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+        throw new Error('Konfirmasi password tidak cocok.')
+      }
+
+      const { error } = await supabase.auth.updateUser({
+        password: passwordForm.newPassword
+      })
+
+      if (error) throw error
+
+      setPasswordForm({
+        newPassword: '',
+        confirmPassword: ''
+      })
+      setPasswordNotice('Password berhasil diperbarui.')
+    } catch (error: any) {
+      setPasswordNotice(error.message || 'Gagal memperbarui password.')
+    } finally {
+      setPasswordSaving(false)
     }
   }
 
@@ -118,6 +256,59 @@ export default function SettingsPage() {
         {/* Business Info */}
         <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
           <h2 className="text-xl font-semibold mb-4">Business Information</h2>
+          <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-5">
+            <div className="flex flex-col gap-5 md:flex-row md:items-center">
+              <div className="flex items-center gap-4">
+                {business?.logo_url ? (
+                  <img
+                    src={business.logo_url}
+                    alt={business.business_name}
+                    className="h-20 w-20 rounded-2xl object-cover border border-gray-200 bg-white"
+                  />
+                ) : (
+                  <div className="h-20 w-20 rounded-2xl bg-gray-900 text-white flex items-center justify-center text-2xl font-semibold">
+                    {getBusinessInitials(business?.business_name)}
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">Brand Preview</p>
+                  <h3 className="text-xl font-semibold text-gray-900">
+                    {getBusinessDisplayName(business?.business_name)}
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    Jika logo belum diupload, sistem otomatis menampilkan nama bisnis.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 md:ml-auto">
+                <label className="inline-flex items-center justify-center px-4 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-medium cursor-pointer hover:bg-gray-800">
+                  {logoUploading ? 'Uploading...' : 'Upload Logo'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={logoUploading || logoRemoving}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null
+                      void handleLogoUpload(file)
+                      e.currentTarget.value = ''
+                    }}
+                  />
+                </label>
+                {business?.logo_url && (
+                  <button
+                    type="button"
+                    onClick={handleLogoRemove}
+                    disabled={logoUploading || logoRemoving}
+                    className="px-4 py-2.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-white disabled:opacity-50"
+                  >
+                    {logoRemoving ? 'Removing...' : 'Remove Logo'}
+                  </button>
+                )}
+                <p className="text-xs text-gray-500">Opsional. Format gambar umum, maksimal 3 MB.</p>
+              </div>
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Business Name</label>
@@ -144,6 +335,16 @@ export default function SettingsPage() {
                 value={business?.phone || ''}
                 disabled
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">PIC Brand/Toko</label>
+              <input
+                type="text"
+                value={picName}
+                onChange={(e) => setPicName(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g., Budi Santoso"
               />
             </div>
             <div>
@@ -352,6 +553,52 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4">Password</h2>
+          <p className="text-sm text-gray-500 mb-6">
+            Ubah password akun yang sedang kamu gunakan untuk login ke Aegis POS.
+          </p>
+
+          <form onSubmit={handlePasswordChange} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
+              <input
+                type="password"
+                value={passwordForm.newPassword}
+                onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Minimal 6 karakter"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
+              <input
+                type="password"
+                value={passwordForm.confirmPassword}
+                onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Ulangi password baru"
+              />
+            </div>
+            <div className="md:col-span-2 flex flex-col gap-3">
+              {passwordNotice && (
+                <div className={`rounded-lg px-4 py-3 text-sm ${passwordNotice.includes('berhasil') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                  {passwordNotice}
+                </div>
+              )}
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={passwordSaving}
+                  className="px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium disabled:opacity-50"
+                >
+                  {passwordSaving ? 'Updating...' : 'Update Password'}
+                </button>
+              </div>
+            </div>
+          </form>
         </div>
 
         {/* Save Button */}

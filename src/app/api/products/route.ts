@@ -1,9 +1,20 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { assertBusinessActive } from '@/lib/business'
+import {
+  forbiddenResponse,
+  getBusinessContextFromRequest,
+  unauthorizedResponse
+} from '@/lib/requestAuth'
 
 export async function GET(request: Request) {
   try {
+    const businessContext = await getBusinessContextFromRequest(request)
+
+    if (!businessContext) {
+      return unauthorizedResponse()
+    }
+
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('business_id')
     const q = searchParams.get('q') || ''
@@ -13,17 +24,14 @@ export async function GET(request: Request) {
     const from = (page - 1) * limit
     const to = from + limit - 1
 
-    if (!businessId) {
-      return NextResponse.json(
-        { error: 'business_id is required' },
-        { status: 400 }
-      )
+    if (businessId && businessId !== businessContext.businessId) {
+      return forbiddenResponse('You do not have access to this business')
     }
 
     let query = supabaseAdmin
       .from('products')
       .select('id,name,price,stock,category,created_at', { count: 'exact' })
-      .eq('business_id', businessId)
+      .eq('business_id', businessContext.businessId)
       .order('name')
 
     if (q) {
@@ -49,15 +57,26 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const businessContext = await getBusinessContextFromRequest(request)
+
+    if (!businessContext) {
+      return unauthorizedResponse()
+    }
+
     const body = await request.json()
     const { name, price, stock, category, business_id } = body
+    const resolvedBusinessId = businessContext.businessId
 
     // Validation
-    if (!name || !business_id) {
+    if (!name) {
       return NextResponse.json(
-        { error: 'Name and business_id are required' },
+        { error: 'Name is required' },
         { status: 400 }
       )
+    }
+
+    if (business_id && business_id !== resolvedBusinessId) {
+      return forbiddenResponse('You do not have access to this business')
     }
 
     if (typeof price !== 'number' || price < 0) {
@@ -67,7 +86,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const statusCheck = await assertBusinessActive(business_id)
+    const statusCheck = await assertBusinessActive(resolvedBusinessId)
     if (!statusCheck.ok) {
       return NextResponse.json(
         { error: statusCheck.message },
@@ -82,7 +101,7 @@ export async function POST(request: Request) {
         price,
         stock: stock || 0,
         category: category || '',
-        business_id
+        business_id: resolvedBusinessId
       }])
       .select()
       .single()

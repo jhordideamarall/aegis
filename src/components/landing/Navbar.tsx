@@ -49,6 +49,13 @@ export default function Navbar() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-8">
+            <Link
+              href="/features"
+              className="text-gray-600 hover:text-gray-900 font-medium transition-colors relative group"
+            >
+              Features
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 group-hover:w-full transition-all duration-300"></span>
+            </Link>
             <Link 
               href="/pricing" 
               className="text-gray-600 hover:text-gray-900 font-medium transition-colors relative group"
@@ -57,10 +64,17 @@ export default function Navbar() {
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 group-hover:w-full transition-all duration-300"></span>
             </Link>
             <Link 
-              href="/#about" 
+              href="/about" 
               className="text-gray-600 hover:text-gray-900 font-medium transition-colors relative group"
             >
               About
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 group-hover:w-full transition-all duration-300"></span>
+            </Link>
+            <Link
+              href="/updates"
+              className="text-gray-600 hover:text-gray-900 font-medium transition-colors relative group"
+            >
+              Update Fitur
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 group-hover:w-full transition-all duration-300"></span>
             </Link>
           </div>
@@ -109,19 +123,33 @@ export default function Navbar() {
             className="md:hidden fixed top-20 left-0 right-0 bottom-0 overflow-y-auto border-t border-gray-100 bg-white/95 backdrop-blur-xl shadow-2xl"
           >
             <div className="flex flex-col gap-4">
+              <Link
+                href="/features"
+                className="px-4 pt-4 text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Features
+              </Link>
               <Link 
                 href="/pricing" 
-                className="px-4 pt-4 text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                className="px-4 text-gray-600 hover:text-gray-900 font-medium transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Pricing
               </Link>
               <Link 
-                href="/#about" 
+                href="/about" 
                 className="px-4 text-gray-600 hover:text-gray-900 font-medium transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 About
+              </Link>
+              <Link
+                href="/updates"
+                className="px-4 text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Update Fitur
               </Link>
               <div className="mx-4 flex flex-col gap-3 pt-4 border-t border-gray-100">
                 <Link 

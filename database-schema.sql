@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS businesses (
   status TEXT DEFAULT 'active',
   email TEXT,
   phone TEXT,
+  pic_name TEXT,
   address TEXT,
   city TEXT,
   logo_url TEXT,
@@ -127,7 +128,29 @@ CREATE TABLE IF NOT EXISTS member_transactions (
 );
 
 -- ============================================
--- 9. INDEXES FOR PERFORMANCE
+-- 9. FEATURE UPDATES TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS feature_updates (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  slug TEXT UNIQUE NOT NULL,
+  title TEXT NOT NULL,
+  version TEXT,
+  summary TEXT NOT NULL,
+  content TEXT NOT NULL,
+  highlights JSONB NOT NULL DEFAULT '[]'::jsonb,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+  featured BOOLEAN NOT NULL DEFAULT FALSE,
+  published_at TIMESTAMPTZ,
+  email_sent_at TIMESTAMPTZ,
+  email_recipient_count INTEGER NOT NULL DEFAULT 0,
+  email_last_error TEXT,
+  created_by_email TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================
+-- 10. INDEXES FOR PERFORMANCE
 -- ============================================
 CREATE INDEX IF NOT EXISTS idx_businesses_subdomain ON businesses(subdomain);
 CREATE INDEX IF NOT EXISTS idx_businesses_slug ON businesses(slug);
@@ -146,9 +169,12 @@ CREATE INDEX IF NOT EXISTS idx_members_business_id ON members(business_id);
 CREATE INDEX IF NOT EXISTS idx_members_phone ON members(phone);
 CREATE INDEX IF NOT EXISTS idx_settings_business_id ON settings(business_id);
 CREATE INDEX IF NOT EXISTS idx_member_transactions_member_id ON member_transactions(member_id);
+CREATE INDEX IF NOT EXISTS idx_feature_updates_status ON feature_updates(status);
+CREATE INDEX IF NOT EXISTS idx_feature_updates_published_at ON feature_updates(published_at DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS idx_feature_updates_featured ON feature_updates(featured);
 
 -- ============================================
--- 10. ENABLE ROW LEVEL SECURITY (RLS)
+-- 11. ENABLE ROW LEVEL SECURITY (RLS)
 -- ============================================
 ALTER TABLE businesses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE business_users ENABLE ROW LEVEL SECURITY;
@@ -158,9 +184,10 @@ ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE member_transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE feature_updates ENABLE ROW LEVEL SECURITY;
 
 -- ============================================
--- 11. RLS POLICIES - SELECT
+-- 12. RLS POLICIES - SELECT
 -- ============================================
 CREATE POLICY "Users can view their business" ON businesses FOR SELECT
 USING (id IN (SELECT business_id FROM business_users WHERE user_id = auth.uid()));
@@ -188,8 +215,11 @@ USING (member_id IN (SELECT id FROM members WHERE business_id IN (
   SELECT business_id FROM business_users WHERE user_id = auth.uid()
 )));
 
+CREATE POLICY "Anyone can view published feature updates" ON feature_updates FOR SELECT
+USING (status = 'published');
+
 -- ============================================
--- 12. RLS POLICIES - INSERT/UPDATE/DELETE
+-- 13. RLS POLICIES - INSERT/UPDATE/DELETE
 -- ============================================
 
 -- Businesses
@@ -239,7 +269,7 @@ WITH CHECK (member_id IN (SELECT id FROM members WHERE business_id IN (
 )));
 
 -- ============================================
--- 13. HELPER FUNCTIONS
+-- 14. HELPER FUNCTIONS
 -- ============================================
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -253,14 +283,80 @@ CREATE TRIGGER update_businesses_updated_at BEFORE UPDATE ON businesses FOR EACH
 CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_members_updated_at BEFORE UPDATE ON members FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_settings_updated_at BEFORE UPDATE ON settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_feature_updates_updated_at BEFORE UPDATE ON feature_updates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
--- 14. SAMPLE DATA (OPTIONAL - Remove if not needed)
+-- 15. SAMPLE DATA (OPTIONAL - Remove if not needed)
 -- ============================================
 INSERT INTO businesses (business_name, subdomain, slug, industry, status, email, settings) VALUES
   ('Demo Store', 'demo', 'demo-store-abc123', 'general', 'demo', 'demo@aegispos.com',
    '{"receipt_header": "Demo Store", "receipt_footer": "Terima Kasih!", "paper_size": "58mm"}'::jsonb)
 ON CONFLICT (subdomain) DO NOTHING;
+
+-- ============================================
+-- 16. ADDITIVE PAYMENT UPDATES
+-- ============================================
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS payment_provider TEXT,
+  ADD COLUMN IF NOT EXISTS payment_proof_url TEXT,
+  ADD COLUMN IF NOT EXISTS payment_proof_path TEXT,
+  ADD COLUMN IF NOT EXISTS payment_proof_uploaded_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS payment_notes TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_orders_payment_provider ON orders(payment_provider);
+CREATE INDEX IF NOT EXISTS idx_orders_payment_method_provider ON orders(payment_method, payment_provider);
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'payment-proofs',
+  'payment-proofs',
+  true,
+  5242880,
+  ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/heic']
+)
+ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE businesses
+  ADD COLUMN IF NOT EXISTS pic_name TEXT;
+
+CREATE TABLE IF NOT EXISTS feature_updates (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  slug TEXT UNIQUE NOT NULL,
+  title TEXT NOT NULL,
+  version TEXT,
+  summary TEXT NOT NULL,
+  content TEXT NOT NULL,
+  highlights JSONB NOT NULL DEFAULT '[]'::jsonb,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+  featured BOOLEAN NOT NULL DEFAULT FALSE,
+  published_at TIMESTAMPTZ,
+  email_sent_at TIMESTAMPTZ,
+  email_recipient_count INTEGER NOT NULL DEFAULT 0,
+  email_last_error TEXT,
+  created_by_email TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_feature_updates_status ON feature_updates(status);
+CREATE INDEX IF NOT EXISTS idx_feature_updates_published_at ON feature_updates(published_at DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS idx_feature_updates_featured ON feature_updates(featured);
+
+ALTER TABLE feature_updates ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'feature_updates'
+      AND policyname = 'Anyone can view published feature updates'
+  ) THEN
+    CREATE POLICY "Anyone can view published feature updates" ON feature_updates FOR SELECT
+    USING (status = 'published');
+  END IF;
+END $$;
 
 -- ============================================
 -- END OF SCHEMA

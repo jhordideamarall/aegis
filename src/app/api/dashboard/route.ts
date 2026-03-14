@@ -1,5 +1,27 @@
 import { NextResponse } from 'next/server'
+import { getOrderPaymentColumnSupport } from '@/lib/orderPaymentColumns'
 import { supabaseAdmin } from '@/lib/supabase'
+import {
+  forbiddenResponse,
+  getBusinessContextFromRequest,
+  unauthorizedResponse
+} from '@/lib/requestAuth'
+
+interface DashboardOrder {
+  id: string
+  total: number
+  payment_method: string
+  payment_provider?: string | null
+  created_at: string
+  member_id: string | null
+  order_items?: Array<{
+    product_id: string
+    qty: number
+    price: number
+    product?: { name?: string; price?: number } | null
+  }>
+  member?: { name: string; phone: string } | Array<{ name: string; phone: string }> | null
+}
 
 // Helper to format date as local YYYY-MM-DD
 function toLocalISODate(date: Date): string {
@@ -11,17 +33,22 @@ function toLocalISODate(date: Date): string {
 
 export async function GET(request: Request) {
   try {
+    const businessContext = await getBusinessContextFromRequest(request)
+
+    if (!businessContext) {
+      return unauthorizedResponse()
+    }
+
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
     const businessId = searchParams.get('business_id')
 
-    if (!businessId) {
-      return NextResponse.json(
-        { error: 'business_id is required' },
-        { status: 400 }
-      )
+    if (businessId && businessId !== businessContext.businessId) {
+      return forbiddenResponse('Cannot access another business')
     }
+
+    const resolvedBusinessId = businessContext.businessId
 
     if (!startDate || !endDate) {
       return NextResponse.json(
@@ -69,20 +96,25 @@ export async function GET(request: Request) {
     const currentEndDate = rangeEnd.toISOString()
     const prevStartDate = prevStart.toISOString()
     const prevEndDate = prevEnd.toISOString()
+    const paymentColumnSupport = await getOrderPaymentColumnSupport()
+    const dashboardOrdersSelect = [
+      'id',
+      'total',
+      'payment_method',
+      paymentColumnSupport.provider ? 'payment_provider' : null,
+      'created_at',
+      'member_id',
+      'order_items(product_id, qty, price, product:products(name, price))',
+      'member:members(name, phone)'
+    ]
+      .filter(Boolean)
+      .join(',\n        ')
 
     // Get orders with date filter
     const ordersQuery = supabaseAdmin
       .from('orders')
-      .select(`
-        id,
-        total,
-        payment_method,
-        created_at,
-        member_id,
-        order_items(product_id, qty, price, product:products(name, price)),
-        member:members(name, phone)
-      `)
-      .eq('business_id', businessId)
+      .select(dashboardOrdersSelect)
+      .eq('business_id', resolvedBusinessId)
       .gte('created_at', currentStartDate)
       .lte('created_at', currentEndDate)
       .order('created_at', { ascending: false })
@@ -90,31 +122,31 @@ export async function GET(request: Request) {
     const prevOrdersQuery = supabaseAdmin
       .from('orders')
       .select('total')
-      .eq('business_id', businessId)
+      .eq('business_id', resolvedBusinessId)
       .gte('created_at', prevStartDate)
       .lte('created_at', prevEndDate)
 
     const totalProductsQuery = supabaseAdmin
       .from('products')
       .select('*', { count: 'exact', head: true })
-      .eq('business_id', businessId)
+      .eq('business_id', resolvedBusinessId)
 
     const totalMembersQuery = supabaseAdmin
       .from('members')
       .select('*', { count: 'exact', head: true })
-      .eq('business_id', businessId)
+      .eq('business_id', resolvedBusinessId)
 
     const newMembersQuery = supabaseAdmin
       .from('members')
       .select('*', { count: 'exact', head: true })
-      .eq('business_id', businessId)
+      .eq('business_id', resolvedBusinessId)
       .gte('created_at', currentStartDate)
       .lte('created_at', currentEndDate)
 
     const prevNewMembersQuery = supabaseAdmin
       .from('members')
       .select('*', { count: 'exact', head: true })
-      .eq('business_id', businessId)
+      .eq('business_id', resolvedBusinessId)
       .gte('created_at', prevStartDate)
       .lte('created_at', prevEndDate)
 
@@ -134,6 +166,9 @@ export async function GET(request: Request) {
       prevNewMembersQuery
     ])
 
+    const normalizedOrders = ((orders || []) as unknown) as DashboardOrder[]
+    const normalizedPrevOrders = ((prevOrders || []) as unknown) as Array<{ total: number }>
+
     if (ordersError) {
       console.error('Orders error:', ordersError)
       throw ordersError
@@ -145,17 +180,17 @@ export async function GET(request: Request) {
     }
 
     // Calculate stats
-    const totalSales = orders?.reduce((sum, order) => sum + order.total, 0) || 0
-    const totalOrders = orders?.length || 0
-    const totalItems = orders?.reduce((sum, order) => sum + (order.order_items?.length || 0), 0) || 0
+    const totalSales = normalizedOrders.reduce((sum, order) => sum + order.total, 0)
+    const totalOrders = normalizedOrders.length
+    const totalItems = normalizedOrders.reduce((sum, order) => sum + (order.order_items?.length || 0), 0)
 
     if (prevOrdersError) {
       console.error('Prev orders error:', prevOrdersError)
       throw prevOrdersError
     }
 
-    const prevTotalSales = prevOrders?.reduce((sum, order) => sum + order.total, 0) || 0
-    const prevTotalOrders = prevOrders?.length || 0
+    const prevTotalSales = normalizedPrevOrders.reduce((sum, order) => sum + order.total, 0)
+    const prevTotalOrders = normalizedPrevOrders.length
 
     if (newMembersError) {
       console.error('New members error:', newMembersError)
@@ -169,7 +204,7 @@ export async function GET(request: Request) {
 
     // Top selling products - aggregate by product
     const productSales: Record<string, { name: string; qty: number; revenue: number }> = {}
-    orders?.forEach(order => {
+    normalizedOrders.forEach(order => {
       order.order_items?.forEach((item: any) => {
         const productId = item.product_id
         const productName = item.product?.name || 'Unknown Product'
@@ -194,7 +229,7 @@ export async function GET(request: Request) {
 
     // Top members by spending
     const memberSpending: Record<string, { name: string; phone: string; total: number; orders: number }> = {}
-    orders?.forEach(order => {
+    normalizedOrders.forEach(order => {
       const member = Array.isArray(order.member) ? order.member[0] : order.member
       if (order.member_id && member) {
         if (!memberSpending[order.member_id]) {
@@ -222,7 +257,7 @@ export async function GET(request: Request) {
     const isSingleDay = startDateOnly === endDateOnly
 
     const salesByDate: Record<string, number> = {}
-    orders?.forEach(order => {
+    normalizedOrders.forEach(order => {
       if (isSingleDay) {
         // Group by hour for single day (convert UTC to WIB - UTC+7)
         const orderDate = new Date(order.created_at)
@@ -249,7 +284,7 @@ export async function GET(request: Request) {
 
     // Orders by payment method
     const paymentMethods: Record<string, number> = {}
-    orders?.forEach(order => {
+    normalizedOrders.forEach(order => {
       paymentMethods[order.payment_method] = (paymentMethods[order.payment_method] || 0) + 1
     })
 
@@ -267,7 +302,7 @@ export async function GET(request: Request) {
       topMembers,
       salesChart,
       paymentMethods,
-      orders: orders || []
+      orders: normalizedOrders
     })
   } catch (error) {
     console.error('Error fetching dashboard data:', error)

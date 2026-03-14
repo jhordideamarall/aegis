@@ -1,17 +1,25 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import {
+  forbiddenResponse,
+  getBusinessContextFromRequest,
+  unauthorizedResponse
+} from '@/lib/requestAuth'
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const businessContext = await getBusinessContextFromRequest(request)
+
+    if (!businessContext) {
+      return unauthorizedResponse()
+    }
+
     const { id } = await params
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('business_id')
 
-    if (!businessId) {
-      return NextResponse.json(
-        { error: 'business_id is required' },
-        { status: 400 }
-      )
+    if (businessId && businessId !== businessContext.businessId) {
+      return forbiddenResponse('Cannot access another business')
     }
 
     const { data, error } = await supabaseAdmin
@@ -22,7 +30,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         member:members(name, phone)
       `)
       .eq('id', id)
-      .eq('business_id', businessId)
+      .eq('business_id', businessContext.businessId)
       .single()
 
     if (error) throw error

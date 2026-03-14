@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { getBusinessDisplayName, getBusinessInitials } from '@/lib/businessBranding'
 import {
   Grid,
   ShoppingCart,
@@ -73,10 +74,22 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
       `}>
         <div className="p-6 border-b border-gray-100">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center">
-              <span className="text-white font-semibold text-lg">A</span>
-            </div>
-            <span className="font-semibold text-gray-900">AEGIS POS</span>
+            {business?.logo_url ? (
+              <img
+                src={business.logo_url}
+                alt={business.business_name}
+                className="w-10 h-10 rounded-lg object-cover border border-gray-200 bg-white"
+              />
+            ) : (
+              <div className="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center">
+                <span className="text-white font-semibold text-sm">
+                  {getBusinessInitials(business?.business_name)}
+                </span>
+              </div>
+            )}
+            <span className="font-semibold text-gray-900 truncate">
+              {getBusinessDisplayName(business?.business_name)}
+            </span>
           </div>
           {business && (
             <p className="text-sm text-gray-500 truncate">{business.business_name}</p>

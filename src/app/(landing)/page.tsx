@@ -95,7 +95,7 @@ export default function LandingPage() {
                   <div className="flex-1 text-center min-w-0">
                     <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 bg-white rounded-md text-[10px] sm:text-xs text-gray-400 truncate max-w-full">
                       <Shield size={10} className="flex-shrink-0" />
-                      <span className="truncate">aegispos.com/pos</span>
+                      <span className="truncate">aegis.socialbrand1980.com/pos</span>
                     </div>
                   </div>
                 </div>

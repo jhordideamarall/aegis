@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { getSiteUrl } from "@/lib/site";
 import "./globals.css";
 
-const siteUrl = "https://aegis.id";
+const siteUrl = getSiteUrl();
 
 export const metadata: Metadata = {
   // Basic Metadata
@@ -78,20 +79,9 @@ export const metadata: Metadata = {
     }
   },
   
-  // Verification
-  verification: {
-    google: "your-google-verification-code",
-    yandex: "your-yandex-verification-code",
-    yahoo: "your-yahoo-verification-code"
-  },
-  
   // Alternates
   alternates: {
-    canonical: siteUrl,
-    languages: {
-      "en-US": siteUrl,
-      "id-ID": `${siteUrl}/id`
-    }
+    canonical: siteUrl
   },
   
   // Icons
@@ -174,7 +164,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="id" suppressHydrationWarning>
       <head>
         {/* Canonical URL */}
         <link rel="canonical" href={siteUrl} />

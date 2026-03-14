@@ -1,15 +1,25 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { verifySetupToken } from '@/lib/setupToken'
 
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { business_id, settings } = body
+    const { business_id, settings, setup_token } = body
 
-    if (!business_id) {
+    if (!business_id || !setup_token) {
       return NextResponse.json(
-        { error: 'business_id is required' },
+        { error: 'business_id and setup_token are required' },
         { status: 400 }
+      )
+    }
+
+    const tokenVerification = verifySetupToken(setup_token, business_id)
+
+    if (!tokenVerification.ok) {
+      return NextResponse.json(
+        { error: tokenVerification.error },
+        { status: 403 }
       )
     }
 
