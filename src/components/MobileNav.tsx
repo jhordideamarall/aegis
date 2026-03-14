@@ -17,8 +17,14 @@ export default function MobileNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 md:hidden">
-      <div className="grid grid-cols-6">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur md:hidden">
+      <div
+        className="grid grid-cols-6"
+        style={{
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          minHeight: 'var(--app-mobile-nav-height)',
+        }}
+      >
         {navItems.map((item) => {
           const Icon = item.icon
           const isActive = pathname === item.href

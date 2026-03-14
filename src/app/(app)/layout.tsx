@@ -43,7 +43,7 @@ export default function AppLayout({
 
       {/* Main Content */}
       <PageTransition>
-        <main className="lg:ml-64 min-h-screen">
+        <main className="app-mobile-nav-offset lg:ml-64 min-h-screen">
           {children}
         </main>
       </PageTransition>

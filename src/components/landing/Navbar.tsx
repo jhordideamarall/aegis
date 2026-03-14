@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const mobileMenuId = 'landing-mobile-menu'
 
   useEffect(() => {
     const handleScroll = () => {
@@ -15,6 +16,13 @@ export default function Navbar() {
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  useEffect(() => {
+    document.body.style.overflow = mobileMenuOpen ? 'hidden' : ''
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [mobileMenuOpen])
 
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
@@ -78,6 +86,9 @@ export default function Navbar() {
           <button 
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="md:hidden p-2 text-gray-600 hover:text-gray-900"
+            aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-controls={mobileMenuId}
+            aria-expanded={mobileMenuOpen}
           >
             {mobileMenuOpen ? (
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -93,23 +104,26 @@ export default function Navbar() {
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden py-4 border-t border-gray-100">
+          <div
+            id={mobileMenuId}
+            className="md:hidden fixed top-20 left-0 right-0 bottom-0 overflow-y-auto border-t border-gray-100 bg-white/95 backdrop-blur-xl shadow-2xl"
+          >
             <div className="flex flex-col gap-4">
               <Link 
                 href="/pricing" 
-                className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                className="px-4 pt-4 text-gray-600 hover:text-gray-900 font-medium transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Pricing
               </Link>
               <Link 
                 href="/#about" 
-                className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                className="px-4 text-gray-600 hover:text-gray-900 font-medium transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 About
               </Link>
-              <div className="flex flex-col gap-3 pt-4 border-t border-gray-100">
+              <div className="mx-4 flex flex-col gap-3 pt-4 border-t border-gray-100">
                 <Link 
                   href="/login" 
                   className="text-center text-gray-700 hover:text-gray-900 font-semibold transition-colors"

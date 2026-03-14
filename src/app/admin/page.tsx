@@ -13,6 +13,7 @@ import {
   Mail,
   Phone,
   Edit,
+  Eye,
   X,
   Menu,
   ChevronDown,
@@ -20,17 +21,30 @@ import {
   Award
 } from 'react-feather'
 
+interface BusinessSettings {
+  receipt_header?: string
+  receipt_footer?: string
+  paper_size?: string
+  currency?: string
+  timezone?: string
+  [key: string]: unknown
+}
+
 interface Business {
   id: string
   business_name: string
-  email: string
-  phone: string
-  industry: string
+  email: string | null
+  phone: string | null
+  industry: string | null
   status: string
   created_at: string
+  updated_at: string
   subdomain: string
   slug: string
-  city: string
+  city: string | null
+  address: string | null
+  logo_url: string | null
+  settings: BusinessSettings | null
 }
 
 interface BusinessStats {
@@ -57,6 +71,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState('')
   const [accessToken, setAccessToken] = useState('')
   const [editing, setEditing] = useState<any | null>(null)
+  const [detailBusiness, setDetailBusiness] = useState<(Business & Partial<BusinessStats>) | null>(null)
   const [statusValue, setStatusValue] = useState('active')
   const [saving, setSaving] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -101,6 +116,8 @@ export default function AdminDashboard() {
         setLoading(false)
         return
       }
+
+      setAccessToken(accessToken)
 
       const res = await fetch('/api/admin/businesses', {
         headers: {
@@ -215,6 +232,10 @@ export default function AdminDashboard() {
     setStatusValue(biz.status || 'active')
   }
 
+  const openDetail = (biz: Business & Partial<BusinessStats>) => {
+    setDetailBusiness(biz)
+  }
+
   const saveStatus = async () => {
     if (!editing || !accessToken) return
     setSaving(true)
@@ -229,7 +250,7 @@ export default function AdminDashboard() {
         body: JSON.stringify({ status: statusValue })
       })
       
-      if (!res.ok) {
+	      if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error(data.error || 'Failed to update business')
       }
@@ -243,12 +264,12 @@ export default function AdminDashboard() {
     }
   }
 
-  const handleEmail = (email?: string) => {
+  const handleEmail = (email?: string | null) => {
     if (!email) return
     window.open(`mailto:${email}`, '_blank')
   }
 
-  const handleWhatsapp = (phone?: string) => {
+  const handleWhatsapp = (phone?: string | null) => {
     if (!phone) return
     let waNumber = phone.replace(/\D/g, '')
     if (waNumber.startsWith('0')) {
@@ -303,6 +324,22 @@ export default function AdminDashboard() {
     return new Intl.NumberFormat('id-ID').format(num)
   }
 
+  const formatDateTime = (value?: string | null) => {
+    if (!value) return '-'
+    return new Date(value).toLocaleString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
+
+  const formatText = (value?: string | null) => {
+    if (!value || !value.trim()) return '-'
+    return value
+  }
+
   const getFilteredBusinesses = () => {
     let filtered = [...businesses]
     
@@ -311,7 +348,7 @@ export default function AdminDashboard() {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(biz => 
         biz.business_name.toLowerCase().includes(query) ||
-        biz.email.toLowerCase().includes(query) ||
+        (biz.email && biz.email.toLowerCase().includes(query)) ||
         (biz.phone && biz.phone.toLowerCase().includes(query)) ||
         (biz.industry && biz.industry.toLowerCase().includes(query)) ||
         (biz.city && biz.city.toLowerCase().includes(query))
@@ -870,6 +907,14 @@ export default function AdminDashboard() {
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
+                              onClick={() => openDetail(biz)}
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                              title="View Details"
+                            >
+                              <Eye size={16} strokeWidth={2} />
+                              <span>Detail</span>
+                            </button>
+                            <button
                               onClick={() => handleEmail(biz.email)}
                               className="text-blue-600 hover:text-blue-700 p-1.5"
                               title="Send Email"
@@ -932,6 +977,7 @@ export default function AdminDashboard() {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="active">Active</option>
+                <option value="demo">Demo</option>
                 <option value="suspended">Suspended</option>
               </select>
               <p className="text-xs text-gray-500 mt-1">
@@ -957,6 +1003,88 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+
+      {detailBusiness && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Business Details</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Informasi lengkap untuk {detailBusiness.business_name}
+                </p>
+              </div>
+              <button
+                onClick={() => setDetailBusiness(null)}
+                className="text-gray-400 hover:text-gray-600"
+                aria-label="Close business details"
+              >
+                <X size={20} strokeWidth={2} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-73px)] space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <DetailMetricCard
+                  title="Total Revenue"
+                  value={formatIDR(detailBusiness.totalRevenue || 0)}
+                  subtitle={`${formatNumber(detailBusiness.totalOrders || 0)} orders`}
+                />
+                <DetailMetricCard
+                  title="Members"
+                  value={formatNumber(detailBusiness.totalMembers || 0)}
+                  subtitle={`${formatNumber(detailBusiness.totalProducts || 0)} products`}
+                />
+                <DetailMetricCard
+                  title="Avg Order Value"
+                  value={formatIDR(detailBusiness.avgOrderValue || 0)}
+                  subtitle={`${formatIDR(detailBusiness.todayRevenue || 0)} revenue today`}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <DetailSection title="Business Profile">
+                  <DetailRow label="Business ID" value={detailBusiness.id} />
+                  <DetailRow label="Business Name" value={detailBusiness.business_name} />
+                  <DetailRow label="Industry" value={formatText(detailBusiness.industry)} />
+                  <DetailRow label="Status" value={detailBusiness.status} />
+                  <DetailRow label="Subdomain" value={detailBusiness.subdomain} />
+                  <DetailRow label="Slug" value={detailBusiness.slug} />
+                  <DetailRow label="Created At" value={formatDateTime(detailBusiness.created_at)} />
+                  <DetailRow label="Updated At" value={formatDateTime(detailBusiness.updated_at)} />
+                </DetailSection>
+
+                <DetailSection title="Contact & Location">
+                  <DetailRow label="Email" value={formatText(detailBusiness.email)} />
+                  <DetailRow label="Phone" value={formatText(detailBusiness.phone)} />
+                  <DetailRow label="City" value={formatText(detailBusiness.city)} />
+                  <DetailRow label="Address" value={formatText(detailBusiness.address)} multiline />
+                  <DetailRow label="Logo URL" value={formatText(detailBusiness.logo_url)} multiline />
+                </DetailSection>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <DetailSection title="Performance Snapshot">
+                  <DetailRow label="Total Orders" value={formatNumber(detailBusiness.totalOrders || 0)} />
+                  <DetailRow label="Today Orders" value={formatNumber(detailBusiness.todayOrders || 0)} />
+                  <DetailRow label="Total Revenue" value={formatIDR(detailBusiness.totalRevenue || 0)} />
+                  <DetailRow label="Today Revenue" value={formatIDR(detailBusiness.todayRevenue || 0)} />
+                  <DetailRow label="Total Members" value={formatNumber(detailBusiness.totalMembers || 0)} />
+                  <DetailRow label="Total Products" value={formatNumber(detailBusiness.totalProducts || 0)} />
+                </DetailSection>
+
+                <DetailSection title="Business Settings">
+                  <div className="rounded-lg bg-gray-50 border border-gray-200 p-4">
+                    <pre className="text-xs text-gray-700 whitespace-pre-wrap break-all">
+                      {JSON.stringify(detailBusiness.settings || {}, null, 2)}
+                    </pre>
+                  </div>
+                </DetailSection>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -976,6 +1104,49 @@ function StatCard({ title, value, subtitle, icon }: {
       </div>
       <p className="text-sm text-gray-600 mb-1">{title}</p>
       <p className="text-2xl font-bold text-gray-900">{value}</p>
+      <p className="text-xs text-gray-500 mt-1">{subtitle}</p>
+    </div>
+  )
+}
+
+function DetailSection({ title, children }: {
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5">
+      <h4 className="text-sm font-semibold text-gray-900 mb-4">{title}</h4>
+      <div className="space-y-3">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function DetailRow({ label, value, multiline = false }: {
+  label: string
+  value: string
+  multiline?: boolean
+}) {
+  return (
+    <div className={`flex ${multiline ? 'flex-col gap-1' : 'items-start justify-between gap-4'}`}>
+      <span className="text-xs font-medium uppercase tracking-wider text-gray-500">{label}</span>
+      <span className={`text-sm text-gray-900 ${multiline ? 'break-words' : 'text-right break-all'}`}>
+        {value}
+      </span>
+    </div>
+  )
+}
+
+function DetailMetricCard({ title, value, subtitle }: {
+  title: string
+  value: string
+  subtitle: string
+}) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+      <p className="text-sm text-gray-600">{title}</p>
+      <p className="text-xl font-bold text-gray-900 mt-2">{value}</p>
       <p className="text-xs text-gray-500 mt-1">{subtitle}</p>
     </div>
   )
