@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { getSiteUrl } from '@/lib/site'
 import {
   buildBusinessAppUrl,
   buildTenantAuthBridgeUrl,
@@ -266,7 +265,7 @@ export function useAuth(requireAuth = true) {
 
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem(TENANT_BRIDGE_STORAGE_KEY)
-      window.location.assign(`${getSiteUrl()}/login`)
+      window.location.assign('/login')
       return
     }
 

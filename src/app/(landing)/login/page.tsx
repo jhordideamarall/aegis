@@ -22,9 +22,16 @@ export default function LoginPage() {
   useEffect(() => {
     const hash = window.location.hash
     const hashParams = new URLSearchParams(hash.replace(/^#/, ''))
+    const searchParams = new URLSearchParams(window.location.search)
     const isRecoveryLink =
       window.location.search.includes('mode=recovery') ||
       hashParams.get('type') === 'recovery'
+
+    const prefilledEmail = searchParams.get('email')
+
+    if (prefilledEmail) {
+      setEmail(prefilledEmail)
+    }
 
     if (isRecoveryLink) {
       setMode('recovery')

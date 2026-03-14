@@ -1,14 +1,23 @@
 'use client'
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import Navbar from '@/components/landing/Navbar'
 import Footer from '@/components/landing/Footer'
-import { buildBusinessAppUrl, buildTenantAuthBridgeUrl } from '@/lib/tenant'
+import Modal from '@/components/Modal'
+import { getSiteUrl } from '@/lib/site'
+import { buildBusinessAppUrl } from '@/lib/tenant'
+
+interface SetupSummary {
+  businessName: string
+  tenantUrl: string
+  loginEmail: string
+  loginPassword: string
+}
 
 export default function SetupWizard() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [setupSummary, setSetupSummary] = useState<SetupSummary | null>(null)
   const [formData, setFormData] = useState({
     business_name: '', industry: 'general', email: '', phone: '', pic_name: '', address: '', city: '',
     full_name: '', owner_email: '', password: '', confirm_password: '',
@@ -16,6 +25,22 @@ export default function SetupWizard() {
   })
 
   const updateFormData = (field: string, value: string) => setFormData(prev => ({ ...prev, [field]: value }))
+
+  const handleCopy = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+    } catch (error) {
+      console.error('Failed to copy setup value:', error)
+    }
+  }
+
+  const handleGoToLogin = () => {
+    if (!setupSummary) return
+
+    const loginUrl = new URL('/login', getSiteUrl())
+    loginUrl.searchParams.set('email', setupSummary.loginEmail)
+    window.location.assign(loginUrl.toString())
+  }
 
   const handleSubmit = async () => {
     setLoading(true)
@@ -56,13 +81,8 @@ export default function SetupWizard() {
       })
       const userData = await userRes.json()
       if (!userRes.ok) throw new Error(userData.error || 'User creation failed')
-      // Step 4: Sign in the user
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: formData.owner_email,
-        password: formData.password
-      })
-      if (signInError) throw new Error(signInError.message || 'Failed to sign in')
-      // Step 5: Complete setup with settings
+
+      // Step 4: Complete setup with settings
       const completeRes = await fetch('/api/setup/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -80,24 +100,14 @@ export default function SetupWizard() {
         const completeData = await completeRes.json()
         throw new Error(completeData.error || 'Setup failed')
       }
-      // Step 6: Redirect to the tenant POS app
-      const accessToken = signInData.session?.access_token
-      const refreshToken = signInData.session?.refresh_token
 
-      if (accessToken && refreshToken) {
-        window.location.assign(
-          buildTenantAuthBridgeUrl(
-            bizData.subdomain,
-            accessToken,
-            refreshToken,
-            '/dashboard',
-            window.location.origin
-          )
-        )
-        return
-      }
-
-      window.location.assign(buildBusinessAppUrl(bizData.subdomain, '/dashboard', window.location.origin))
+      // Step 5: Show account summary before redirecting to login.
+      setSetupSummary({
+        businessName: formData.business_name,
+        tenantUrl: buildBusinessAppUrl(bizData.subdomain, '/dashboard', window.location.origin),
+        loginEmail: formData.owner_email,
+        loginPassword: formData.password
+      })
     } catch (err: any) {
       console.error('Setup error:', err)
       setError(err.message || 'Setup failed. Please try again.')
@@ -164,6 +174,84 @@ export default function SetupWizard() {
         </div>
       </div>
       <Footer />
+
+      <Modal
+        isOpen={Boolean(setupSummary)}
+        onClose={handleGoToLogin}
+        title="Akun Tenant Berhasil Dibuat"
+        size="lg"
+      >
+        {setupSummary && (
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+              <h3 className="text-lg font-semibold text-emerald-900">
+                {setupSummary.businessName} siap digunakan
+              </h3>
+              <p className="mt-2 text-sm text-emerald-800">
+                Simpan data berikut sebelum lanjut. Setelah kamu klik tombol OK, sistem akan
+                mengarahkan ke halaman login utama.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-xl border border-gray-200 p-4">
+                <div className="mb-2 text-sm font-medium text-gray-700">URL Tenant</div>
+                <div className="rounded-lg bg-gray-50 p-3 text-sm text-gray-900 break-all">
+                  {setupSummary.tenantUrl}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(setupSummary.tenantUrl)}
+                  className="mt-3 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Copy URL
+                </button>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 p-4">
+                <div className="mb-2 text-sm font-medium text-gray-700">Email Login</div>
+                <div className="rounded-lg bg-gray-50 p-3 text-sm text-gray-900 break-all">
+                  {setupSummary.loginEmail}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(setupSummary.loginEmail)}
+                  className="mt-3 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Copy Email
+                </button>
+              </div>
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <div className="mb-2 text-sm font-medium text-amber-900">Password Login</div>
+                <div className="rounded-lg bg-white/80 p-3 text-sm font-medium text-amber-950 break-all">
+                  {setupSummary.loginPassword}
+                </div>
+                <p className="mt-2 text-xs text-amber-800">
+                  Simpan password ini sekarang. Informasi ini tidak akan ditampilkan ulang setelah kamu lanjut.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(setupSummary.loginPassword)}
+                  className="mt-3 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100"
+                >
+                  Copy Password
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleGoToLogin}
+                className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-800"
+              >
+                OK, Lanjut ke Login
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
