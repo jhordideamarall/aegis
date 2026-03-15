@@ -16,7 +16,33 @@ export async function POST(request: Request) {
 
     const normalizedBusinessName = business_name.trim()
     const subdomainBase = normalizedBusinessName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-    const subdomain = subdomainBase || 'business'
+    const baseSubdomain = subdomainBase || 'business'
+    
+    // Retry mechanism to ensure unique subdomain
+    let subdomain = baseSubdomain
+    let attempts = 0
+    const maxAttempts = 5
+    
+    while (attempts < maxAttempts) {
+      // Check if subdomain already exists
+      const { data: existing } = await supabaseAdmin
+        .from('businesses')
+        .select('id')
+        .eq('subdomain', subdomain)
+        .single()
+      
+      if (!existing) {
+        // Subdomain is available
+        break
+      }
+      
+      // Subdomain taken, add random suffix and try again
+      const randomSuffix = Math.random().toString(36).substring(2, 6)
+      subdomain = `${baseSubdomain}-${randomSuffix}`
+      attempts++
+    }
+    
+    // Generate slug with random suffix
     const randomSuffix = Math.random().toString(36).substring(2, 8)
     const slug = `${subdomain}-${randomSuffix}`
 

@@ -393,14 +393,50 @@ export async function POST(request: Request) {
 
     if (orderError) throw orderError
 
-    // Create order items
-    const orderItems = items.map((item: { product_id: string; qty: number; price: number }) => ({
-      order_id: order.id,
-      product_id: item.product_id,
-      qty: item.qty,
-      price: item.price,
-      business_id: resolvedBusinessId
-    }))
+    // Create order items with product validation
+    const orderItems = []
+    for (const item of items) {
+      // Verify product exists and belongs to this business
+      const { data: product, error: productFetchError } = await supabaseAdmin
+        .from('products')
+        .select('id, stock, business_id, name')
+        .eq('id', item.product_id)
+        .eq('business_id', resolvedBusinessId)
+        .single()
+
+      if (productFetchError || !product) {
+        return NextResponse.json(
+          { error: `Product ${item.product_id} not found in your business` },
+          { status: 404 }
+        )
+      }
+
+      // Check stock availability
+      if (product.stock < item.qty) {
+        return NextResponse.json(
+          { error: `Insufficient stock for product ${product.name}` },
+          { status: 400 }
+        )
+      }
+
+      orderItems.push({
+        order_id: order.id,
+        product_id: item.product_id,
+        qty: item.qty,
+        price: item.price,
+        business_id: resolvedBusinessId
+      })
+
+      // Update product stock immediately
+      const { error: stockUpdateError } = await supabaseAdmin
+        .from('products')
+        .update({ stock: product.stock - item.qty })
+        .eq('id', item.product_id)
+
+      if (stockUpdateError) {
+        throw stockUpdateError
+      }
+    }
 
     const { error: itemsError } = await supabaseAdmin
       .from('order_items')
@@ -408,71 +444,60 @@ export async function POST(request: Request) {
 
     if (itemsError) throw itemsError
 
-    // Update product stock
-    for (const item of items) {
-      const { data: product } = await supabaseAdmin
-        .from('products')
-        .select('stock')
-        .eq('id', item.product_id)
-        .single()
-
-      if (product) {
-        await supabaseAdmin
-          .from('products')
-          .update({ stock: product.stock - item.qty })
-          .eq('id', item.product_id)
-      }
-    }
-
-    // Create member transaction for points earned
-    if (member_id && points_earned > 0) {
-      await supabaseAdmin
-        .from('member_transactions')
-        .insert([{
-          member_id,
-          order_id: order.id,
-          type: 'earn',
-          points: points_earned,
-          description: `Earned from order ${order.id.slice(0, 8)}`
-        }])
-    }
-
-    // Create member transaction for points used
-    if (member_id && points_used > 0) {
-      await supabaseAdmin
-        .from('member_transactions')
-        .insert([{
-          member_id,
-          order_id: order.id,
-          type: 'redeem',
-          points: -points_used,
-          description: `Redeemed ${points_used} points for order ${order.id.slice(0, 8)}`
-        }])
-    }
-
-    // Update member points and total purchases
+    // Validate member_id if provided
     if (member_id) {
-      // Fetch current member data
       const { data: member, error: memberFetchError } = await supabaseAdmin
         .from('members')
-        .select('points, total_purchases')
+        .select('id, points, total_purchases, business_id')
         .eq('id', member_id)
+        .eq('business_id', resolvedBusinessId)
         .single()
 
-      if (!memberFetchError && member) {
-        // Update with new values
-        const { error: memberUpdateError } = await supabaseAdmin
-          .from('members')
-          .update({
-            points: member.points + points_earned - points_used,
-            total_purchases: member.total_purchases + total,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', member_id)
+      if (memberFetchError || !member) {
+        return NextResponse.json(
+          { error: 'Member not found in your business' },
+          { status: 404 }
+        )
+      }
 
-        if (memberUpdateError) {
-          console.error('Error updating member:', memberUpdateError)
-        }
+      // Create member transaction for points earned
+      if (points_earned > 0) {
+        await supabaseAdmin
+          .from('member_transactions')
+          .insert([{
+            member_id,
+            order_id: order.id,
+            type: 'earn',
+            points: points_earned,
+            description: `Earned from order ${order.id.slice(0, 8)}`
+          }])
+      }
+
+      // Create member transaction for points used
+      if (points_used > 0) {
+        await supabaseAdmin
+          .from('member_transactions')
+          .insert([{
+            member_id,
+            order_id: order.id,
+            type: 'redeem',
+            points: -points_used,
+            description: `Redeemed ${points_used} points for order ${order.id.slice(0, 8)}`
+          }])
+      }
+
+      // Update member points and total purchases
+      const { error: memberUpdateError } = await supabaseAdmin
+        .from('members')
+        .update({
+          points: member.points + points_earned - points_used,
+          total_purchases: member.total_purchases + total,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', member_id)
+
+      if (memberUpdateError) {
+        console.error('Error updating member:', memberUpdateError)
       }
     }
 

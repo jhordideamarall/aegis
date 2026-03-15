@@ -216,9 +216,9 @@ export default function AdminDashboard() {
       // Calculate date range based on filter - CALENDAR BASED
       let startDateParam = ''
       let endDateParam = ''
-      
+
       const now = new Date()
-      
+
       if (timeFilter === 'today') {
         // Today: Full day today (local date)
         startDateParam = now.toISOString().split('T')[0]
@@ -228,11 +228,11 @@ export default function AdminDashboard() {
         const currentDay = now.getDay() // 0 = Sunday, 6 = Saturday
         const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currentDay)
         weekStart.setHours(0, 0, 0, 0)
-        
+
         const weekEnd = new Date(weekStart)
         weekEnd.setDate(weekStart.getDate() + 6) // Saturday
         weekEnd.setHours(23, 59, 59, 999)
-        
+
         startDateParam = weekStart.toISOString().split('T')[0]
         endDateParam = weekEnd.toISOString().split('T')[0]
       } else if (timeFilter === 'month') {
@@ -240,7 +240,7 @@ export default function AdminDashboard() {
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
         const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0) // Last day of month
         monthEnd.setHours(23, 59, 59, 999)
-        
+
         startDateParam = monthStart.toISOString().split('T')[0]
         endDateParam = monthEnd.toISOString().split('T')[0]
       } else if (timeFilter === 'year') {
@@ -248,7 +248,7 @@ export default function AdminDashboard() {
         const yearStart = new Date(now.getFullYear(), 0, 1)
         const yearEnd = new Date(now.getFullYear(), 11, 31)
         yearEnd.setHours(23, 59, 59, 999)
-        
+
         startDateParam = yearStart.toISOString().split('T')[0]
         endDateParam = yearEnd.toISOString().split('T')[0]
       } else if (timeFilter === 'custom' && startDate && endDate) {
@@ -258,9 +258,12 @@ export default function AdminDashboard() {
       }
       // 'all' time filter - don't pass dates
 
+      // Capture current accessToken value to avoid race condition
+      const currentToken = accessToken
+
       // Fetch stats for each business with time range
       const statsPromises = list.map(async (biz: Business) => {
-        const stats = await fetchBusinessStats(biz.id, startDateParam, endDateParam)
+        const stats = await fetchBusinessStats(biz.id, startDateParam, endDateParam, currentToken)
         return { id: biz.id, stats }
       })
 
@@ -270,7 +273,7 @@ export default function AdminDashboard() {
         newStatsMap[id] = stats
       })
       setStatsMap(newStatsMap)
-      
+
       // Calculate totals from stats - ALWAYS update totals
       let rev = 0
       let ord = 0
@@ -278,7 +281,7 @@ export default function AdminDashboard() {
         rev += stats.totalRevenue
         ord += stats.totalOrders
       })
-      
+
       // Update totals based on current filter
       setTotalRevenue(rev)
       setTotalOrders(ord)
@@ -466,18 +469,18 @@ export default function AdminDashboard() {
     }
   }
 
-  const fetchBusinessStats = async (businessId: string, startDate?: string, endDate?: string): Promise<BusinessStats> => {
+  const fetchBusinessStats = async (businessId: string, startDate?: string, endDate?: string, token?: string): Promise<BusinessStats> => {
     try {
       let url = `/api/admin/businesses/${businessId}/stats`
       const params = new URLSearchParams()
       if (startDate) params.set('startDate', startDate)
       if (endDate) params.set('endDate', endDate)
-      
+
       if (params.toString()) {
         url += `?${params.toString()}`
       }
-      const authHeaders = accessToken
-        ? { Authorization: `Bearer ${accessToken}` }
+      const authHeaders = token
+        ? { Authorization: `Bearer ${token}` }
         : undefined
       const res = await fetch(url, {
         headers: authHeaders

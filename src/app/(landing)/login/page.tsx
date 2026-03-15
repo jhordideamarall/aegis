@@ -55,6 +55,11 @@ export default function LoginPage() {
     let active = true
 
     const redirectAuthenticatedUser = async () => {
+      // Don't redirect if in recovery mode - let user set new password first
+      if (mode === 'recovery') {
+        return
+      }
+
       const { data: { session } } = await supabase.auth.getSession()
 
       if (!active || !session?.access_token) {
@@ -109,7 +114,7 @@ export default function LoginPage() {
     return () => {
       active = false
     }
-  }, [router])
+  }, [router, mode])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -237,9 +242,7 @@ export default function LoginPage() {
         <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-                <span className="text-white font-bold text-3xl">A</span>
-              </div>
+              <img src="/img/logo.svg" alt="AEGIS POS" className="h-20 w-auto" />
             </div>
             <h1 className="text-2xl font-bold text-gray-800 mb-2">Welcome Back</h1>
             <p className="text-gray-600">
