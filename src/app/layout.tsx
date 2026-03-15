@@ -1,7 +1,17 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import { getSiteUrl } from "@/lib/site";
+import { validateEnvironment } from "@/lib/env";
 import "./globals.css";
+
+// Validate environment variables at startup (development only)
+if (process.env.NODE_ENV === 'development') {
+  try {
+    validateEnvironment()
+  } catch (error) {
+    console.error('Environment validation failed:', error)
+  }
+}
 
 const siteUrl = getSiteUrl();
 

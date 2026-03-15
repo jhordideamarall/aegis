@@ -10,6 +10,240 @@
 
 ## Riwayat Temuan & Perbaikan
 
+### ~~CRITICAL: Race condition pada stock update~~ ✅ DIPERBAIKI
+
+**File:** `src/app/api/orders/route.ts`
+
+**Masalah:**
+Ada race condition antara check stock dan update stock. Jika ada 2 request bersamaan untuk produk yang sama:
+1. Request A: baca stock = 5
+2. Request B: baca stock = 5  
+3. Request A: update stock = 5 - 3 = 2 ✅
+4. Request B: update stock = 5 - 3 = 2 ❌ (harusnya 2 - 3 = -1!)
+
+**Solusi:**
+Gunakan atomic update dengan kondisi `.gt('stock', item.qty - 1)` untuk memastikan stock hanya berkurang jika masih cukup saat update:
+
+```typescript
+// Atomic stock update - decrement only if stock is sufficient
+const { error: stockUpdateError } = await supabaseAdmin
+  .from('products')
+  .update({ 
+    stock: product.stock - item.qty,
+    updated_at: new Date().toISOString()
+  })
+  .eq('id', item.product_id)
+  .eq('business_id', resolvedBusinessId)
+  .gt('stock', item.qty - 1) // Ensure stock >= qty at update time (prevents race condition)
+
+// Verify the update actually happened
+const { data: verifyProduct } = await supabaseAdmin
+  .from('products')
+  .select('stock')
+  .eq('id', item.product_id)
+  .eq('business_id', resolvedBusinessId)
+  .single()
+
+if (!verifyProduct || verifyProduct.stock < 0) {
+  throw new Error(`Stock update failed for product ${product.name}`)
+}
+```
+
+---
+
+### ~~CRITICAL: Member points bisa menjadi negatif~~ ✅ DIPERBAIKI
+
+**File:** `src/app/api/orders/route.ts`
+
+**Masalah:**
+Tidak ada validasi apakah member punya points yang cukup sebelum redeem. User bisa redeem points lebih dari yang dimiliki, membuat points jadi negatif.
+
+```typescript
+// ❌ TIDAK ADA VALIDASI
+if (points_used > 0) {
+  await supabaseAdmin
+    .from('member_transactions')
+    .insert([{...}])
+}
+
+// Update member points - bisa jadi negatif!
+points: member.points + points_earned - points_used
+```
+
+**Solusi:**
+Tambahkan validasi points sebelum redeem:
+
+```typescript
+if (points_used > 0) {
+  // Validasi points cukup
+  if (member.points < points_used) {
+    return NextResponse.json(
+      { error: `Insufficient points. Available: ${member.points}, Requested: ${points_used}` },
+      { status: 400 }
+    )
+  }
+  
+  // ... lanjut create transaction
+}
+
+// Update member points
+const newPoints = member.points + points_earned - points_used
+```
+
+---
+
+### ~~MEDIUM: Duplicate/inconsistent search logic~~ ✅ DIPERBAIKI
+
+**File:** `src/app/api/orders/route.ts`
+
+**Masalah:**
+Logic search diulang 2x (untuk fetch data dan summary) dengan implementasi berbeda:
+- Fetch data: filter in-memory
+- Summary: pakai query `or()`
+
+Hasil summary dan data bisa berbeda karena filter logic tidak konsisten.
+
+**Solusi:**
+- Gunakan fungsi `filterOrder` yang konsisten untuk semua filtering
+- Fetch semua data dulu (tanpa pagination), baru filter in-memory
+- Summary dihitung dari hasil yang sama dengan data
+
+```typescript
+// Consistent filter function
+const filterOrder = (order: OrdersListRow): boolean => {
+  if (order.id.toLowerCase().includes(search.toLowerCase())) return true
+  if (order.payment_method.toLowerCase().includes(search.toLowerCase())) return true
+  if (paymentColumnSupport.provider && order.payment_provider?.toLowerCase().includes(search.toLowerCase())) return true
+  if (memberIds.length > 0 && order.member_id && memberIds.includes(order.member_id)) return true
+  return false
+}
+
+let filteredOrders = normalizedAllOrders.filter(filterOrder)
+// Summary calculated from same filtered results
+const totalRevenue = filteredOrders.reduce((sum, order) => sum + order.total, 0)
+```
+
+---
+
+### ~~MEDIUM: Timezone conversion error-prone~~ ✅ DIPERBAIKI
+
+**File:** `src/app/api/orders/route.ts`
+
+**Masalah:**
+Hardcoded timezone offset tidak handle edge cases dan sulit di-maintain:
+
+```typescript
+rangeStart = new Date(rangeStart.getTime() - (7 * 3600000)) // Convert WIB to UTC
+```
+
+**Solusi:**
+Install `date-fns-tz` dan gunakan proper timezone handling:
+
+```bash
+npm install date-fns date-fns-tz
+```
+
+```typescript
+import { toDate, formatInTimeZone } from 'date-fns-tz'
+
+// Helper to parse YYYY-MM-DD to Date in WIB timezone, then convert to UTC
+function parseLocalDateToUTC(dateString: string, includeTime: 'start' | 'end' = 'start'): Date {
+  const wibDate = toDate(dateString, { timeZone: 'Asia/Jakarta' })
+  
+  if (includeTime === 'start') {
+    wibDate.setHours(0, 0, 0, 0)
+  } else {
+    wibDate.setHours(23, 59, 59, 999)
+  }
+  
+  return new Date(wibDate.getTime())
+}
+
+// Usage
+rangeStart = parseLocalDateToUTC(startDate, 'start')
+rangeEnd = parseLocalDateToUTC(endDate, 'end')
+```
+
+---
+
+### ~~LOW: Phone validation terlalu strict~~ ✅ DIPERBAIKI
+
+**File:** `src/app/api/members/route.ts`
+
+**Masalah:**
+Hanya terima format Indonesia (08xx). Tidak bisa untuk nomor internasional atau format lain (+62, 62, dll).
+
+```typescript
+const phoneRegex = /^08[0-9]{8,11}$/ // ❌ Hanya 08xxxxxxxxxx
+```
+
+**Solusi:**
+Support multiple format (Indonesian dan international):
+
+```typescript
+// Accept: 08xxxxxxxxxx, 62xxxxxxxxxx, +62xxxxxxxxxx
+const phoneRegex = /^(\+|00)?(62|61|60|63|66|628|08|01)[0-9]{6,15}$/
+if (!phoneRegex.test(phone.replace(/[\s\-\(\)]/g, ''))) {
+  return NextResponse.json(
+    { error: 'Invalid phone format. Use 08xxxxxxxxxx, 62xxxxxxxxxx, or +62xxxxxxxxxx' },
+    { status: 400 }
+  )
+}
+```
+
+---
+
+### ~~LOW: Menu Updates belum ada di navigation~~ ✅ DIPERBAIKI
+
+**File:** 
+- `src/components/Sidebar.tsx`
+- `src/components/MobileNav.tsx`
+- `src/app/(app)/feature-updates/page.tsx` (NEW)
+- `src/app/(app)/feature-updates/[slug]/page.tsx` (NEW)
+
+**Masalah:**
+Feature updates sudah ada (halaman `/updates` dan API `/api/feature-updates`), tapi belum ada menu di navigation sidebar untuk akses cepat. User harus hafal URL atau klik link dari halaman lain.
+
+**Solusi:**
+Tambahkan menu "Updates" dengan icon `Bell` di sidebar dan mobile nav, plus buat halaman khusus di dalam app layout (bukan landing page):
+
+```typescript
+// Sidebar.tsx & MobileNav.tsx
+import { Bell } from 'react-feather'
+
+const navItems = [
+  { href: '/dashboard', label: 'Dashboard', icon: Grid },
+  { href: '/pos', label: 'POS', icon: ShoppingCart },
+  { href: '/products', label: 'Products', icon: Package },
+  { href: '/orders', label: 'Orders', icon: FileText },
+  { href: '/members', label: 'Members', icon: Users },
+  { href: '/feature-updates', label: 'Updates', icon: Bell }, // ← Baru
+  { href: '/settings', label: 'Settings', icon: Settings },
+]
+```
+
+**Halaman Baru:**
+1. **`/feature-updates`** - List semua updates dengan layout app (ada sidebar)
+2. **`/feature-updates/[slug]`** - Detail update individual
+
+**Features:**
+- ✅ Featured update ditampilkan di atas dengan highlight
+- ✅ List update lainnya dalam grid
+- ✅ Highlight features dengan checkmarks
+- ✅ Format date Indonesian locale
+- ✅ Loading state & error handling
+- ✅ Responsive design (mobile-friendly)
+- ✅ Navigate ke detail update dengan router
+
+**Mobile Nav:**
+- Update grid dari `grid-cols-6` ke `grid-cols-7` untuk menampung menu baru
+
+**Note:** 
+- Halaman `/updates` (landing page) tetap ada untuk public view
+- Halaman `/feature-updates` (app) untuk logged-in users
+
+---
+
 ### ~~Tinggi: pembuatan order masih bisa memodifikasi data lintas tenant~~ ✅ DIPERBAIKI
 
 **File:** `src/app/api/orders/route.ts`
@@ -82,11 +316,11 @@ while (attempts < maxAttempts) {
     .select('id')
     .eq('subdomain', subdomain)
     .single()
-  
+
   if (!existing) {
     break // Subdomain tersedia
   }
-  
+
   // Subdomain diambil, tambahkan suffix random
   const randomSuffix = Math.random().toString(36).substring(2, 6)
   subdomain = `${baseSubdomain}-${randomSuffix}`
@@ -183,8 +417,21 @@ Update konten untuk mencerminkan perilaku yang benar:
 Secara umum app sudah jauh lebih matang dan banyak flow besar sudah nyambung dengan benar.
 Semua masalah prioritas tinggi dan sedang sudah diperbaiki.
 
+**Seed Data untuk Testing:**
+
+Untuk melihat halaman Updates dengan data, jalankan seed file ini di Supabase:
+```bash
+# Jalankan seed data terbaru (v1.3.0 dan v1.2.0)
+psql -f supabase-feature-updates-seed-latest.sql
+```
+
+File `supabase-feature-updates-seed-latest.sql` berisi:
+- **v1.3.0**: Critical Security and Performance Improvements (Featured)
+- **v1.2.0**: Tenant Subdomain and Auth Flow Improvements
+
 **Prioritas berikutnya (opsional):**
-- Tambahkan unit tests untuk API routes
+- Tambahkan unit tests untuk API routes (terutama untuk race condition stock update)
 - Tambahkan E2E tests untuk critical flows (setup, POS checkout)
 - Implementasi error logging service (Sentry, LogRocket)
-- Optimasi performa dengan caching layer (Redis)
+- Optimasi performa dengan caching layer (Redis) untuk search orders yang heavy
+- Pertimbangkan database RPC function untuk atomic stock update yang lebih robust

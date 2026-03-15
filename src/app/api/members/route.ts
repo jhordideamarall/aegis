@@ -84,11 +84,23 @@ export async function POST(request: Request) {
       )
     }
 
-    // Validate phone format (Indonesian format)
-    const phoneRegex = /^08[0-9]{8,11}$/
-    if (!phoneRegex.test(phone)) {
+    // Validate phone format - support Indonesian and international formats
+    // Accept: 08xxxxxxxxxx, 62xxxxxxxxxx, +62xxxxxxxxxx
+    const cleanedPhone = phone.replace(/[\s\-\(\)]/g, '')
+    const phoneRegex = /^(\+62|62|0)8[0-9]{8,11}$/
+    
+    if (!phoneRegex.test(cleanedPhone)) {
       return NextResponse.json(
-        { error: 'Invalid phone format. Use 08xxxxxxxxxx' },
+        { error: 'Invalid phone format. Use 08xxxxxxxxxx, 62xxxxxxxxxx, or +62xxxxxxxxxx (8-11 digits after 08/62)' },
+        { status: 400 }
+      )
+    }
+    
+    // Additional validation: check length after cleaning
+    const digitsOnly = cleanedPhone.replace(/\D/g, '')
+    if (digitsOnly.length < 10 || digitsOnly.length > 14) {
+      return NextResponse.json(
+        { error: 'Phone number must be 10-14 digits' },
         { status: 400 }
       )
     }

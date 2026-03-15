@@ -12,7 +12,8 @@ import {
   Settings,
   LogOut,
   Menu,
-  X
+  X,
+  Bell
 } from 'react-feather'
 import { useState } from 'react'
 
@@ -45,6 +46,7 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
     { href: '/products', label: 'Products', icon: Package },
     { href: '/orders', label: 'Orders', icon: FileText },
     { href: '/members', label: 'Members', icon: Users },
+    { href: '/feature-updates', label: 'Updates', icon: Bell },
     { href: '/settings', label: 'Settings', icon: Settings },
   ]
 

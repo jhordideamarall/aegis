@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Grid, ShoppingCart, Package, FileText, Users, Settings } from 'react-feather'
+import { Grid, ShoppingCart, Package, FileText, Users, Settings, Bell } from 'react-feather'
 
 const navItems = [
   { href: '/dashboard', label: 'Home', icon: Grid },
@@ -10,6 +10,7 @@ const navItems = [
   { href: '/products', label: 'Products', icon: Package },
   { href: '/orders', label: 'Orders', icon: FileText },
   { href: '/members', label: 'Members', icon: Users },
+  { href: '/feature-updates', label: 'Updates', icon: Bell },
   { href: '/settings', label: 'Settings', icon: Settings }
 ]
 
@@ -19,7 +20,7 @@ export default function MobileNav() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur md:hidden">
       <div
-        className="grid grid-cols-6"
+        className="grid grid-cols-7"
         style={{
           paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           minHeight: 'var(--app-mobile-nav-height)',
