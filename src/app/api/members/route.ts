@@ -126,7 +126,16 @@ export async function POST(request: Request) {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      // Unique constraint violation — phone already exists (catches race conditions too)
+      if ((error as any).code === '23505') {
+        return NextResponse.json(
+          { error: 'Member with this phone already exists' },
+          { status: 409 }
+        )
+      }
+      throw error
+    }
     return NextResponse.json(data, { status: 201 })
   } catch (error) {
     console.error('Error creating member:', error)

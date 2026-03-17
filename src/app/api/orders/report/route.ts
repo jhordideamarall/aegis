@@ -109,6 +109,7 @@ export async function GET(request: Request) {
 
     const allOrders: ReportRow[] = []
     const pageSize = 500
+    const MAX_REPORT_ROWS = 10000
     let from = 0
     let shouldContinue = true
 
@@ -119,6 +120,13 @@ export async function GET(request: Request) {
 
       const batch = ((data || []) as unknown) as ReportRow[]
       allOrders.push(...batch)
+
+      if (allOrders.length >= MAX_REPORT_ROWS) {
+        return NextResponse.json(
+          { error: `Terlalu banyak data (lebih dari ${MAX_REPORT_ROWS.toLocaleString()} transaksi). Persempit rentang tanggal untuk membuat laporan.` },
+          { status: 400 }
+        )
+      }
 
       shouldContinue = batch.length === pageSize
       from += pageSize

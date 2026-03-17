@@ -39,6 +39,8 @@ export default function SetupWizard() {
 
     const loginUrl = new URL('/login', getSiteUrl())
     loginUrl.searchParams.set('email', setupSummary.loginEmail)
+    // Clear sensitive state before navigating
+    setSetupSummary(null)
     window.location.assign(loginUrl.toString())
   }
 
@@ -102,11 +104,14 @@ export default function SetupWizard() {
       }
 
       // Step 5: Show account summary before redirecting to login.
+      const loginPassword = formData.password
+      // Clear password from formData immediately — it now only lives in the summary modal
+      setFormData(prev => ({ ...prev, password: '', confirm_password: '' }))
       setSetupSummary({
         businessName: formData.business_name,
         tenantUrl: buildBusinessAppUrl(bizData.subdomain, '/dashboard', window.location.origin),
         loginEmail: formData.owner_email,
-        loginPassword: formData.password
+        loginPassword
       })
     } catch (err: any) {
       console.error('Setup error:', err)

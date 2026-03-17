@@ -22,6 +22,17 @@ function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+// Safe sessionStorage wrappers — sessionStorage throws SecurityError in incognito/private mode
+function ssGet(key: string): string | null {
+  try { return sessionStorage.getItem(key) } catch { return null }
+}
+function ssSet(key: string, value: string): void {
+  try { sessionStorage.setItem(key, value) } catch { /* ignore */ }
+}
+function ssRemove(key: string): void {
+  try { sessionStorage.removeItem(key) } catch { /* ignore */ }
+}
+
 interface Business {
   id: string
   business_name: string
@@ -69,7 +80,7 @@ async function resolveAuthState(): Promise<AuthResolution> {
 
   if (!session && typeof window !== 'undefined') {
     const currentTenantSubdomain = extractTenantSubdomain(window.location.host)
-    const bridgeTimestamp = Number(sessionStorage.getItem(TENANT_BRIDGE_STORAGE_KEY) || '0')
+    const bridgeTimestamp = Number(ssGet(TENANT_BRIDGE_STORAGE_KEY) || '0')
     const shouldRetrySession =
       Boolean(currentTenantSubdomain) &&
       Number.isFinite(bridgeTimestamp) &&
@@ -186,14 +197,14 @@ export function useAuth(requireAuth = true) {
           const isRootAppHost =
             isMainAppHost(window.location.host) ||
             (isLocalLikeHost(currentHostname) && !currentTenantSubdomain)
-          const bridgeTimestamp = Number(sessionStorage.getItem(TENANT_BRIDGE_STORAGE_KEY) || '0')
+          const bridgeTimestamp = Number(ssGet(TENANT_BRIDGE_STORAGE_KEY) || '0')
           const isBridgeGraceActive =
             Boolean(currentTenantSubdomain) &&
             Number.isFinite(bridgeTimestamp) &&
             Date.now() - bridgeTimestamp < TENANT_BRIDGE_GRACE_MS
 
           if (!isBridgeGraceActive && bridgeTimestamp) {
-            sessionStorage.removeItem(TENANT_BRIDGE_STORAGE_KEY)
+            ssRemove(TENANT_BRIDGE_STORAGE_KEY)
           }
 
           if (
@@ -264,7 +275,7 @@ export function useAuth(requireAuth = true) {
     pendingAuthResolution = null
 
     if (typeof window !== 'undefined') {
-      sessionStorage.removeItem(TENANT_BRIDGE_STORAGE_KEY)
+      ssRemove(TENANT_BRIDGE_STORAGE_KEY)
       window.location.assign('/login')
       return
     }

@@ -31,6 +31,7 @@ export default function MemberSearch({ onSelect, onClose, businessId }: MemberSe
           const res = await fetch(`/api/members?${params.toString()}`, {
             headers: await getClientAuthHeaders()
           })
+          if (!res.ok) throw new Error(`Failed to fetch members: ${res.status}`)
           const data = await res.json()
           setMembers(data.data || [])
         } catch (error) {
@@ -50,6 +51,7 @@ export default function MemberSearch({ onSelect, onClose, businessId }: MemberSe
           const res = await fetch(`/api/members?${params.toString()}`, {
             headers: await getClientAuthHeaders()
           })
+          if (!res.ok) throw new Error(`Failed to fetch members: ${res.status}`)
           const data = await res.json()
           setMembers(data.data || [])
         } catch (error) {

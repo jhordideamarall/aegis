@@ -88,6 +88,10 @@ export default function ReceiptPrinter({ order, onClose, businessId }: ReceiptPr
       const res = await fetch(url, {
         headers: await getClientAuthHeaders()
       })
+      if (!res.ok) {
+        console.error('Failed to fetch receipt settings:', res.status)
+        return
+      }
       const data = await res.json()
       const nextSettings: ReceiptSettings = {
         receipt_header: data.receipt_header || defaultSettings.receipt_header,
