@@ -88,16 +88,19 @@ function PaymentModal({
 
   const handleSubmit = async () => {
     setProcessing(true)
-    await onConfirm(
-      {
-        method: paymentMethod,
-        provider: paymentMethod === 'qris' ? (paymentProvider || 'general') : null,
-        notes: paymentNotes.trim(),
-        proofFile
-      },
-      pointsUsed
-    )
-    setProcessing(false)
+    try {
+      await onConfirm(
+        {
+          method: paymentMethod,
+          provider: paymentMethod === 'qris' ? (paymentProvider || 'general') : null,
+          notes: paymentNotes.trim(),
+          proofFile
+        },
+        pointsUsed
+      )
+    } finally {
+      setProcessing(false)
+    }
   }
 
   return (

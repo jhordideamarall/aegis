@@ -151,6 +151,8 @@ export async function POST(
       .single()
 
     if (updateError) {
+      // File was uploaded but DB update failed — remove the orphaned file from Storage
+      await supabaseAdmin.storage.from(PAYMENT_PROOF_BUCKET).remove([filePath])
       throw updateError
     }
 

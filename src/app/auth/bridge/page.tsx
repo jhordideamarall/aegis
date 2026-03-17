@@ -5,6 +5,10 @@ import { supabase } from '@/lib/supabase'
 
 const TENANT_BRIDGE_STORAGE_KEY = 'aegis-tenant-bridge-at'
 
+function ssSafeSet(key: string, value: string): void {
+  try { sessionStorage.setItem(key, value) } catch { /* ignore — SecurityError in private mode */ }
+}
+
 function normalizeNextPath(path: string | null) {
   if (!path) return '/pos'
   return path.startsWith('/') ? path : `/${path}`
@@ -43,7 +47,7 @@ export default function TenantAuthBridgePage() {
       if (!active) return
 
       setMessage('Session tenant siap. Mengalihkan ke sistem POS...')
-      sessionStorage.setItem(TENANT_BRIDGE_STORAGE_KEY, String(Date.now()))
+      ssSafeSet(TENANT_BRIDGE_STORAGE_KEY, String(Date.now()))
       window.history.replaceState({}, '', '/auth/bridge')
 
       // Hard redirect ensures the tenant origin reloads after session persistence

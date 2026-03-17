@@ -506,7 +506,11 @@ export async function POST(request: Request) {
       .from('order_items')
       .insert(orderItems)
 
-    if (itemsError) throw itemsError
+    if (itemsError) {
+      // Cleanup order before throwing — stock was already decremented, order must not remain without items
+      await supabaseAdmin.from('orders').delete().eq('id', order.id)
+      throw itemsError
+    }
 
     // Validate member_id if provided
     if (member_id) {
@@ -573,22 +577,19 @@ export async function POST(request: Request) {
         .gte('points', points_used - points_earned)
 
       if (memberUpdateError) {
-        // Check if it's a constraint violation (points went negative)
-        if (memberUpdateError.code === 'PGRST116') {
-          // Complete rollback: Delete the order and ALL member transactions
-          await supabaseAdmin.from('orders').delete().eq('id', order.id)
-          await supabaseAdmin
-            .from('member_transactions')
-            .delete()
-            .eq('order_id', order.id)
-          
-          return NextResponse.json(
-            { error: 'Insufficient points. Please try again.' },
-            { status: 409 }
-          )
-        }
-        // For other errors, log but don't fail the order
-        // Points might be slightly off but order is still valid
+        // Rollback order and ALL member transactions for any error type.
+        // Silently ignoring member update errors causes points to disappear permanently.
+        await supabaseAdmin.from('orders').delete().eq('id', order.id)
+        await supabaseAdmin
+          .from('member_transactions')
+          .delete()
+          .eq('order_id', order.id)
+
+        const isInsufficientPoints = memberUpdateError.code === 'PGRST116'
+        return NextResponse.json(
+          { error: isInsufficientPoints ? 'Insufficient points. Please try again.' : 'Failed to update member points. Please try again.' },
+          { status: isInsufficientPoints ? 409 : 500 }
+        )
       }
     }
 

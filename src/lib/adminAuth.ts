@@ -12,12 +12,13 @@ function isAllowedAdminEmail(email: string) {
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean)
 
-  if (configuredAdmins.length > 0) {
-    return configuredAdmins.includes(normalizedEmail)
+  // Deny all if ADMIN_EMAILS is not configured — never use a pattern-based fallback
+  // as it would allow anyone with admin@* email to gain admin access.
+  if (configuredAdmins.length === 0) {
+    return false
   }
 
-  const [localPart] = normalizedEmail.split('@')
-  return localPart === 'admin' || localPart.startsWith('admin+')
+  return configuredAdmins.includes(normalizedEmail)
 }
 
 export async function getAdminUserFromRequest(request: Request): Promise<AdminUserContext | null> {
