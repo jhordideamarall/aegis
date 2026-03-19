@@ -116,20 +116,20 @@ export default function LandingPage() {
 
           {/* Platform Stats */}
           <div className="w-full max-w-2xl mx-auto mb-8 md:mb-12 px-4">
-            <div className="flex items-center justify-center gap-4 md:gap-6 text-sm text-nowrap text-gray-600">
+            <div className="flex flex-wrap items-center justify-center gap-3 md:gap-4 text-xs md:text-sm text-gray-600">
               <div className="flex items-center gap-1.5">
-                <Briefcase size={14} strokeWidth={2} className="text-blue-500" />
-                <span><Counter value={stats.totalBusinesses} /> Merchant Aktif</span>
+                <Briefcase size={14} strokeWidth={2} className="text-blue-500 flex-shrink-0" />
+                <span className="whitespace-nowrap"><Counter value={stats.totalBusinesses} /> Merchant Aktif</span>
               </div>
-              <span className="text-gray-300">•</span>
+              <span className="text-gray-300 flex-shrink-0">•</span>
               <div className="flex items-center gap-1.5">
-                <ShoppingBag size={14} strokeWidth={2} className="text-indigo-500" />
-                <span><Counter value={stats.totalOrders} /> Transaksi</span>
+                <ShoppingBag size={14} strokeWidth={2} className="text-indigo-500 flex-shrink-0" />
+                <span className="whitespace-nowrap"><Counter value={stats.totalOrders} /> Transaksi</span>
               </div>
-              <span className="text-gray-300">•</span>
+              <span className="text-gray-300 flex-shrink-0">•</span>
               <div className="flex items-center gap-1.5">
-                <Users size={14} strokeWidth={2} className="text-purple-500" />
-                <span><Counter value={stats.totalMembers} /> Member Dikelola</span>
+                <Users size={14} strokeWidth={2} className="text-purple-500 flex-shrink-0" />
+                <span className="whitespace-nowrap"><Counter value={stats.totalMembers} /> Member Dikelola</span>
               </div>
             </div>
           </div>
