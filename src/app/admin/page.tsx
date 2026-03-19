@@ -152,7 +152,7 @@ export default function AdminDashboard() {
   const checkAdmin = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      router.push('/')
+      router.push('/admin/login')
       return
     }
     fetchDashboard()
@@ -180,7 +180,7 @@ export default function AdminDashboard() {
       })
 
       if (res.status === 401 || res.status === 403) {
-        router.push('/')
+        router.push('/admin/login')
         return
       }
 

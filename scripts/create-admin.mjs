@@ -27,7 +27,7 @@ function loadEnvFile(envPath) {
 
 loadEnvFile(path.resolve(__dirname, '../.env.local'))
 
-const email = process.env.ADMIN_EMAIL
+const email = process.env.ADMIN_EMAIL || process.env.ADMIN_EMAILS?.split(',')[0]
 const password = process.env.ADMIN_PASSWORD
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
