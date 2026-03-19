@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import Navbar from '@/components/landing/Navbar'
 import Footer from '@/components/landing/Footer'
+import Counter from '@/components/landing/Counter'
 import {
   TrendingUp,
   ShoppingBag,
@@ -111,22 +112,17 @@ export default function LandingPage() {
               <div className="flex items-center justify-center gap-4 md:gap-6 text-sm text-nowrap text-gray-600">
                 <div className="flex items-center gap-1.5">
                   <Briefcase size={14} strokeWidth={2} className="text-blue-500" />
-                  <span>{stats.totalBusinesses} Merchant Aktif</span>
+                  <span><Counter value={stats.totalBusinesses} /> Merchant Aktif</span>
                 </div>
                 <span className="text-gray-300">•</span>
                 <div className="flex items-center gap-1.5">
                   <ShoppingBag size={14} strokeWidth={2} className="text-indigo-500" />
-                  <span>{stats.totalOrders} Transaksi</span>
+                  <span><Counter value={stats.totalOrders} /> Transaksi</span>
                 </div>
                 <span className="text-gray-300">•</span>
                 <div className="flex items-center gap-1.5">
                   <Users size={14} strokeWidth={2} className="text-purple-500" />
-                  <span>{stats.totalMembers} Member Dikelola</span>
-                </div>
-                <span className="text-gray-300">•</span>
-                <div className="flex items-center gap-1.5">
-                  <Package size={14} strokeWidth={2} className="text-pink-500" />
-                  <span>{stats.totalProducts} Produk</span>
+                  <span><Counter value={stats.totalMembers} /> Member Dikelola</span>
                 </div>
               </div>
             </div>
