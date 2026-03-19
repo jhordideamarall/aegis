@@ -70,6 +70,29 @@ body {
   animation-play-state: paused;
 }
 
+/* Slot machine vertical scrolling */
+@keyframes slot-scroll {
+  0%, 20% {
+    transform: translateY(0);
+  }
+  25%, 45% {
+    transform: translateY(-6.5rem);
+  }
+  50%, 70% {
+    transform: translateY(-13rem);
+  }
+  75%, 95% {
+    transform: translateY(-19.5rem);
+  }
+  100% {
+    transform: translateY(-26rem);
+  }
+}
+
+.animate-slot-scroll {
+  animation: slot-scroll 12s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
 .mobile-sheet-overlay-enter {
   animation: mobileSheetOverlayEnter 240ms ease-out;
 }

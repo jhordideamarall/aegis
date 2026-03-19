@@ -105,97 +105,46 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Platform Stats - Auto Scrolling Card */}
+          {/* Platform Stats - Slot Machine Scrolling */}
           {stats && (
-            <div className="w-full max-w-3xl mx-auto mb-8 md:mb-12 px-4">
-              <div className="relative overflow-hidden bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl shadow-2xl">
-                {/* Scrolling Stats Bar */}
-                <div className="flex animate-scroll-stats">
-                  {/* First Set */}
-                  <div className="flex items-center gap-8 md:gap-16 px-8 md:px-16 py-5 md:py-6">
-                    <div className="flex items-center gap-3 md:gap-4">
-                      <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-blue-500/20 text-blue-400">
-                        <Briefcase size={20} strokeWidth={2} />
-                      </div>
-                      <div>
-                        <p className="text-xl md:text-2xl font-bold text-white">{stats.totalBusinesses}</p>
-                        <p className="text-xs md:text-sm text-gray-400">Bisnis</p>
-                      </div>
-                    </div>
-                    <div className="w-px h-8 md:h-10 bg-gray-700"></div>
-                    <div className="flex items-center gap-3 md:gap-4">
-                      <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-indigo-500/20 text-indigo-400">
-                        <ShoppingBag size={20} strokeWidth={2} />
-                      </div>
-                      <div>
-                        <p className="text-xl md:text-2xl font-bold text-white">{stats.totalOrders}</p>
-                        <p className="text-xs md:text-sm text-gray-400">Transaksi</p>
-                      </div>
-                    </div>
-                    <div className="w-px h-8 md:h-10 bg-gray-700"></div>
-                    <div className="flex items-center gap-3 md:gap-4">
-                      <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-purple-500/20 text-purple-400">
-                        <Users size={20} strokeWidth={2} />
-                      </div>
-                      <div>
-                        <p className="text-xl md:text-2xl font-bold text-white">{stats.totalMembers}</p>
-                        <p className="text-xs md:text-sm text-gray-400">Member</p>
-                      </div>
-                    </div>
-                    <div className="w-px h-8 md:h-10 bg-gray-700"></div>
-                    <div className="flex items-center gap-3 md:gap-4">
-                      <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-pink-500/20 text-pink-400">
-                        <Package size={20} strokeWidth={2} />
-                      </div>
-                      <div>
-                        <p className="text-xl md:text-2xl font-bold text-white">{stats.totalProducts}</p>
-                        <p className="text-xs md:text-sm text-gray-400">Produk</p>
-                      </div>
+            <div className="w-full max-w-sm mx-auto mb-8 md:mb-12 px-4">
+              <div className="relative overflow-hidden bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 rounded-2xl shadow-2xl border border-gray-700">
+                <div className="px-8 py-8 md:py-10">
+                  {/* Icon */}
+                  <div className="flex justify-center mb-4">
+                    <div className="flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 text-blue-400">
+                      <Briefcase size={28} strokeWidth={2} />
                     </div>
                   </div>
-                  {/* Duplicate Set for Seamless Loop */}
-                  <div className="flex items-center gap-8 md:gap-16 px-8 md:px-16 py-5 md:py-6">
-                    <div className="flex items-center gap-3 md:gap-4">
-                      <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-blue-500/20 text-blue-400">
-                        <Briefcase size={20} strokeWidth={2} />
+                  {/* Scrolling Numbers */}
+                  <div className="relative h-24 overflow-hidden">
+                    <div className="animate-slot-scroll flex flex-col items-center gap-4">
+                      <div className="text-center">
+                        <p className="text-4xl md:text-5xl font-bold text-white tabular-nums">{stats.totalBusinesses}</p>
+                        <p className="text-sm text-gray-400 mt-1">Bisnis Aktif</p>
                       </div>
-                      <div>
-                        <p className="text-xl md:text-2xl font-bold text-white">{stats.totalBusinesses}</p>
-                        <p className="text-xs md:text-sm text-gray-400">Bisnis</p>
+                      <div className="text-center">
+                        <p className="text-4xl md:text-5xl font-bold text-white tabular-nums">{stats.totalOrders}</p>
+                        <p className="text-sm text-gray-400 mt-1">Total Transaksi</p>
                       </div>
-                    </div>
-                    <div className="w-px h-8 md:h-10 bg-gray-700"></div>
-                    <div className="flex items-center gap-3 md:gap-4">
-                      <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-indigo-500/20 text-indigo-400">
-                        <ShoppingBag size={20} strokeWidth={2} />
+                      <div className="text-center">
+                        <p className="text-4xl md:text-5xl font-bold text-white tabular-nums">{stats.totalMembers}</p>
+                        <p className="text-sm text-gray-400 mt-1">Member Terdaftar</p>
                       </div>
-                      <div>
-                        <p className="text-xl md:text-2xl font-bold text-white">{stats.totalOrders}</p>
-                        <p className="text-xs md:text-sm text-gray-400">Transaksi</p>
+                      <div className="text-center">
+                        <p className="text-4xl md:text-5xl font-bold text-white tabular-nums">{stats.totalProducts}</p>
+                        <p className="text-sm text-gray-400 mt-1">Produk Terkelola</p>
                       </div>
-                    </div>
-                    <div className="w-px h-8 md:h-10 bg-gray-700"></div>
-                    <div className="flex items-center gap-3 md:gap-4">
-                      <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-purple-500/20 text-purple-400">
-                        <Users size={20} strokeWidth={2} />
-                      </div>
-                      <div>
-                        <p className="text-xl md:text-2xl font-bold text-white">{stats.totalMembers}</p>
-                        <p className="text-xs md:text-sm text-gray-400">Member</p>
-                      </div>
-                    </div>
-                    <div className="w-px h-8 md:h-10 bg-gray-700"></div>
-                    <div className="flex items-center gap-3 md:gap-4">
-                      <div className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full bg-pink-500/20 text-pink-400">
-                        <Package size={20} strokeWidth={2} />
-                      </div>
-                      <div>
-                        <p className="text-xl md:text-2xl font-bold text-white">{stats.totalProducts}</p>
-                        <p className="text-xs md:text-sm text-gray-400">Produk</p>
+                      {/* Duplicate for seamless loop */}
+                      <div className="text-center">
+                        <p className="text-4xl md:text-5xl font-bold text-white tabular-nums">{stats.totalBusinesses}</p>
+                        <p className="text-sm text-gray-400 mt-1">Bisnis Aktif</p>
                       </div>
                     </div>
                   </div>
                 </div>
+                {/* Shine Effect */}
+                <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none"></div>
               </div>
             </div>
           )}
