@@ -52,6 +52,24 @@ body {
   pointer-events: none;
 }
 
+/* Auto-scrolling stats animation */
+@keyframes scroll-stats {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-scroll-stats {
+  animation: scroll-stats 30s linear infinite;
+}
+
+.animate-scroll-stats:hover {
+  animation-play-state: paused;
+}
+
 .mobile-sheet-overlay-enter {
   animation: mobileSheetOverlayEnter 240ms ease-out;
 }
