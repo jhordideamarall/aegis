@@ -108,25 +108,25 @@ export default function LandingPage() {
           {/* Platform Stats */}
           {stats && (
             <div className="w-full max-w-2xl mx-auto mb-8 md:mb-12 px-4">
-              <div className="flex items-center justify-center gap-6 md:gap-10 text-sm">
-                <div className="flex items-center gap-2">
-                  <Briefcase size={16} strokeWidth={2} className="text-blue-500" />
-                  <span className="text-gray-600">{stats.totalBusinesses} Bisnis</span>
+              <div className="flex items-center justify-center gap-4 md:gap-6 text-sm text-nowrap text-gray-600">
+                <div className="flex items-center gap-1.5">
+                  <Briefcase size={14} strokeWidth={2} className="text-blue-500" />
+                  <span>{stats.totalBusinesses} Merchant Aktif</span>
                 </div>
-                <div className="w-px h-4 bg-gray-300"></div>
-                <div className="flex items-center gap-2">
-                  <ShoppingBag size={16} strokeWidth={2} className="text-indigo-500" />
-                  <span className="text-gray-600">{stats.totalOrders} Transaksi</span>
+                <span className="text-gray-300">•</span>
+                <div className="flex items-center gap-1.5">
+                  <ShoppingBag size={14} strokeWidth={2} className="text-indigo-500" />
+                  <span>{stats.totalOrders} Transaksi</span>
                 </div>
-                <div className="w-px h-4 bg-gray-300"></div>
-                <div className="flex items-center gap-2">
-                  <Users size={16} strokeWidth={2} className="text-purple-500" />
-                  <span className="text-gray-600">{stats.totalMembers} Member</span>
+                <span className="text-gray-300">•</span>
+                <div className="flex items-center gap-1.5">
+                  <Users size={14} strokeWidth={2} className="text-purple-500" />
+                  <span>{stats.totalMembers} Member Dikelola</span>
                 </div>
-                <div className="w-px h-4 bg-gray-300"></div>
-                <div className="flex items-center gap-2">
-                  <Package size={16} strokeWidth={2} className="text-pink-500" />
-                  <span className="text-gray-600">{stats.totalProducts} Produk</span>
+                <span className="text-gray-300">•</span>
+                <div className="flex items-center gap-1.5">
+                  <Package size={14} strokeWidth={2} className="text-pink-500" />
+                  <span>{stats.totalProducts} Produk</span>
                 </div>
               </div>
             </div>
