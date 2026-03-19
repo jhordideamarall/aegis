@@ -30,7 +30,12 @@ interface PlatformStats {
 }
 
 export default function LandingPage() {
-  const [stats, setStats] = useState<PlatformStats | null>(null)
+  const [stats, setStats] = useState<PlatformStats>({
+    totalBusinesses: 0,
+    totalOrders: 0,
+    totalMembers: 0,
+    totalProducts: 0
+  })
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -107,26 +112,24 @@ export default function LandingPage() {
           </div>
 
           {/* Platform Stats */}
-          {stats && (
-            <div className="w-full max-w-2xl mx-auto mb-8 md:mb-12 px-4">
-              <div className="flex items-center justify-center gap-4 md:gap-6 text-sm text-nowrap text-gray-600">
-                <div className="flex items-center gap-1.5">
-                  <Briefcase size={14} strokeWidth={2} className="text-blue-500" />
-                  <span><Counter value={stats.totalBusinesses} /> Merchant Aktif</span>
-                </div>
-                <span className="text-gray-300">•</span>
-                <div className="flex items-center gap-1.5">
-                  <ShoppingBag size={14} strokeWidth={2} className="text-indigo-500" />
-                  <span><Counter value={stats.totalOrders} /> Transaksi</span>
-                </div>
-                <span className="text-gray-300">•</span>
-                <div className="flex items-center gap-1.5">
-                  <Users size={14} strokeWidth={2} className="text-purple-500" />
-                  <span><Counter value={stats.totalMembers} /> Member Dikelola</span>
-                </div>
+          <div className="w-full max-w-2xl mx-auto mb-8 md:mb-12 px-4">
+            <div className="flex items-center justify-center gap-4 md:gap-6 text-sm text-nowrap text-gray-600">
+              <div className="flex items-center gap-1.5">
+                <Briefcase size={14} strokeWidth={2} className="text-blue-500" />
+                <span><Counter value={stats.totalBusinesses} /> Merchant Aktif</span>
+              </div>
+              <span className="text-gray-300">•</span>
+              <div className="flex items-center gap-1.5">
+                <ShoppingBag size={14} strokeWidth={2} className="text-indigo-500" />
+                <span><Counter value={stats.totalOrders} /> Transaksi</span>
+              </div>
+              <span className="text-gray-300">•</span>
+              <div className="flex items-center gap-1.5">
+                <Users size={14} strokeWidth={2} className="text-purple-500" />
+                <span><Counter value={stats.totalMembers} /> Member Dikelola</span>
               </div>
             </div>
-          )}
+          </div>
 
           {/* Hero Product Image - Floating Dashboard */}
           <div className="mt-8 md:mt-16 relative w-full">
