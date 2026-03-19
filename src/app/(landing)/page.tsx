@@ -105,46 +105,29 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Platform Stats - Slot Machine Scrolling */}
+          {/* Platform Stats */}
           {stats && (
-            <div className="w-full max-w-sm mx-auto mb-8 md:mb-12 px-4">
-              <div className="relative overflow-hidden bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 rounded-2xl shadow-2xl border border-gray-700">
-                <div className="px-8 py-8 md:py-10">
-                  {/* Icon */}
-                  <div className="flex justify-center mb-4">
-                    <div className="flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 text-blue-400">
-                      <Briefcase size={28} strokeWidth={2} />
-                    </div>
-                  </div>
-                  {/* Scrolling Numbers */}
-                  <div className="relative h-24 overflow-hidden">
-                    <div className="animate-slot-scroll flex flex-col items-center gap-4">
-                      <div className="text-center">
-                        <p className="text-4xl md:text-5xl font-bold text-white tabular-nums">{stats.totalBusinesses}</p>
-                        <p className="text-sm text-gray-400 mt-1">Bisnis Aktif</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-4xl md:text-5xl font-bold text-white tabular-nums">{stats.totalOrders}</p>
-                        <p className="text-sm text-gray-400 mt-1">Total Transaksi</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-4xl md:text-5xl font-bold text-white tabular-nums">{stats.totalMembers}</p>
-                        <p className="text-sm text-gray-400 mt-1">Member Terdaftar</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-4xl md:text-5xl font-bold text-white tabular-nums">{stats.totalProducts}</p>
-                        <p className="text-sm text-gray-400 mt-1">Produk Terkelola</p>
-                      </div>
-                      {/* Duplicate for seamless loop */}
-                      <div className="text-center">
-                        <p className="text-4xl md:text-5xl font-bold text-white tabular-nums">{stats.totalBusinesses}</p>
-                        <p className="text-sm text-gray-400 mt-1">Bisnis Aktif</p>
-                      </div>
-                    </div>
-                  </div>
+            <div className="w-full max-w-2xl mx-auto mb-8 md:mb-12 px-4">
+              <div className="flex items-center justify-center gap-6 md:gap-10 text-sm">
+                <div className="flex items-center gap-2">
+                  <Briefcase size={16} strokeWidth={2} className="text-blue-500" />
+                  <span className="text-gray-600">{stats.totalBusinesses} Bisnis</span>
                 </div>
-                {/* Shine Effect */}
-                <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none"></div>
+                <div className="w-px h-4 bg-gray-300"></div>
+                <div className="flex items-center gap-2">
+                  <ShoppingBag size={16} strokeWidth={2} className="text-indigo-500" />
+                  <span className="text-gray-600">{stats.totalOrders} Transaksi</span>
+                </div>
+                <div className="w-px h-4 bg-gray-300"></div>
+                <div className="flex items-center gap-2">
+                  <Users size={16} strokeWidth={2} className="text-purple-500" />
+                  <span className="text-gray-600">{stats.totalMembers} Member</span>
+                </div>
+                <div className="w-px h-4 bg-gray-300"></div>
+                <div className="flex items-center gap-2">
+                  <Package size={16} strokeWidth={2} className="text-pink-500" />
+                  <span className="text-gray-600">{stats.totalProducts} Produk</span>
+                </div>
               </div>
             </div>
           )}
