@@ -38,9 +38,12 @@ export default function LandingPage() {
   })
 
   useEffect(() => {
+    // Fetch stats immediately with priority
     const fetchStats = async () => {
       try {
-        const res = await fetch('/api/stats/platform')
+        const res = await fetch('/api/stats/platform', {
+          priority: 'high'
+        })
         const data = await res.json()
         setStats(data)
       } catch (error) {

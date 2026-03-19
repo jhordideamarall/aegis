@@ -7,7 +7,7 @@ interface CounterProps {
   duration?: number
 }
 
-export default function Counter({ value, duration = 2000 }: CounterProps) {
+export default function Counter({ value, duration = 800 }: CounterProps) {
   const [count, setCount] = useState(0)
   const hasAnimated = useRef(false)
   const prevValue = useRef(value)

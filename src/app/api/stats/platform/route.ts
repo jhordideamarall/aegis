@@ -1,46 +1,48 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 
+// Cache stats for 1 minute to speed up responses
+let cachedStats: any = null
+let cacheTime = 0
+const CACHE_DURATION = 60000 // 1 minute
+
 export async function GET() {
+  // Return cached response if still valid
+  const now = Date.now()
+  if (cachedStats && now - cacheTime < CACHE_DURATION) {
+    return NextResponse.json(cachedStats)
+  }
+
   try {
-    // Get total businesses count
-    const { count: totalBusinesses, error: businessError } = await supabaseAdmin
-      .from('businesses')
-      .select('*', { count: 'exact', head: true })
+    // Get all counts in parallel for faster response
+    const [businessesResult, ordersResult, membersResult, productsResult] = await Promise.all([
+      supabaseAdmin.from('businesses').select('*', { count: 'exact', head: true }),
+      supabaseAdmin.from('orders').select('*', { count: 'exact', head: true }),
+      supabaseAdmin.from('members').select('*', { count: 'exact', head: true }),
+      supabaseAdmin.from('products').select('*', { count: 'exact', head: true })
+    ])
 
-    if (businessError) throw businessError
+    if (businessesResult.error) throw businessesResult.error
+    if (ordersResult.error) throw ordersResult.error
+    if (membersResult.error) throw membersResult.error
+    if (productsResult.error) throw productsResult.error
 
-    // Get total orders count across all businesses
-    const { count: totalOrders, error: orderError } = await supabaseAdmin
-      .from('orders')
-      .select('*', { count: 'exact', head: true })
+    const stats = {
+      totalBusinesses: businessesResult.count || 0,
+      totalOrders: ordersResult.count || 0,
+      totalMembers: membersResult.count || 0,
+      totalProducts: productsResult.count || 0
+    }
 
-    if (orderError) throw orderError
+    // Update cache
+    cachedStats = stats
+    cacheTime = now
 
-    // Get total members count across all businesses
-    const { count: totalMembers, error: memberError } = await supabaseAdmin
-      .from('members')
-      .select('*', { count: 'exact', head: true })
-
-    if (memberError) throw memberError
-
-    // Get total products count across all businesses
-    const { count: totalProducts, error: productError } = await supabaseAdmin
-      .from('products')
-      .select('*', { count: 'exact', head: true })
-
-    if (productError) throw productError
-
-    return NextResponse.json({
-      totalBusinesses: totalBusinesses || 0,
-      totalOrders: totalOrders || 0,
-      totalMembers: totalMembers || 0,
-      totalProducts: totalProducts || 0
-    })
+    return NextResponse.json(stats)
   } catch (error: any) {
     console.error('Error fetching platform stats:', error)
-    // Return default values if error (don't expose error to client)
-    return NextResponse.json({
+    // Return cached data if available, otherwise zeros
+    return NextResponse.json(cachedStats || {
       totalBusinesses: 0,
       totalOrders: 0,
       totalMembers: 0,
