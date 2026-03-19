@@ -2,24 +2,49 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
+import { useEffect, useState } from 'react'
 import Navbar from '@/components/landing/Navbar'
 import Footer from '@/components/landing/Footer'
-import { 
-  TrendingUp, 
-  ShoppingBag, 
-  Users, 
-  CreditCard, 
-  Package, 
+import {
+  TrendingUp,
+  ShoppingBag,
+  Users,
+  CreditCard,
+  Package,
   Printer,
   CheckCircle,
   ArrowRight,
   Zap,
   BarChart,
   Shield,
-  Clock
+  Clock,
+  Briefcase
 } from 'react-feather'
 
+interface PlatformStats {
+  totalBusinesses: number
+  totalOrders: number
+  totalMembers: number
+  totalProducts: number
+}
+
 export default function LandingPage() {
+  const [stats, setStats] = useState<PlatformStats | null>(null)
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch('/api/stats/platform')
+        const data = await res.json()
+        setStats(data)
+      } catch (error) {
+        console.error('Failed to fetch platform stats:', error)
+      }
+    }
+
+    fetchStats()
+  }, [])
+
   return (
     <div className="min-h-screen bg-white overflow-x-hidden">
       <Navbar />
@@ -79,6 +104,40 @@ export default function LandingPage() {
               <span className="whitespace-nowrap">Semua fitur gratis</span>
             </div>
           </div>
+
+          {/* Platform Stats */}
+          {stats && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 max-w-4xl mx-auto mb-8 md:mb-12 px-4">
+              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-blue-100 shadow-sm">
+                <div className="flex items-center justify-center gap-2 text-blue-600 mb-2">
+                  <Briefcase size={20} strokeWidth={2} />
+                </div>
+                <p className="text-2xl md:text-3xl font-bold text-gray-900">{stats.totalBusinesses}</p>
+                <p className="text-xs md:text-sm text-gray-600 mt-1">Bisnis Aktif</p>
+              </div>
+              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-indigo-100 shadow-sm">
+                <div className="flex items-center justify-center gap-2 text-indigo-600 mb-2">
+                  <ShoppingBag size={20} strokeWidth={2} />
+                </div>
+                <p className="text-2xl md:text-3xl font-bold text-gray-900">{stats.totalOrders}</p>
+                <p className="text-xs md:text-sm text-gray-600 mt-1">Total Transaksi</p>
+              </div>
+              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-purple-100 shadow-sm">
+                <div className="flex items-center justify-center gap-2 text-purple-600 mb-2">
+                  <Users size={20} strokeWidth={2} />
+                </div>
+                <p className="text-2xl md:text-3xl font-bold text-gray-900">{stats.totalMembers}</p>
+                <p className="text-xs md:text-sm text-gray-600 mt-1">Member Terdaftar</p>
+              </div>
+              <div className="bg-white/60 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-pink-100 shadow-sm">
+                <div className="flex items-center justify-center gap-2 text-pink-600 mb-2">
+                  <Package size={20} strokeWidth={2} />
+                </div>
+                <p className="text-2xl md:text-3xl font-bold text-gray-900">{stats.totalProducts}</p>
+                <p className="text-xs md:text-sm text-gray-600 mt-1">Produk Terkelola</p>
+              </div>
+            </div>
+          )}
 
           {/* Hero Product Image - Floating Dashboard */}
           <div className="mt-8 md:mt-16 relative w-full">
