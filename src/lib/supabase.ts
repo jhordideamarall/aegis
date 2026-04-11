@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -12,8 +12,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Server client dengan service role (bypass RLS) - hanya untuk server-side
-// Check hanya di server, jangan include di client bundle
-export const supabaseAdmin = typeof window === 'undefined'
+const _supabaseAdmin = typeof window === 'undefined'
   ? (supabaseServiceKey
       ? createClient(supabaseUrl, supabaseServiceKey, {
           auth: {
@@ -27,4 +26,17 @@ export const supabaseAdmin = typeof window === 'undefined'
             persistSession: false
           }
         }))
-  : null // Don't create server client in browser
+  : null
+
+export const supabaseAdmin = _supabaseAdmin as SupabaseClient
+
+/**
+ * Get server-side Supabase client
+ * Throws error if called from browser
+ */
+export function getServerSupabase(): SupabaseClient {
+  if (typeof window !== 'undefined') {
+    throw new Error('supabaseAdmin can only be used server-side')
+  }
+  return _supabaseAdmin as SupabaseClient
+}
