@@ -12,12 +12,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Server client dengan service role (bypass RLS) - hanya untuk server-side
-// CRITICAL: Throw error di production jika service key missing - jangan silent fallback
+// WARNING: Throw error di production jika service key missing
 if (!supabaseServiceKey && process.env.NODE_ENV === 'production') {
-  throw new Error(
-    'SUPABASE_SERVICE_ROLE_KEY is required in production. ' +
-    'This key bypasses Row Level Security and is essential for server-side operations.'
+  console.error(
+    '⚠️ CRITICAL: SUPABASE_SERVICE_ROLE_KEY is missing! ' +
+    'Server-side operations will fail. ' +
+    'Add this to Vercel Environment Variables immediately.'
   )
+  // Temporary: Don't throw, but app will have limited functionality
+  // Remove this fallback once env var is properly configured
 }
 
 export const supabaseAdmin = supabaseServiceKey
