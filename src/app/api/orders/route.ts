@@ -25,12 +25,12 @@ interface OrdersListRow {
   member?: { name: string; phone: string } | Array<{ name: string; phone: string }> | null
 }
 
-// Helper to format date as local YYYY-MM-DD in WIB timezone
+// Helper to format date as local YYYY-MM-DD in UTC timezone
 function toLocalISODate(date: Date): string {
-  return formatInTimeZone(date, 'Asia/Jakarta', 'yyyy-MM-dd')
+  return date.toISOString().split('T')[0]
 }
 
-// Helper to parse YYYY-MM-DD to Date in WIB timezone, then convert to UTC
+// Helper to parse YYYY-MM-DD to UTC Date
 function parseLocalDateToUTC(dateString: string, includeTime: 'start' | 'end' = 'start'): Date | null {
   // Validate format first
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/
@@ -39,28 +39,18 @@ function parseLocalDateToUTC(dateString: string, includeTime: 'start' | 'end' = 
   }
 
   const [year, month, day] = dateString.split('-').map(Number)
-  
+
   // Validate ranges
   if (month < 1 || month > 12 || day < 1 || day > 31) {
     return null
   }
-  
-  // Create date in WIB timezone
-  const wibDate = toDate(dateString, { timeZone: 'Asia/Jakarta' })
-  
-  // Check if date is valid
-  if (Number.isNaN(wibDate.getTime())) {
-    return null
-  }
-  
+
+  // Create date in UTC
   if (includeTime === 'start') {
-    wibDate.setHours(0, 0, 0, 0)
+    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
   } else {
-    wibDate.setHours(23, 59, 59, 999)
+    return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999))
   }
-  
-  // Convert to UTC timestamp
-  return new Date(wibDate.getTime())
 }
 
 export async function GET(request: Request) {

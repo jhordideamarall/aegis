@@ -72,21 +72,21 @@ export async function GET(request: Request) {
     let rangeStart: Date | null = null
     let rangeEnd: Date | null = null
 
+    const parseDateToUTC = (dateString: string, includeTime: 'start' | 'end' = 'start'): Date => {
+      const [year, month, day] = dateString.split('-').map(Number)
+      if (includeTime === 'start') {
+        return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
+      } else {
+        return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999))
+      }
+    }
+
     if (startDate && endDate) {
-      const [startYear, startMonth, startDay] = startDate.split('-').map(Number)
-      const [endYear, endMonth, endDay] = endDate.split('-').map(Number)
-
-      rangeStart = new Date(Date.UTC(startYear, (startMonth || 1) - 1, startDay || 1, 0, 0, 0, 0))
-      rangeStart = new Date(rangeStart.getTime() - (7 * 3600000))
-
-      rangeEnd = new Date(Date.UTC(endYear, (endMonth || 1) - 1, endDay || 1, 23, 59, 59, 999))
-      rangeEnd = new Date(rangeEnd.getTime() - (7 * 3600000))
+      rangeStart = parseDateToUTC(startDate, 'start')
+      rangeEnd = parseDateToUTC(endDate, 'end')
     } else if (startDate) {
-      const [year, month, day] = startDate.split('-').map(Number)
-      rangeStart = new Date(Date.UTC(year, (month || 1) - 1, day || 1, 0, 0, 0, 0))
-      rangeStart = new Date(rangeStart.getTime() - (7 * 3600000))
-      rangeEnd = new Date(Date.UTC(year, (month || 1) - 1, day || 1, 23, 59, 59, 999))
-      rangeEnd = new Date(rangeEnd.getTime() - (7 * 3600000))
+      rangeStart = parseDateToUTC(startDate, 'start')
+      rangeEnd = parseDateToUTC(startDate, 'end')
     }
 
     let query = supabaseAdmin
