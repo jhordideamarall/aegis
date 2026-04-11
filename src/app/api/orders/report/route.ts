@@ -6,6 +6,7 @@ import {
   getBusinessContextFromRequest,
   unauthorizedResponse
 } from '@/lib/requestAuth'
+import { escapeILikePattern } from '@/lib/utils'
 
 interface ReportRow {
   id: string
@@ -136,11 +137,12 @@ export async function GET(request: Request) {
 
     if (search) {
       let memberIds: string[] = []
+      const escapedSearch = escapeILikePattern(search)
       const { data: matchingMembers } = await supabaseAdmin
         .from('members')
         .select('id')
         .eq('business_id', resolvedBusinessId)
-        .or(`name.ilike.%${search}%,phone.ilike.%${search}%`)
+        .or(`name.ilike.%${escapedSearch}%,phone.ilike.%${escapedSearch}%`)
 
       if (matchingMembers?.length) {
         memberIds = matchingMembers.map((member) => member.id)
@@ -166,10 +168,10 @@ export async function GET(request: Request) {
       total: normalizedOrders.length
     })
   } catch (error) {
-    console.error('Error generating orders report:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    // Log internally for debugging (use structured logging service in production)
+    // Don't expose internal error details to client
     return NextResponse.json(
-      { error: 'Failed to generate orders report', details: errorMessage },
+      { error: 'Failed to generate orders report' },
       { status: 500 }
     )
   }

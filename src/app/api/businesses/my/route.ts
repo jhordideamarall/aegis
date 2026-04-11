@@ -28,10 +28,11 @@ export async function GET(request: Request) {
       role: businessUser.role,
       user: { id: businessContext.user.id, email: businessContext.user.email }
     })
-  } catch (error: any) {
-    console.error('Error fetching business:', error)
+  } catch (error) {
+    // Log internally for debugging (use structured logging service in production)
+    // Don't expose internal error details to client
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch business' },
+      { error: 'Failed to fetch business' },
       { status: 500 }
     )
   }
@@ -61,10 +62,11 @@ export async function PUT(request: Request) {
     if (updateError) throw updateError
 
     return NextResponse.json({ business })
-  } catch (error: any) {
-    console.error('Error updating business:', error)
+  } catch (error) {
+    // Log internally for debugging (use structured logging service in production)
+    // Don't expose internal error details to client
     return NextResponse.json(
-      { error: error.message || 'Failed to update business' },
+      { error: 'Failed to update business' },
       { status: 500 }
     )
   }

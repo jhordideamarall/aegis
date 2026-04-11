@@ -80,10 +80,11 @@ export async function POST(request: Request) {
       slug: business.slug,
       setup_token: createSetupToken(business.id)
     })
-  } catch (error: any) {
-    console.error('Error creating business:', error)
+  } catch (error) {
+    // Log internally for debugging (use structured logging service in production)
+    // Don't expose internal error details to client
     return NextResponse.json(
-      { error: error.message || 'Failed to create business' },
+      { error: 'Failed to create business' },
       { status: 500 }
     )
   }

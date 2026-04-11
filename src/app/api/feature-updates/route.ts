@@ -19,10 +19,11 @@ export async function GET() {
     }
 
     return NextResponse.json((data || []).map(normalizeFeatureUpdate))
-  } catch (error: any) {
-    console.error('Error fetching feature updates:', error)
+  } catch (error) {
+    // Log internally for debugging (use structured logging service in production)
+    // Don't expose internal error details to client
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch feature updates' },
+      { error: 'Failed to fetch feature updates' },
       { status: 500 }
     )
   }

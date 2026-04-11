@@ -6,6 +6,7 @@ import {
   getBusinessContextFromRequest,
   unauthorizedResponse
 } from '@/lib/requestAuth'
+import { escapeILikePattern } from '@/lib/utils'
 
 export async function GET(request: Request) {
   try {
@@ -33,7 +34,8 @@ export async function GET(request: Request) {
       .eq('business_id', businessContext.businessId)
 
     if (search) {
-      query = query.or(`name.ilike.%${search}%,phone.ilike.%${search}%`)
+      const escapedSearch = escapeILikePattern(search)
+      query = query.or(`name.ilike.%${escapedSearch}%,phone.ilike.%${escapedSearch}%`)
       query = query.order('name')
     } else {
       query = query.order('created_at', { ascending: false })

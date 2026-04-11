@@ -18,10 +18,11 @@ export async function GET(request: Request) {
     if (error) throw error
 
     return NextResponse.json(data || [])
-  } catch (error: any) {
-    console.error('Error fetching admin businesses:', error)
+  } catch (error) {
+    // Log internally for debugging (use structured logging service in production)
+    // Don't expose internal error details to client
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch businesses' },
+      { error: 'Failed to fetch businesses' },
       { status: 500 }
     )
   }

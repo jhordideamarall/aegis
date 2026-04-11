@@ -7,6 +7,17 @@ export function formatIDR(amount: number): string {
   }).format(amount)
 }
 
+/**
+ * Escape special ILIKE wildcard characters to prevent wildcard injection
+ * PostgreSQL ILIKE treats % and _ as wildcards:
+ * - % matches any sequence of characters
+ * - _ matches any single character
+ * This function escapes them so search is literal
+ */
+export function escapeILikePattern(pattern: string): string {
+  return pattern.replace(/([%_])/g, '\\$1')
+}
+
 export function toLocalISODate(date: Date = new Date()): string {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')

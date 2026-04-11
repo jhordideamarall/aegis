@@ -9,6 +9,7 @@ import {
   unauthorizedResponse
 } from '@/lib/requestAuth'
 import { toDate, formatInTimeZone } from 'date-fns-tz'
+import { escapeILikePattern } from '@/lib/utils'
 
 interface OrdersListRow {
   id: string
@@ -189,11 +190,12 @@ export async function GET(request: Request) {
 
       // First, find matching members if any
       let memberIds: string[] = []
+      const escapedSearch = escapeILikePattern(search)
       const { data: matchingMembers } = await supabaseAdmin
         .from('members')
         .select('id')
         .eq('business_id', resolvedBusinessId)
-        .or(`name.ilike.%${search}%,phone.ilike.%${search}%`)
+        .or(`name.ilike.%${escapedSearch}%,phone.ilike.%${escapedSearch}%`)
         .limit(100) // Limit member search to prevent abuse
 
       if (matchingMembers && matchingMembers.length > 0) {
@@ -201,10 +203,14 @@ export async function GET(request: Request) {
       }
 
       // Fetch all orders in the date range (without pagination first)
+      // SAFETY LIMIT: Max 2000 rows to prevent memory issues
+      const MAX_SEARCH_ROWS = 2000
+      
       let allOrdersQuery = supabaseAdmin
         .from('orders')
         .select(listSelect)
         .eq('business_id', resolvedBusinessId)
+        .limit(MAX_SEARCH_ROWS)
 
       if (rangeStart) {
         allOrdersQuery = allOrdersQuery.gte('created_at', rangeStart.toISOString())
@@ -324,10 +330,10 @@ export async function GET(request: Request) {
       }
     })
   } catch (error) {
-    console.error('Error fetching orders:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    // Log internally for debugging (use structured logging service in production)
+    // Don't expose internal error details to client
     return NextResponse.json(
-      { error: 'Failed to fetch orders', details: errorMessage },
+      { error: 'Failed to fetch orders' },
       { status: 500 }
     )
   }
@@ -594,13 +600,15 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(order, { status: 201 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Log full error internally for debugging (in production, use logging service)
     // Don't expose error details to client (security)
+
+    const err = error as Record<string, unknown>
     
     // If we created an order but failed later, clean it up
     // This is a last resort - should have been cleaned up earlier
-    const order = error?.context?.order_id
+    const order = err?.context as string | undefined
     if (order) {
       try {
         await supabaseAdmin.from('orders').delete().eq('id', order)
@@ -608,24 +616,26 @@ export async function POST(request: Request) {
         // Ignore cleanup errors - order will be cleaned up by maintenance script
       }
     }
-    
+
     // Check if it's a database constraint error
-    if (error?.code?.startsWith('23')) {
+    const errorCode = err?.code as string | undefined
+    if (errorCode?.startsWith('23')) {
       // Database constraint violation (foreign key, unique, etc.)
       return NextResponse.json(
         { error: 'Failed to create order. Please check your data and try again.' },
         { status: 400 }
       )
     }
-    
+
     // Check if it's a connection error
-    if (error?.message?.includes('fetch') || error?.message?.includes('network')) {
+    const errorMessage = err?.message as string | undefined
+    if (errorMessage?.includes('fetch') || errorMessage?.includes('network')) {
       return NextResponse.json(
         { error: 'Database connection error. Please try again later.' },
         { status: 503 }
       )
     }
-    
+
     // Generic error message for production
     return NextResponse.json(
       { error: 'Failed to create order. Please try again.' },

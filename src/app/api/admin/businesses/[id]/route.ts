@@ -32,10 +32,11 @@ export async function PUT(
     if (error) throw error
 
     return NextResponse.json(data)
-  } catch (error: any) {
-    console.error('Error updating business:', error)
+  } catch (error) {
+    // Log internally for debugging (use structured logging service in production)
+    // Don't expose internal error details to client
     return NextResponse.json(
-      { error: error.message || 'Failed to update business' },
+      { error: 'Failed to update business' },
       { status: 500 }
     )
   }

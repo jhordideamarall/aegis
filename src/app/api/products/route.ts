@@ -6,6 +6,7 @@ import {
   getBusinessContextFromRequest,
   unauthorizedResponse
 } from '@/lib/requestAuth'
+import { escapeILikePattern } from '@/lib/utils'
 
 export async function GET(request: Request) {
   try {
@@ -35,7 +36,8 @@ export async function GET(request: Request) {
       .order('name')
 
     if (q) {
-      query = query.ilike('name', `%${q}%`)
+      const escapedQ = escapeILikePattern(q)
+      query = query.ilike('name', `%${escapedQ}%`)
     }
 
     if (category && category !== 'all') {

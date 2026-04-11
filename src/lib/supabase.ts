@@ -12,11 +12,25 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Server client dengan service role (bypass RLS) - hanya untuk server-side
-export const supabaseAdmin = supabaseServiceKey 
+// CRITICAL: Throw error di production jika service key missing - jangan silent fallback
+if (!supabaseServiceKey && process.env.NODE_ENV === 'production') {
+  throw new Error(
+    'SUPABASE_SERVICE_ROLE_KEY is required in production. ' +
+    'This key bypasses Row Level Security and is essential for server-side operations.'
+  )
+}
+
+export const supabaseAdmin = supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false
       }
     })
-  : supabase // Fallback ke anon key jika service key tidak ada
+  : createClient(supabaseUrl, supabaseAnonKey, {
+      // Development fallback - tetap bedakan client, jangan reuse 'supabase' instance
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })

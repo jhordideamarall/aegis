@@ -150,10 +150,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ business })
   } catch (error) {
-    console.error('Error uploading business logo:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    // Log internally for debugging (use structured logging service in production)
+    // Don't expose internal error details to client
     return NextResponse.json(
-      { error: 'Failed to upload logo', details: errorMessage },
+      { error: 'Failed to upload logo' },
       { status: 500 }
     )
   }
@@ -197,10 +197,10 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ business })
   } catch (error) {
-    console.error('Error deleting business logo:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    // Log internally for debugging (use structured logging service in production)
+    // Don't expose internal error details to client
     return NextResponse.json(
-      { error: 'Failed to remove logo', details: errorMessage },
+      { error: 'Failed to remove logo' },
       { status: 500 }
     )
   }

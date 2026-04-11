@@ -8,10 +8,13 @@ interface SetupTokenPayload {
 }
 
 function getSetupTokenSecret() {
-  const secret = process.env.SETUP_TOKEN_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY
+  const secret = process.env.SETUP_TOKEN_SECRET
 
   if (!secret) {
-    throw new Error('Server misconfigured')
+    throw new Error(
+      'SETUP_TOKEN_SECRET environment variable is required. ' +
+      'Please set a dedicated secret for JWT signing instead of reusing SUPABASE_SERVICE_ROLE_KEY.'
+    )
   }
 
   return secret

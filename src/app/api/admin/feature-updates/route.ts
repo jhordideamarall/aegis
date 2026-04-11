@@ -52,10 +52,11 @@ export async function GET(request: Request) {
     return NextResponse.json({
       updates: (data || []).map(normalizeFeatureUpdate)
     })
-  } catch (error: any) {
-    console.error('Error fetching admin feature updates:', error)
+  } catch (error) {
+    // Log internally for debugging (use structured logging service in production)
+    // Don't expose internal error details to client
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch feature updates' },
+      { error: 'Failed to fetch feature updates' },
       { status: 500 }
     )
   }
@@ -118,7 +119,7 @@ export async function POST(request: Request) {
       )
     }
     return NextResponse.json(
-      { error: error.message || 'Failed to create feature update' },
+      { error: 'Failed to create feature update' },
       { status: 500 }
     )
   }

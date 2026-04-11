@@ -6,6 +6,8 @@ import {
   getBusinessContextFromRequest,
   unauthorizedResponse
 } from '@/lib/requestAuth'
+import { toDate } from 'date-fns-tz'
+import { escapeILikePattern } from '@/lib/utils'
 
 interface DashboardOrder {
   id: string
@@ -58,25 +60,30 @@ export async function GET(request: Request) {
     }
 
     // Parse dates - treat input as local dates (YYYY-MM-DD format from frontend)
-    // Convert to Indonesian time (WIB - UTC+7)
-    const [startYear, startMonth, startDay] = startDate.split('-').map(Number)
-    const [endYear, endMonth, endDay] = endDate.split('-').map(Number)
+    // Convert to Indonesian time (WIB - UTC+7) using date-fns-tz
+    const parseLocalDateToUTC = (dateString: string, includeTime: 'start' | 'end' = 'start'): Date => {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+      if (!dateRegex.test(dateString)) {
+        throw new Error('Invalid date format. Use YYYY-MM-DD')
+      }
 
-    // Create dates in WIB timezone (UTC+7)
-    // Start of day for startDate in WIB
-    let rangeStart = new Date(Date.UTC(startYear, (startMonth || 1) - 1, startDay || 1, 0, 0, 0, 0))
-    rangeStart = new Date(rangeStart.getTime() - (7 * 3600000)) // Convert to UTC (subtract 7 hours)
-    
-    // End of day for endDate in WIB
-    let rangeEnd = new Date(Date.UTC(endYear, (endMonth || 1) - 1, endDay || 1, 23, 59, 59, 999))
-    rangeEnd = new Date(rangeEnd.getTime() - (7 * 3600000)) // Convert to UTC (subtract 7 hours)
+      const wibDate = toDate(dateString, { timeZone: 'Asia/Jakarta' })
+      
+      if (Number.isNaN(wibDate.getTime())) {
+        throw new Error('Invalid date')
+      }
 
-    if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) {
-      return NextResponse.json(
-        { error: 'Invalid date range' },
-        { status: 400 }
-      )
+      if (includeTime === 'start') {
+        wibDate.setHours(0, 0, 0, 0)
+      } else {
+        wibDate.setHours(23, 59, 59, 999)
+      }
+
+      return new Date(wibDate.getTime())
     }
+
+    let rangeStart = parseLocalDateToUTC(startDate, 'start')
+    let rangeEnd = parseLocalDateToUTC(endDate, 'end')
 
     if (rangeEnd < rangeStart) {
       const temp = rangeStart
@@ -205,7 +212,7 @@ export async function GET(request: Request) {
     // Top selling products - aggregate by product
     const productSales: Record<string, { name: string; qty: number; revenue: number }> = {}
     normalizedOrders.forEach(order => {
-      order.order_items?.forEach((item: any) => {
+      order.order_items?.forEach((item) => {
         const productId = item.product_id
         const productName = item.product?.name || 'Unknown Product'
         const itemPrice = item.price || item.product?.price || 0

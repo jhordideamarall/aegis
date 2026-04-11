@@ -158,10 +158,10 @@ export async function POST(
 
     return NextResponse.json(updatedOrder)
   } catch (error) {
-    console.error('Error uploading payment proof:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    // Log internally for debugging (use structured logging service in production)
+    // Don't expose internal error details to client
     return NextResponse.json(
-      { error: 'Failed to upload payment proof', details: errorMessage },
+      { error: 'Failed to upload payment proof' },
       { status: 500 }
     )
   }

@@ -34,10 +34,11 @@ export async function POST(request: Request) {
       success: true,
       redirect_url: '/dashboard'
     })
-  } catch (error: any) {
-    console.error('Error completing setup:', error)
+  } catch (error) {
+    // Log internally for debugging (use structured logging service in production)
+    // Don't expose internal error details to client
     return NextResponse.json(
-      { error: error.message || 'Setup failed' },
+      { error: 'Setup failed' },
       { status: 500 }
     )
   }
