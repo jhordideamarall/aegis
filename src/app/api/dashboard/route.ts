@@ -59,31 +59,30 @@ export async function GET(request: Request) {
       )
     }
 
-    // Parse dates - treat input as local dates (YYYY-MM-DD format from frontend)
-    // Convert to Indonesian time (WIB - UTC+7) using date-fns-tz
-    const parseLocalDateToUTC = (dateString: string, includeTime: 'start' | 'end' = 'start'): Date => {
+    // Parse dates - treat input as UTC dates and query full day range
+    const parseDateRange = (dateString: string, includeTime: 'start' | 'end' = 'start'): Date => {
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/
       if (!dateRegex.test(dateString)) {
         throw new Error('Invalid date format. Use YYYY-MM-DD')
       }
 
-      const wibDate = toDate(dateString, { timeZone: 'Asia/Jakarta' })
+      const [year, month, day] = dateString.split('-').map(Number)
       
-      if (Number.isNaN(wibDate.getTime())) {
+      // Validate ranges
+      if (month < 1 || month > 12 || day < 1 || day > 31) {
         throw new Error('Invalid date')
       }
 
+      // Create date in UTC
       if (includeTime === 'start') {
-        wibDate.setHours(0, 0, 0, 0)
+        return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
       } else {
-        wibDate.setHours(23, 59, 59, 999)
+        return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999))
       }
-
-      return new Date(wibDate.getTime())
     }
 
-    let rangeStart = parseLocalDateToUTC(startDate, 'start')
-    let rangeEnd = parseLocalDateToUTC(endDate, 'end')
+    let rangeStart = parseDateRange(startDate, 'start')
+    let rangeEnd = parseDateRange(endDate, 'end')
 
     if (rangeEnd < rangeStart) {
       const temp = rangeStart
