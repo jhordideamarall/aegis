@@ -2,8 +2,29 @@
 
 import { useEffect, useState } from 'react'
 import { getClientAuthHeaders } from '@/lib/clientAuth'
-import Modal from '@/components/Modal'
 import { formatPaymentDisplay } from '@/lib/payments'
+import { formatIDR } from '@/lib/utils'
+import { 
+  Printer, 
+  X, 
+  Settings as SettingsIcon, 
+  Eye, 
+  Download, 
+  CheckCircle2,
+  FileText,
+  CreditCard,
+  User,
+  Smartphone
+} from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
 
 interface ReceiptPrinterProps {
   order: {
@@ -32,13 +53,6 @@ interface ReceiptPrinterProps {
   businessId?: string
 }
 
-interface Printer {
-  name: string
-  displayName?: string
-  description?: string
-  default?: boolean
-}
-
 interface ReceiptSettings {
   receipt_header: string
   receipt_footer: string
@@ -47,328 +61,256 @@ interface ReceiptSettings {
   tax_rate: number
   service_enabled: boolean
   service_rate: number
-}
-
-const defaultSettings: ReceiptSettings = {
-  receipt_header: 'POS System',
-  receipt_footer: 'Terima Kasih!\nBarang yang sudah dibeli\ntidak dapat ditukar/dikembalikan',
-  receipt_paper_size: '58mm',
-  tax_enabled: false,
-  tax_rate: 0,
-  service_enabled: false,
-  service_rate: 0
+  business_name?: string
+  business_address?: string
+  business_phone?: string
 }
 
 export default function ReceiptPrinter({ order, onClose, businessId }: ReceiptPrinterProps) {
-  const [printers, setPrinters] = useState<Printer[]>([])
-  const [selectedPrinter, setSelectedPrinter] = useState<string>('')
   const [paperSize, setPaperSize] = useState<'58mm' | '80mm'>('58mm')
   const [loading, setLoading] = useState(false)
-  const [settings, setSettings] = useState<ReceiptSettings>(defaultSettings)
+  const [settings, setSettings] = useState<ReceiptSettings | null>(null)
+  const [activeTab, setActiveTab] = useState('preview')
 
   useEffect(() => {
-    detectPrinters()
     fetchSettings()
   }, [])
-
-  const detectPrinters = async () => {
-    try {
-      if ('print' in window) {
-        setPrinters([{ name: 'default', displayName: 'System Default Printer' }])
-        setSelectedPrinter('default')
-      }
-    } catch (error) {
-      console.error('Error detecting printers:', error)
-    }
-  }
 
   const fetchSettings = async () => {
     try {
       const url = businessId ? `/api/settings?business_id=${businessId}` : '/api/settings'
-      const res = await fetch(url, {
-        headers: await getClientAuthHeaders()
-      })
-      if (!res.ok) {
-        console.error('Failed to fetch receipt settings:', res.status)
-        return
+      const res = await fetch(url, { headers: await getClientAuthHeaders() })
+      if (res.ok) {
+        const data = await res.json()
+        setSettings(data)
+        setPaperSize(data.receipt_paper_size || '58mm')
       }
-      const data = await res.json()
-      const nextSettings: ReceiptSettings = {
-        receipt_header: data.receipt_header || defaultSettings.receipt_header,
-        receipt_footer: data.receipt_footer || defaultSettings.receipt_footer,
-        receipt_paper_size: (data.receipt_paper_size as '58mm' | '80mm') || defaultSettings.receipt_paper_size,
-        tax_enabled: data.tax_enabled === true || data.tax_enabled === 'true',
-        tax_rate: Number(data.tax_rate) || 0,
-        service_enabled: data.service_enabled === true || data.service_enabled === 'true',
-        service_rate: Number(data.service_rate) || 0
-      }
-      setSettings(nextSettings)
-      setPaperSize(nextSettings.receipt_paper_size)
     } catch (error) {
       console.error('Error fetching settings:', error)
     }
   }
 
-  const handlePrint = async () => {
-    setLoading(true)
-    await new Promise(resolve => setTimeout(resolve, 500))
+  const handlePrint = () => {
     window.print()
-    setLoading(false)
-    onClose()
   }
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('id-ID', {
-      year: 'numeric',
-      month: 'short',
       day: 'numeric',
+      month: 'short',
+      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
     })
   }
 
-  const formatIDR = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount)
-  }
-
   const items = order.order_items || []
-  const member = order.member
   const discount = order.discount || 0
-  const pointsUsed = order.points_used || 0
-  const pointsEarned = order.points_earned || 0
   const subtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0)
   const taxableBase = Math.max(subtotal - discount, 0)
-  const taxAmount = settings.tax_enabled ? Math.round((taxableBase * settings.tax_rate) / 100) : 0
-  const serviceAmount = settings.service_enabled ? Math.round((taxableBase * settings.service_rate) / 100) : 0
+  const taxAmount = settings?.tax_enabled ? Math.round((taxableBase * settings.tax_rate) / 100) : 0
+  const serviceAmount = settings?.service_enabled ? Math.round((taxableBase * settings.service_rate) / 100) : 0
   const grandTotal = taxableBase + taxAmount + serviceAmount
   const paymentDisplay = formatPaymentDisplay(order.payment_method, order.payment_provider)
 
+  const paperWidthClass = paperSize === '80mm' ? 'w-[320px]' : 'w-[240px]'
+
   return (
-    <Modal isOpen={true} onClose={onClose} title="Cetak Struk" size="xl">
-      <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
-        <h3 className="mb-4 text-base font-semibold text-gray-900">Detail Pembayaran</h3>
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="space-y-3">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-gray-400">Metode</p>
-              <p className="text-sm font-medium text-gray-900">{paymentDisplay}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-gray-400">Status Bukti</p>
-              <p className={`text-sm font-medium ${order.payment_proof_url ? 'text-emerald-600' : 'text-gray-500'}`}>
-                {order.payment_proof_url ? 'Bukti pembayaran tersedia' : 'Tidak ada bukti pembayaran'}
-              </p>
-              {order.payment_proof_uploaded_at && (
-                <p className="mt-1 text-xs text-gray-500">
-                  Diunggah {formatDate(order.payment_proof_uploaded_at)}
-                </p>
-              )}
-            </div>
-            {order.payment_notes && (
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[700px] p-0 overflow-hidden bg-slate-50 border-none shadow-2xl rounded-3xl">
+        <div className="flex flex-col md:flex-row h-[85vh] md:h-auto max-h-[90vh]">
+          
+          {/* Left Sidebar - Details & Options */}
+          <div className="w-full md:w-[280px] bg-white border-r border-slate-100 p-6 flex flex-col justify-between">
+            <div className="space-y-8">
               <div>
-                <p className="text-xs uppercase tracking-wide text-gray-400">Catatan</p>
-                <p className="text-sm leading-6 text-gray-700">{order.payment_notes}</p>
+                <Badge variant="outline" className="mb-2 text-[9px] font-black uppercase tracking-widest border-slate-200 text-slate-400">Transaction ID</Badge>
+                <h2 className="text-lg font-black text-slate-900 tracking-tighter">#{order.id.slice(0, 8).toUpperCase()}</h2>
+                <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{formatDate(order.created_at)}</p>
               </div>
-            )}
-          </div>
 
-          <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-3">
-            {order.payment_proof_url ? (
-              <div className="space-y-3">
-                <img
-                  src={order.payment_proof_url}
-                  alt={`Bukti pembayaran order ${order.id.slice(0, 8).toUpperCase()}`}
-                  className="h-56 w-full rounded-lg object-cover border border-gray-200 bg-white"
-                />
-                <a
-                  href={order.payment_proof_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex text-sm font-medium text-blue-600 hover:underline"
-                >
-                  Buka gambar penuh
-                </a>
-              </div>
-            ) : (
-              <div className="flex h-56 items-center justify-center rounded-lg bg-white text-center text-sm text-gray-400">
-                Bukti pembayaran belum diunggah
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Printer Selection */}
-      <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-        <h3 className="font-semibold mb-3">Pengaturan Printer</h3>
-
-        {order.payment_proof_url && (
-          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Bukti pembayaran tersedia.
-            {' '}
-            <a
-              href={order.payment_proof_url}
-              target="_blank"
-              rel="noreferrer"
-              className="font-medium underline"
-            >
-              Lihat foto
-            </a>
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Printer</label>
-            <select
-              value={selectedPrinter}
-              onChange={(e) => setSelectedPrinter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {printers.map((printer) => (
-                <option key={printer.name} value={printer.name}>{printer.displayName || printer.name}</option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">* Printer thermal akan terdeteksi otomatis</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Ukuran Kertas</label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setPaperSize('58mm')}
-                className={`py-2 px-4 rounded-lg border-2 font-medium transition-colors ${paperSize === '58mm' ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 hover:border-gray-300'}`}
-              >
-                58mm
-              </button>
-              <button
-                onClick={() => setPaperSize('80mm')}
-                className={`py-2 px-4 rounded-lg border-2 font-medium transition-colors ${paperSize === '80mm' ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 hover:border-gray-300'}`}
-              >
-                80mm
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">* Default: {settings.receipt_paper_size}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Receipt Preview */}
-      <div className="mb-6">
-        <h3 className="font-semibold mb-3">Preview Struk</h3>
-        <div className="flex justify-center">
-          <div
-            className={`bg-white border border-gray-200 shadow-sm print-container ${paperSize === '58mm' ? 'max-w-[58mm]' : 'max-w-[80mm]'}`}
-            style={{ width: paperSize === '58mm' ? '58mm' : '80mm', minHeight: '200px', padding: '8px', fontFamily: 'monospace', fontSize: paperSize === '58mm' ? '10px' : '12px' }}
-          >
-            {/* Receipt Content */}
-            <div className="text-center mb-2">
-              <h4 className="font-bold" style={{ fontSize: paperSize === '58mm' ? '12px' : '14px' }}>{settings.receipt_header}</h4>
-            </div>
-
-            <div className="border-t border-dashed border-gray-400 my-2"></div>
-
-            <div className="text-left mb-2" style={{ fontSize: paperSize === '58mm' ? '8px' : '10px' }}>
-              <p>No: {order.id.slice(0, 8).toUpperCase()}</p>
-              <p>Tanggal: {formatDate(order.created_at)}</p>
-              <p>Payment: {paymentDisplay}</p>
-              {order.payment_notes && <p>Catatan: {order.payment_notes}</p>}
-              {member && (
-                <>
-                  <p>Member: {member.name}</p>
-                  <p>Telp: {member.phone}</p>
-                </>
-              )}
-            </div>
-
-            <div className="border-t border-dashed border-gray-400 my-2"></div>
-
-            {/* Items */}
-            <div className="mb-2">
-              {items.map((item, index) => (
-                <div key={index} className="mb-1" style={{ fontSize: paperSize === '58mm' ? '8px' : '10px' }}>
-                  <div className="flex justify-between">
-                    <span className="font-medium">{item.product?.name || 'Item'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>{item.qty} x {formatIDR(item.price)}</span>
-                    <span>{formatIDR(item.price * item.qty)}</span>
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 group">
+                  <div className="p-2 bg-slate-50 rounded-lg group-hover:bg-slate-900 group-hover:text-white transition-all"><CreditCard size={14} /></div>
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Payment</p>
+                    <p className="text-xs font-bold text-slate-700">{formatPaymentDisplay(order.payment_method, order.payment_provider)}</p>
                   </div>
                 </div>
-              ))}
-            </div>
 
-            <div className="border-t border-dashed border-gray-400 my-2"></div>
-
-            {/* Subtotal */}
-            <div className="flex justify-between mb-1" style={{ fontSize: paperSize === '58mm' ? '8px' : '10px' }}>
-              <span>Subtotal</span>
-              <span>{formatIDR(subtotal)}</span>
-            </div>
-
-            {/* Discount */}
-            {discount > 0 && (
-              <>
-                <div className="flex justify-between mb-1" style={{ fontSize: paperSize === '58mm' ? '8px' : '10px' }}>
-                  <span>Discount</span>
-                  <span>-{formatIDR(discount)}</span>
+                {order.member && (
+                  <div className="flex items-center gap-3 group">
+                    <div className="p-2 bg-slate-50 rounded-lg group-hover:bg-slate-900 group-hover:text-white transition-all"><User size={14} /></div>
+                    <div>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Customer</p>
+                      <p className="text-xs font-bold text-slate-700 truncate w-32">{order.member.name}</p>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="flex items-center gap-3 group">
+                  <div className="p-2 bg-slate-50 rounded-lg group-hover:bg-slate-900 group-hover:text-white transition-all"><Smartphone size={14} /></div>
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Paper Size</p>
+                    <div className="flex gap-1 mt-1">
+                      <button 
+                        onClick={() => setPaperSize('58mm')}
+                        className={`text-[9px] px-2 py-0.5 rounded font-black border ${paperSize === '58mm' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'}`}
+                      >58MM</button>
+                      <button 
+                        onClick={() => setPaperSize('80mm')}
+                        className={`text-[9px] px-2 py-0.5 rounded font-black border ${paperSize === '80mm' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'}`}
+                      >80MM</button>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between text-xs mb-1" style={{ fontSize: paperSize === '58mm' ? '7px' : '9px' }}>
-                  <span>({pointsUsed} points)</span>
-                </div>
-              </>
-            )}
-
-            {settings.tax_enabled && (
-              <div className="flex justify-between mb-1" style={{ fontSize: paperSize === '58mm' ? '8px' : '10px' }}>
-                <span>Tax ({settings.tax_rate}%)</span>
-                <span>{formatIDR(taxAmount)}</span>
               </div>
-            )}
-
-            {settings.service_enabled && (
-              <div className="flex justify-between mb-1" style={{ fontSize: paperSize === '58mm' ? '8px' : '10px' }}>
-                <span>Service ({settings.service_rate}%)</span>
-                <span>{formatIDR(serviceAmount)}</span>
-              </div>
-            )}
-
-            {/* Total */}
-            <div className="border-t border-dashed border-gray-400 my-2"></div>
-            <div className="flex justify-between font-bold mb-2" style={{ fontSize: paperSize === '58mm' ? '10px' : '12px' }}>
-              <span>TOTAL</span>
-              <span>{formatIDR(grandTotal)}</span>
             </div>
 
-            {/* Points Earned */}
-            {pointsEarned > 0 && (
-              <div className="text-center mt-2" style={{ fontSize: paperSize === '58mm' ? '7px' : '9px' }}>
-                <p>You earned {pointsEarned} points</p>
-              </div>
-            )}
-
-            <div className="border-t border-dashed border-gray-400 my-2"></div>
-
-            {/* Footer */}
-            <div className="text-center mt-2" style={{ fontSize: paperSize === '58mm' ? '8px' : '10px' }}>
-              {settings.receipt_footer ? settings.receipt_footer.split('\\n').map((line, i) => (<p key={i}>{line}</p>)) : (<p>Terima Kasih!</p>)}
+            <div className="space-y-2 mt-8">
+              <Button onClick={handlePrint} className="w-full h-12 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-slate-200 transition-all hover:scale-[1.02] active:scale-95">
+                <Printer className="mr-2 h-4 w-4" /> Print Receipt
+              </Button>
+              <Button variant="ghost" onClick={onClose} className="w-full h-10 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-900">
+                Close View
+              </Button>
             </div>
           </div>
+
+          {/* Right Area - Receipt Preview Content */}
+          <div className="flex-1 flex flex-col">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+              <div className="p-4 border-b border-slate-100 bg-white flex justify-center">
+                <TabsList className="bg-slate-100 p-1 rounded-xl h-9">
+                  <TabsTrigger value="preview" className="text-[10px] font-black uppercase px-6 h-7 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Receipt Preview</TabsTrigger>
+                  {order.payment_proof_url && (
+                    <TabsTrigger value="proof" className="text-[10px] font-black uppercase px-6 h-7 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">Payment Proof</TabsTrigger>
+                  )}
+                </TabsList>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8 flex justify-center items-start no-scrollbar">
+                <TabsContent value="preview" className="m-0 focus-visible:ring-0 no-scrollbar">
+                  <div className={`${paperWidthClass} bg-white shadow-2xl rounded-sm p-6 relative border-t-8 border-slate-200 overflow-hidden print-container animate-in fade-in zoom-in-95 duration-500`}>
+                    {/* Paper Zigzag Top */}
+                    <div className="absolute top-0 left-0 w-full flex justify-between px-1 -mt-1 opacity-10 no-print">
+                      {Array.from({ length: 25 }).map((_, i) => (
+                        <div key={i} className="w-2 h-2 bg-slate-500 rounded-full" />
+                      ))}
+                    </div>
+
+                    {/* Receipt Content */}
+                    <div className="text-center mb-6 pt-4">
+                      <p className="font-black text-sm uppercase text-slate-900 break-words leading-tight">{settings?.receipt_header || settings?.business_name || 'AEGIS POS'}</p>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase mt-2">{settings?.business_address || 'Business Address'}</p>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase">{settings?.business_phone || 'Contact Number'}</p>
+                    </div>
+
+                    <div className="border-t border-dashed border-slate-200 my-4" />
+
+                    <div className="space-y-1 mb-4 text-[9px] font-bold text-slate-500 uppercase tracking-tighter">
+                      <div className="flex justify-between"><span>Order ID</span><span>#{order.id.slice(0, 8).toUpperCase()}</span></div>
+                      <div className="flex justify-between"><span>Date</span><span>{formatDate(order.created_at)}</span></div>
+                      <div className="flex justify-between"><span>Payment</span><span>{paymentDisplay}</span></div>
+                      {order.member && <div className="flex justify-between"><span>Customer</span><span>{order.member.name}</span></div>}
+                    </div>
+
+                    <div className="border-t border-dashed border-slate-200 my-4" />
+
+                    <div className="space-y-3 mb-6">
+                      {items.map((item, index) => (
+                        <div key={index} className="text-[10px] font-bold text-slate-800">
+                          <div className="flex justify-between mb-0.5">
+                            <span className="flex-1 pr-4 leading-tight">{item.product?.name || 'Item'}</span>
+                            <span className="font-black">{formatIDR(item.price * item.qty)}</span>
+                          </div>
+                          <div className="text-[9px] text-slate-400 font-medium italic">
+                            {item.qty} x {formatIDR(item.price)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="border-t border-dashed border-slate-200 my-4" />
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-[10px] font-bold text-slate-500">
+                        <span>SUBTOTAL</span>
+                        <span>{formatIDR(subtotal)}</span>
+                      </div>
+                      {discount > 0 && (
+                        <div className="flex justify-between text-[10px] font-bold text-emerald-600">
+                          <span>DISCOUNT</span>
+                          <span>-{formatIDR(discount)}</span>
+                        </div>
+                      )}
+                      {settings?.tax_enabled && (
+                        <div className="flex justify-between text-[10px] font-bold text-slate-500">
+                          <span>TAX ({settings.tax_rate}%)</span>
+                          <span>{formatIDR(taxAmount)}</span>
+                        </div>
+                      )}
+                      {settings?.service_enabled && (
+                        <div className="flex justify-between text-[10px] font-bold text-slate-500">
+                          <span>SERVICE ({settings.service_rate}%)</span>
+                          <span>{formatIDR(serviceAmount)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-xl font-black text-slate-900 pt-3 italic tracking-tighter">
+                        <span>TOTAL</span>
+                        <span>{formatIDR(grandTotal)}</span>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-dashed border-slate-200 my-6" />
+
+                    <div className="text-center space-y-2 mb-4">
+                      {settings?.receipt_footer ? settings.receipt_footer.split('\n').map((line: string, i: number) => (
+                        <p key={i} className="text-[9px] font-black uppercase text-slate-400 leading-tight">{line}</p>
+                      )) : (
+                        <p className="text-[9px] font-black uppercase text-slate-400 italic">Thank you for your purchase!</p>
+                      )}
+                    </div>
+
+                    <div className="text-center mt-6 mb-2">
+                       <div className="inline-block px-4 py-2 border-2 border-slate-900 rounded-sm">
+                          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-900">PAID</p>
+                       </div>
+                    </div>
+
+                    {/* Bottom Decorative Zigzag */}
+                    <div className="absolute bottom-0 left-0 w-full h-4 bg-slate-50 opacity-20 flex items-end no-print">
+                      <div className="w-full border-b-[8px] border-dashed border-slate-300" />
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {order.payment_proof_url && (
+                  <TabsContent value="proof" className="m-0 focus-visible:ring-0 w-full h-full flex flex-col items-center">
+                    <div className="bg-white p-4 rounded-3xl shadow-xl border border-slate-100 w-full max-w-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                      <img 
+                        src={order.payment_proof_url} 
+                        alt="Payment Proof" 
+                        className="w-full rounded-2xl object-contain bg-slate-50 border border-slate-50"
+                        style={{ maxHeight: '60vh' }}
+                      />
+                      <div className="mt-4 p-4 bg-slate-50 rounded-2xl flex items-center justify-between">
+                         <div className="flex items-center gap-2">
+                            <div className="p-2 bg-emerald-500 text-white rounded-full"><CheckCircle2 size={16} /></div>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-900">Verified Proof</span>
+                         </div>
+                         <a href={order.payment_proof_url} target="_blank" className="text-[10px] font-black uppercase tracking-widest text-blue-600 hover:underline">Full View</a>
+                      </div>
+                    </div>
+                  </TabsContent>
+                )}
+              </div>
+            </Tabs>
+          </div>
+
         </div>
-      </div>
+      </DialogContent>
 
-      {/* Action Buttons */}
-      <div className="flex gap-3">
-        <button onClick={onClose} className="flex-1 py-3 border border-gray-300 rounded-lg hover:bg-gray-50">Batal</button>
-        <button onClick={handlePrint} disabled={loading} className="flex-1 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50">{loading ? 'Mencetak...' : '🖨️ Cetak Struk'}</button>
-      </div>
-
-      {/* Print Styles */}
       <style jsx global>{`
         @media print {
           @page {
@@ -378,6 +320,7 @@ export default function ReceiptPrinter({ order, onClose, businessId }: ReceiptPr
 
           body * {
             visibility: hidden;
+            background: none !important;
           }
 
           .print-container, .print-container * {
@@ -389,16 +332,25 @@ export default function ReceiptPrinter({ order, onClose, businessId }: ReceiptPr
             left: 0;
             top: 0;
             width: ${paperSize === '58mm' ? '58mm' : '80mm'} !important;
-            padding: 8px !important;
+            padding: 16px !important;
             font-family: monospace !important;
-            font-size: ${paperSize === '58mm' ? '10px' : '12px'} !important;
+            box-shadow: none !important;
+            border: none !important;
           }
 
           .no-print {
             display: none !important;
           }
         }
+        
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
       `}</style>
-    </Modal>
+    </Dialog>
   )
 }
