@@ -46,7 +46,7 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
   
   const coreNavItems = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutGrid },
-    { href: '/pos', label: 'POS Terminal', icon: ShoppingCart },
+    { href: '/pos', label: 'POS', icon: ShoppingCart },
     { href: '/products', label: 'Inventory', icon: Package },
     { href: '/orders', label: 'Transactions', icon: FileText },
     { href: '/members', label: 'Customers', icon: Users },
@@ -143,7 +143,6 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
             
             <div className="space-y-1">
               {integrationNavItems.map((item) => {
-                const Icon = item.icon
                 const isActive = pathname === item.href
 
                 return (
@@ -151,13 +150,12 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
                     <Link
                       href={item.href}
                       onClick={() => setIsOpen(false)}
-                      className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all ${
+                      className={`flex items-center px-4 py-2 rounded-lg transition-all ${
                         isActive
                           ? 'bg-gray-900 text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
-                      <Icon size={18} />
                       <span className="text-sm font-medium">{item.label}</span>
                     </Link>
                   </li>
