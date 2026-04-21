@@ -330,14 +330,21 @@ export default function POSPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 md:px-8 pb-8 pt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
-          {filteredProducts.map(p => (
-            <div key={p.id} onClick={() => p.stock > 0 && addToCart(p)} className={`group relative bg-white border border-slate-100 p-3 rounded-2xl transition-all hover:shadow-xl hover:border-slate-300 cursor-pointer active:scale-95 ${p.stock <= 0 ? 'opacity-40 grayscale' : ''}`}>
-              <div className="aspect-square bg-slate-50 rounded-xl mb-3 flex items-center justify-center"><Package className="text-slate-200" size={32} /></div>
-              <h3 className="font-bold text-slate-800 text-xs truncate mb-1">{p.name}</h3>
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-2">{p.category}</p>
-              <div className="flex items-center justify-between"><span className="font-black text-slate-900 text-xs">{formatIDR(p.price)}</span><span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${p.stock <= 5 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>{p.stock}</span></div>
+          {productsLoading && filteredProducts.length === 0 ? (
+            <div className="col-span-full h-64 flex flex-col items-center justify-center text-slate-300">
+              <Loader2 className="w-8 h-8 animate-spin mb-4" />
+              <p className="text-[10px] font-black uppercase tracking-widest">Fetching Products...</p>
             </div>
-          ))}
+          ) : (
+            filteredProducts.map(p => (
+              <div key={p.id} onClick={() => p.stock > 0 && addToCart(p)} className={`group relative bg-white border border-slate-100 p-3 rounded-2xl transition-all hover:shadow-xl hover:border-slate-300 cursor-pointer active:scale-95 ${p.stock <= 0 ? 'opacity-40 grayscale' : ''}`}>
+                <div className="aspect-square bg-slate-50 rounded-xl mb-3 flex items-center justify-center"><Package className="text-slate-200" size={32} /></div>
+                <h3 className="font-bold text-slate-800 text-xs truncate mb-1">{p.name}</h3>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-2">{p.category}</p>
+                <div className="flex items-center justify-between"><span className="font-black text-slate-900 text-xs">{formatIDR(p.price)}</span><span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${p.stock <= 5 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>{p.stock}</span></div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

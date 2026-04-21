@@ -140,37 +140,6 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
             })}
           </div>
 
-          {/* AI Labs Section */}
-          <div className="space-y-3">
-            <div className="px-4">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">AI Intelligence</p>
-            </div>
-            
-            <div className="space-y-1">
-              {aiNavItems.map((item) => {
-                const Icon = item.icon
-                const isActive = pathname === item.href
-
-                return (
-                  <li key={item.href} className="list-none">
-                    <Link
-                      href={item.href}
-                      onClick={() => setIsOpen(false)}
-                      className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all ${
-                        isActive
-                          ? 'bg-gray-900 text-white shadow-sm'
-                          : 'text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
-                      <span className="text-sm font-medium">{item.label}</span>
-                    </Link>
-                  </li>
-                )
-              })}
-            </div>
-          </div>
-
           {/* Business Integrations Section */}
           <div className="space-y-3">
             <div className="px-4">
@@ -179,6 +148,35 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
             
             <div className="space-y-1">
               {integrationNavItems.map((item) => {
+                const isActive = pathname === item.href
+
+                return (
+                  <li key={item.href} className="list-none">
+                    <Link
+                      href={item.href}
+                      onClick={() => setIsOpen(false)}
+                      className={`flex items-center px-4 py-2 rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-gray-900 text-white shadow-sm'
+                          : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className="text-sm font-medium">{item.label}</span>
+                    </Link>
+                  </li>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* AI Intelligence Section */}
+          <div className="space-y-3">
+            <div className="px-4">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">AI Intelligence</p>
+            </div>
+            
+            <div className="space-y-1">
+              {aiNavItems.map((item) => {
                 const isActive = pathname === item.href
 
                 return (
