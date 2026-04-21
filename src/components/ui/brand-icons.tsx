@@ -5,7 +5,7 @@ interface IconProps extends React.SVGProps<SVGSVGElement> {
   strokeWidth?: number | string
 }
 
-export const InstagramIcon = ({ size = 24, strokeWidth = 2, ...props }: IconProps) => (
+export const InstagramIcon = ({ size = 18, strokeWidth = 2, ...props }: IconProps) => (
   <svg
     width={size}
     height={size}
@@ -23,7 +23,7 @@ export const InstagramIcon = ({ size = 24, strokeWidth = 2, ...props }: IconProp
   </svg>
 )
 
-export const ShopeeIcon = ({ size = 24, ...props }: IconProps) => (
+export const ShopeeIcon = ({ size = 18, ...props }: IconProps) => (
   <svg
     width={size}
     height={size}
@@ -31,11 +31,11 @@ export const ShopeeIcon = ({ size = 24, ...props }: IconProps) => (
     fill="currentColor"
     {...props}
   >
-    <path d="M19.78 7.42c-.22-.38-.6-.6-1-.6h-3.41c-.07-2.31-1-4.47-2.61-6.07C11.16-.86 8.94-.86 7.34.75 5.73 2.35 4.8 4.51 4.73 6.82H1.32c-.4 0-.78.22-1 .6-.22.38-.22.84 0 1.22l2.67 4.67c.07.12.16.22.27.3.1.08.22.13.35.13h.1l-.8 8.08c-.04.42.13.84.45 1.13.32.29.74.4 1.15.3l14.15-2.82c.41-.08.75-.36.91-.74.16-.38.12-.8-.11-1.13l-2.67-4c-.1-.15-.24-.26-.41-.31-.17-.05-.34-.05-.51 0l-5.63 1.88 5.63-8.45c.23-.34.27-.76.11-1.14s-.5-.66-.91-.74l-6.19-.62 6.19-1.24c.42-.08.75-.36.91-.74.16-.38.12-.8-.11-1.13L19.78 7.42zM8.19 1.6c1.17-1.17 2.82-1.17 3.99 0 1.17 1.17 1.85 2.73 1.9 4.39l-7.79.78C6.34 4.33 7.02 2.77 8.19 1.6z" />
+    <path d="M18.15 6.82h-3.41c-.07-2.31-1-4.47-2.61-6.07C10.53-.86 8.31-.86 6.71.75 5.1 2.35 4.17 4.51 4.1 6.82H.69c-.4 0-.78.22-1 .6-.22.38-.22.84 0 1.22l2.67 4.67c.07.12.16.22.27.3.1.08.22.13.35.13h.1l-.8 8.08c-.04.42.13.84.45 1.13.32.29.74.4 1.15.3l14.15-2.82c.41-.08.75-.36.91-.74.16-.38.12-.8-.11-1.13l-2.67-4c-.1-.15-.24-.26-.41-.31-.17-.05-.34-.05-.51 0l-5.63 1.88 5.63-8.45c.23-.34.27-.76.11-1.14s-.5-.66-.91-.74l-6.19-.62 6.19-1.24c.42-.08.75-.36.91-.74.16-.38.12-.8-.11-1.13L18.15 6.82zM7.56 1.6c1.17-1.17 2.82-1.17 3.99 0 1.17 1.17 1.85 2.73 1.9 4.39l-7.79.78C5.71 4.33 6.39 2.77 7.56 1.6z" />
   </svg>
 )
 
-export const TikTokIcon = ({ size = 24, ...props }: IconProps) => (
+export const TikTokIcon = ({ size = 18, ...props }: IconProps) => (
   <svg
     width={size}
     height={size}

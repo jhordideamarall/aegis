@@ -64,7 +64,7 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
       {/* Mobile Menu Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-xl shadow-lg border border-slate-100"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-md border border-gray-200"
       >
         {isOpen ? <X size={20} className="text-slate-900" /> : <Menu size={20} className="text-slate-900" />}
       </button>
@@ -72,41 +72,44 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
       {/* Overlay */}
       {isOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 transition-opacity"
+          className="lg:hidden fixed inset-0 bg-black/50 z-40 transition-opacity"
           onClick={() => setIsOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside className={`
-        bg-white border-r border-slate-100 h-screen w-64 flex flex-col fixed lg:fixed lg:inset-y-0 left-0
+        bg-white border-r border-gray-100 h-screen w-64 flex flex-col fixed lg:fixed lg:inset-y-0 left-0
         transition-transform duration-300 ease-in-out z-50
         ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
-        <div className="p-6 border-b border-slate-50">
-          <div className="flex items-center gap-3 mb-1">
+        <div className="p-6 border-b border-gray-50">
+          <div className="flex items-center gap-3">
             {business?.logo_url ? (
               <img
                 src={business.logo_url}
                 alt={business.business_name}
-                className="w-9 h-9 rounded-xl object-cover border border-slate-100 bg-white"
+                className="w-10 h-10 rounded-lg object-cover border border-gray-200 bg-white"
               />
             ) : (
-              <div className="w-9 h-9 bg-slate-900 rounded-xl flex items-center justify-center shadow-lg shadow-slate-200">
-                <span className="text-white font-black text-xs uppercase">
+              <div className="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center">
+                <span className="text-white font-semibold text-sm">
                   {getBusinessInitials(business?.business_name)}
                 </span>
               </div>
             )}
             <div className="min-w-0">
-              <span className="font-black text-slate-900 truncate block text-sm tracking-tight italic">
+              <span className="font-bold text-gray-900 truncate block text-sm">
                 {getBusinessDisplayName(business?.business_name)}
               </span>
+              {business && (
+                <p className="text-[10px] text-gray-500 truncate font-medium uppercase tracking-tight">Active Business</p>
+              )}
             </div>
           </div>
         </div>
 
-        <nav className="flex-1 p-4 overflow-y-auto space-y-8 no-scrollbar">
+        <nav className="flex-1 p-4 overflow-y-auto space-y-6 no-scrollbar">
           {/* Core POS Section */}
           <div className="space-y-1">
             {coreNavItems.map((item) => {
@@ -118,14 +121,14 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
                   <Link
                     href={item.href}
                     onClick={() => setIsOpen(false)}
-                    className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${
+                    className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all ${
                       isActive
-                        ? 'bg-slate-900 text-white shadow-lg shadow-slate-200'
-                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                        ? 'bg-gray-900 text-white shadow-sm'
+                        : 'text-gray-600 hover:bg-gray-50'
                     }`}
                   >
                     <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
-                    <span className={`text-[13px] font-bold ${isActive ? 'tracking-wide' : ''}`}>{item.label}</span>
+                    <span className="text-sm font-medium">{item.label}</span>
                   </Link>
                 </li>
               )
@@ -133,11 +136,9 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
           </div>
 
           {/* Business Integrations Section */}
-          <div className="space-y-4">
-            <div className="px-4 flex items-center gap-3">
-              <div className="h-px flex-1 bg-slate-100"></div>
-              <span className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em]">Integrations</span>
-              <div className="h-px flex-1 bg-slate-100"></div>
+          <div className="space-y-3">
+            <div className="px-4">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Integrations</p>
             </div>
             
             <div className="space-y-1">
@@ -150,14 +151,14 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
                     <Link
                       href={item.href}
                       onClick={() => setIsOpen(false)}
-                      className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${
+                      className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all ${
                         isActive
-                          ? 'bg-slate-900 text-white shadow-lg shadow-slate-200'
-                          : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                          ? 'bg-gray-900 text-white shadow-sm'
+                          : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
-                      <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
-                      <span className={`text-[13px] font-bold ${isActive ? 'tracking-wide' : ''}`}>{item.label}</span>
+                      <Icon size={18} />
+                      <span className="text-sm font-medium">{item.label}</span>
                     </Link>
                   </li>
                 )
@@ -166,26 +167,26 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
           </div>
         </nav>
 
-        <div className="p-4 border-t border-slate-50 space-y-1">
+        <div className="p-4 border-t border-gray-50 space-y-1">
           <Link
             href="/settings"
             onClick={() => setIsOpen(false)}
-            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all ${
-              pathname === '/settings' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'
+            className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all ${
+              pathname === '/settings' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
             }`}
           >
             <Settings size={18} strokeWidth={2} />
-            <span className="text-[13px] font-bold">Settings</span>
+            <span className="text-sm font-medium">Settings</span>
           </Link>
           <button
             onClick={() => {
               onLogout?.()
               setIsOpen(false)
             }}
-            className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all w-full text-left"
+            className="flex items-center gap-3 px-4 py-2 rounded-lg text-gray-400 hover:text-rose-600 transition-all w-full text-left"
           >
             <LogOut size={18} strokeWidth={2} />
-            <span className="text-[13px] font-bold">Logout</span>
+            <span className="text-sm font-medium">Logout</span>
           </button>
         </div>
       </aside>
