@@ -24,8 +24,7 @@ import {
 import { DateRangePicker } from '@/components/DateRangePicker'
 import { DateRange } from 'react-day-picker'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { BarChart, Bar, Cell, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
@@ -171,57 +170,61 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Analytics</h1>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Performance Insights</p>
+          <h1 className="text-2xl font-bold text-slate-900 font-black tracking-tight uppercase italic">Analytics</h1>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Real-time Performance</p>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner transition-all">
+          {[
+            { id: 'today', label: 'Today' },
+            { id: 'week', label: 'Week' },
+            { id: 'month', label: 'Month' },
+            { id: 'custom', label: 'Range' }
+          ].map((opt) => (
+            <button
+              key={opt.id}
+              onClick={() => setDateRangeFilter(opt.id as any)}
+              className={`px-4 h-9 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 transform active:scale-95 ${
+                dateRangeFilter === opt.id 
+                  ? 'bg-white text-slate-900 shadow-md ring-1 ring-black/5' 
+                  : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200/50'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+          
           {dateRangeFilter === 'custom' && (
-            <div className="animate-in fade-in slide-in-from-right-2 duration-300">
+            <div className="animate-in fade-in slide-in-from-right-3 duration-500 ml-1">
               <DateRangePicker 
                 date={customDate} 
                 onDateChange={setCustomDate} 
               />
             </div>
           )}
-          <Select 
-            value={dateRangeFilter} 
-            onValueChange={(val) => setDateRangeFilter(val as any)}
-          >
-            <SelectTrigger className="h-9 w-[150px] text-xs font-bold bg-white">
-              <CalendarIcon className="mr-2 h-3.5 w-3.5 text-slate-400" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="today">Today</SelectItem>
-              <SelectItem value="week">This Week</SelectItem>
-              <SelectItem value="month">This Month</SelectItem>
-              <SelectItem value="custom">Custom Range</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
         <StatCard title="Revenue" value={formatIDR(data?.totalSales || 0)} icon={TrendingUp} trend={salesTrend} />
         <StatCard title="Net Profit" value={formatIDR(data?.totalNetProfit || 0)} icon={Wallet} trend={profitTrend} dark />
-        <StatCard title="Orders" value={data?.totalOrders || 0} icon={ShoppingBag} trend={ordersTrend} />
-        <StatCard title="Members" value={data?.newMembers || 0} icon={Users} trend={membersTrend} />
+        <StatCard title="Total Orders" value={data?.totalOrders || 0} icon={ShoppingBag} trend={ordersTrend} />
+        <StatCard title="New Members" value={data?.newMembers || 0} icon={Users} trend={membersTrend} />
       </div>
 
       {/* Sales Performance Chart */}
-      <Card className="border-slate-200 shadow-sm rounded-xl overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between py-4 px-6 border-b bg-slate-50/50">
-          <CardTitle className="text-sm font-bold">Sales Performance</CardTitle>
+      <Card className="border-slate-200 shadow-sm rounded-3xl overflow-hidden bg-white">
+        <CardHeader className="flex flex-row items-center justify-between py-5 px-8 border-b bg-slate-50/30">
+          <CardTitle className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Sales Performance</CardTitle>
           <Tabs value={chartMode} onValueChange={(val: any) => setChartMode(val)}>
-            <TabsList className="h-8 p-0.5 bg-slate-200">
-              <TabsTrigger value="sales" className="text-[10px] px-3 h-7 data-[state=active]:bg-white">Revenue</TabsTrigger>
-              <TabsTrigger value="profit" className="text-[10px] px-3 h-7 data-[state=active]:bg-white">Profit</TabsTrigger>
+            <TabsList className="h-9 p-1 bg-slate-200 rounded-xl">
+              <TabsTrigger value="sales" className="text-[9px] font-black uppercase px-4 h-7 rounded-lg data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all">Revenue</TabsTrigger>
+              <TabsTrigger value="profit" className="text-[9px] font-black uppercase px-4 h-7 rounded-lg data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all">Profit</TabsTrigger>
             </TabsList>
           </Tabs>
         </CardHeader>
-        <CardContent className="p-6">
+        <CardContent className="p-8">
           {isLoading ? (
             <div className="h-[300px] flex items-center justify-center"><Loader2 className="animate-spin text-slate-300" /></div>
           ) : chartData.length > 0 ? (
@@ -232,23 +235,24 @@ export default function DashboardPage() {
                   dataKey="date" 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} 
-                  tickMargin={10}
+                  tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} 
+                  tickMargin={12}
                 />
                 <YAxis 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fill: '#94a3b8', fontSize: 10 }} 
+                  tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} 
                   tickFormatter={(value) => `Rp${(value / 1000).toLocaleString()}k`}
                 />
                 <ChartTooltip 
-                  cursor={{ fill: '#f8fafc' }}
+                  cursor={{ fill: '#f8fafc', radius: 4 }}
                   content={<ChartTooltipContent hideLabel indicator="line" formatter={(v) => formatIDR(v as number)} />} 
                 />
                 <Bar 
                   dataKey={chartMode} 
-                  radius={[4, 4, 0, 0]}
+                  radius={[6, 6, 0, 0]}
                   barSize={32}
+                  animationDuration={1000}
                 >
                   {(() => {
                     const maxValue = Math.max(...chartData.map((d: any) => d[chartMode]), 0)
@@ -257,69 +261,74 @@ export default function DashboardPage() {
                       let color = '#f59e0b' // Low (Amber/Yellow)
                       if (val > 0 && val >= maxValue * 0.7) color = '#8b5cf6' // High (Violet/Purple)
                       else if (val > 0 && val >= maxValue * 0.3) color = '#10b981' // Mid (Emerald/Green)
-                      return <Cell key={`cell-${index}`} fill={color} />                    })
+                      return <Cell key={`cell-${index}`} fill={color} />
+                    })
                   })()}
-                </Bar>              </BarChart>
+                </Bar>
+              </BarChart>
             </ChartContainer>
           ) : (
-            <div className="h-[300px] flex flex-col items-center justify-center text-slate-300 border-2 border-dashed rounded-xl border-slate-50 italic">
-              <p className="text-xs font-bold uppercase tracking-widest">No transaction data</p>
+            <div className="h-[300px] flex flex-col items-center justify-center text-slate-300 border-2 border-dashed rounded-2xl border-slate-100 italic">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em]">No performance data</p>
             </div>
           )}
-        </CardContent>      </Card>
+        </CardContent>
+      </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="border-slate-200 shadow-sm rounded-xl overflow-hidden">
-          <CardHeader className="py-4 px-6 border-b bg-slate-50/50">
-            <CardTitle className="text-sm font-bold">Payment Distribution</CardTitle>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-2">
+        {/* Payment Methods */}
+        <Card className="border-slate-200 shadow-sm rounded-3xl overflow-hidden bg-white">
+          <CardHeader className="py-5 px-8 border-b bg-slate-50/30">
+            <CardTitle className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Distribution</CardTitle>
           </CardHeader>
-          <CardContent className="p-6">
-            <div className="space-y-4">
+          <CardContent className="p-8">
+            <div className="space-y-6">
               {data?.paymentMethods && Object.entries(data.paymentMethods).map(([method, count]) => {
                 const total = Object.values(data.paymentMethods).reduce((a, b) => a + b, 0)
                 const percentage = (count / total) * 100
                 return (
-                  <div key={method} className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-bold text-slate-600">
+                  <div key={method} className="space-y-2">
+                    <div className="flex justify-between text-[11px] font-black text-slate-600 uppercase tracking-wider">
                       <span>{getPaymentMethodLabel(method)}</span>
-                      <span>{percentage.toFixed(0)}%</span>
+                      <span className="text-slate-400">{percentage.toFixed(0)}%</span>
                     </div>
-                    <div className="h-1.5 w-full bg-slate-100 rounded-full">
-                      <div className="h-full bg-slate-900 rounded-full" style={{ width: `${percentage}%` }} />
+                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-50">
+                      <div className="h-full bg-slate-900 rounded-full transition-all duration-1000 ease-out shadow-sm" style={{ width: `${percentage}%` }} />
                     </div>
                   </div>
                 )
               })}
               {(!data?.paymentMethods || Object.keys(data.paymentMethods).length === 0) && (
-                <p className="text-center py-10 text-xs text-slate-400 font-medium italic">No payment data for this period</p>
+                <p className="text-center py-10 text-[10px] text-slate-300 font-black uppercase tracking-widest italic">No data yet</p>
               )}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm rounded-xl overflow-hidden">
-          <CardHeader className="py-4 px-6 border-b bg-slate-50/50 flex flex-row items-center gap-2">
-            <Clock className="h-4 w-4 text-slate-400" />
-            <CardTitle className="text-sm font-bold">Recent Activity</CardTitle>
+        {/* Live Feed */}
+        <Card className="border-slate-200 shadow-sm rounded-3xl overflow-hidden bg-white">
+          <CardHeader className="py-5 px-8 border-b bg-slate-50/30 flex flex-row items-center gap-3">
+            <Clock className="h-3.5 w-3.5 text-slate-400" />
+            <CardTitle className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Live Activity</CardTitle>
           </CardHeader>
           <div className="overflow-x-auto">
             <Table>
               <TableBody>
                 {data?.orders && data.orders.length > 0 ? (
                   data.orders.slice(0, 5).map((order) => (
-                    <TableRow key={order.id} className="text-xs border-slate-100">
-                      <TableCell className="py-3 pl-6 font-medium text-slate-400">
+                    <TableRow key={order.id} className="border-slate-50 hover:bg-slate-50/80 transition-all duration-300 group">
+                      <TableCell className="py-4 pl-8 font-black text-slate-300 text-[10px] uppercase">
                         {new Date(order.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                       </TableCell>
-                      <TableCell className="font-bold text-slate-700">{order.member?.name || 'Walk-in'}</TableCell>
+                      <TableCell className="font-black text-slate-700 text-xs uppercase tracking-tight">{order.member?.name || 'Walk-in'}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="text-[9px] font-black uppercase h-5 px-1.5 border-slate-200 text-slate-400">{getPaymentMethodLabel(order.payment_method)}</Badge>
+                        <Badge variant="outline" className="text-[8px] font-black uppercase h-5 px-2 border-slate-200 text-slate-400 group-hover:border-slate-400 transition-all">{getPaymentMethodLabel(order.payment_method)}</Badge>
                       </TableCell>
-                      <TableCell className="text-right pr-6 font-black text-slate-900">{formatIDR(order.total)}</TableCell>
+                      <TableCell className="text-right pr-8 font-black text-slate-900 text-xs italic">{formatIDR(order.total)}</TableCell>
                     </TableRow>
                   ))
                 ) : (
-                  <TableRow><TableCell className="h-32 text-center text-xs text-slate-300 italic">No recent activity</TableCell></TableRow>
+                  <TableRow><TableCell className="h-40 text-center text-[10px] text-slate-300 font-black uppercase tracking-widest italic">Waiting for transactions...</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -333,26 +342,26 @@ export default function DashboardPage() {
 function StatCard({ title, value, icon: Icon, trend, dark }: { title: string, value: any, icon: any, trend: any, dark?: boolean }) {
   const TrendIcon = trend?.direction === 'down' ? ArrowDownRight : trend?.direction === 'up' ? ArrowUpRight : ArrowRight
   return (
-    <Card className={`border-slate-200 shadow-sm rounded-xl ${dark ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-900'}`}>
-      <CardContent className="p-5">
+    <Card className={`border-slate-200 shadow-sm rounded-[2rem] ${dark ? 'bg-slate-900 text-white border-slate-900 shadow-xl shadow-slate-200' : 'bg-white text-slate-900'} transition-all hover:translate-y-[-4px] duration-500 cursor-default group`}>
+      <CardContent className="p-6">
         <div className="flex justify-between items-start">
-          <div className="space-y-1">
-            <p className={`text-[10px] font-bold uppercase tracking-wider ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{title}</p>
-            <p className="text-2xl font-black tracking-tight">{value}</p>
+          <div className="space-y-1.5">
+            <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${dark ? 'text-slate-400' : 'text-slate-400'}`}>{title}</p>
+            <p className="text-2xl font-black tracking-tight italic group-hover:scale-105 transition-transform duration-500 origin-left">{value}</p>
           </div>
-          <div className={`p-2.5 rounded-xl ${dark ? 'bg-slate-800' : 'bg-slate-50'}`}>
-            <Icon size={18} className="text-slate-400" />
+          <div className={`p-3 rounded-2xl transition-all duration-500 group-hover:rotate-12 ${dark ? 'bg-white/10' : 'bg-slate-50'}`}>
+            <Icon size={18} className={dark ? 'text-white' : 'text-slate-400'} />
           </div>
         </div>
         {trend && (
-          <div className="mt-4 flex items-center gap-1.5">
-            <div className={`flex items-center text-[10px] font-black px-2 py-0.5 rounded-md ${
-              trend.direction === 'up' ? (dark ? 'bg-emerald-500/20 text-emerald-400' : 'bg-emerald-50 text-emerald-600') :
-              trend.direction === 'down' ? (dark ? 'bg-rose-500/20 text-rose-400' : 'bg-rose-50 text-rose-600') : 'bg-slate-100 text-slate-400'
+          <div className="mt-5 flex items-center gap-2">
+            <div className={`flex items-center text-[10px] font-black px-2.5 py-1 rounded-xl shadow-sm ${
+              trend.direction === 'up' ? (dark ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-emerald-50 text-emerald-600 border border-emerald-100') :
+              trend.direction === 'down' ? (dark ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-rose-50 text-rose-600 border border-rose-100') : 'bg-slate-100 text-slate-400 border border-slate-200'
             }`}>
-              <TrendIcon size={10} className="mr-1 stroke-[3px]" /> {trend.label}
+              <TrendIcon size={10} className="mr-1 stroke-[3.5px]" /> {trend.label}
             </div>
-            <span className={`text-[10px] font-bold ${dark ? 'text-slate-500' : 'text-slate-400'} uppercase tracking-tighter`}>vs prev</span>
+            <span className={`text-[9px] font-black ${dark ? 'text-slate-500' : 'text-slate-300'} uppercase tracking-[0.1em]`}>Growth</span>
           </div>
         )}
       </CardContent>

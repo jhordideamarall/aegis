@@ -42,6 +42,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { DateRangePicker } from '@/components/DateRangePicker'
+import { DateRange } from 'react-day-picker'
 
 interface Order {
   id: string
@@ -86,9 +88,12 @@ function OrdersContent() {
   const [searchQuery, setSearchQuery] = useState('')
   const [summaryTotalRevenue, setSummaryTotalRevenue] = useState(0)
   const [summaryTotalOrders, setSummaryTotalOrders] = useState(0)
-  const [startDate, setStartDate] = useState<string>('')
-  const [endDate, setEndDate] = useState<string>('')
   const [paymentMethod, setPaymentMethod] = useState<string>('all')
+  const [customDate, setCustomDate] = useState<DateRange | undefined>({
+    from: new Date(),
+    to: new Date()
+  })
+  
   const limit = 20
   const isLoading = loading || fetching
 
@@ -99,12 +104,20 @@ function OrdersContent() {
       const orderId = searchParams.get('id')
       if (printParam === 'true' && orderId) fetchOrderDetail(orderId)
     }
-  }, [loading, business, filter, page, searchQuery, startDate, endDate, paymentMethod, searchParams])
+  }, [loading, business, filter, page, searchQuery, customDate, paymentMethod, searchParams])
 
   const fetchOrders = async () => {
     if (!business) return
     try {
       const today = toLocalISODate()
+      let startDate = ''
+      let endDate = ''
+
+      if (filter === 'custom' && customDate?.from) {
+        startDate = toLocalISODate(customDate.from)
+        endDate = customDate.to ? toLocalISODate(customDate.to) : startDate
+      }
+
       const url = buildOrdersApiUrl({ businessId: business.id, page, limit, today, filter, startDate, endDate, paymentMethod, searchQuery })
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch(url, { headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} })
@@ -156,9 +169,9 @@ function OrdersContent() {
       const today = toLocalISODate()
       reportParams.set('startDate', today)
       reportParams.set('endDate', today)
-    } else if (filter === 'custom') {
-      if (startDate) reportParams.set('startDate', startDate)
-      if (endDate) reportParams.set('endDate', endDate)
+    } else if (filter === 'custom' && customDate?.from) {
+      reportParams.set('startDate', toLocalISODate(customDate.from))
+      if (customDate.to) reportParams.set('endDate', toLocalISODate(customDate.to))
     }
     
     router.push(`/orders/report?${reportParams.toString()}`)
@@ -168,10 +181,10 @@ function OrdersContent() {
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Transactions</h1>
+          <h1 className="text-2xl font-bold text-slate-900 font-black tracking-tight uppercase">Transactions</h1>
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">History & Reports</p>
         </div>
-        <Button onClick={handleDownloadReport} disabled={isLoading} className="h-9 px-4 rounded-lg font-bold bg-slate-900 text-xs">
+        <Button onClick={handleDownloadReport} disabled={isLoading} className="h-10 px-6 rounded-xl font-black bg-slate-900 text-[10px] uppercase tracking-widest shadow-lg shadow-slate-200 transition-all hover:scale-105 active:scale-95">
           Export Report
         </Button>
       </div>
@@ -187,80 +200,86 @@ function OrdersContent() {
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              <Input placeholder="Transaction ID..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }} className="pl-9 h-9 text-xs bg-white" />
+              <Input placeholder="Search ID..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }} className="pl-9 h-10 text-xs bg-white rounded-xl border-slate-200 shadow-sm" />
             </div>
             
-            <div className="flex items-center gap-2">
-              <Select value={filter} onValueChange={(val: any) => { setFilter(val); if (val !== 'custom') { setStartDate(''); setEndDate(''); } setPage(1); }}>
-                <SelectTrigger className="h-9 w-[120px] text-xs font-bold bg-white"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Time</SelectItem>
-                  <SelectItem value="today">Today</SelectItem>
-                  <SelectItem value="week">This Week</SelectItem>
-                  <SelectItem value="custom">Custom Range</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={paymentMethod} onValueChange={(val) => { if (val) { setPaymentMethod(val); setPage(1); } }}>
-                <SelectTrigger className="h-9 w-[140px] text-xs font-bold bg-white"><SelectValue placeholder="Method" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">ALL METHODS</SelectItem>
-                  {PAYMENT_METHOD_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label.toUpperCase()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex items-center gap-2 bg-slate-200/50 p-1 rounded-xl">
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'today', label: 'Today' },
+                { id: 'custom', label: 'Range' }
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={() => { setFilter(opt.id as any); setPage(1); }}
+                  className={`px-4 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                    filter === opt.id 
+                      ? 'bg-white text-slate-900 shadow-sm' 
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+              
+              {filter === 'custom' && (
+                <div className="animate-in fade-in zoom-in-95 duration-200 ml-1">
+                  <DateRangePicker 
+                    date={customDate} 
+                    onDateChange={setCustomDate} 
+                  />
+                </div>
+              )}
             </div>
+
+            <Select value={paymentMethod} onValueChange={(val) => { if (val) { setPaymentMethod(val); setPage(1); } }}>
+              <SelectTrigger className="h-10 w-full sm:w-[160px] text-xs font-bold bg-white rounded-xl border-slate-200 shadow-sm"><SelectValue placeholder="Method" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs font-bold">ALL METHODS</SelectItem>
+                {PAYMENT_METHOD_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value} className="text-xs font-bold">
+                    {o.label.toUpperCase()}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-
-          {filter === 'custom' && (
-            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200 animate-in fade-in slide-in-from-top-2 duration-300">
-              <CalendarIcon size={14} className="text-slate-400" />
-              <div className="flex items-center gap-2">
-                <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1); }} className="h-8 text-[10px] w-32 font-bold" />
-                <span className="text-slate-300 font-bold">&rarr;</span>
-                <Input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1); }} className="h-8 text-[10px] w-32 font-bold" />
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="overflow-x-auto">
           <Table>
             <TableHeader className="bg-slate-50/30">
               <TableRow className="border-none">
-                <TableHead className="py-3 pl-6 text-[10px] uppercase font-bold text-slate-400">Order ID</TableHead>
-                <TableHead className="text-[10px] uppercase font-bold text-slate-400">Date</TableHead>
-                <TableHead className="text-[10px] uppercase font-bold text-slate-400">Customer</TableHead>
-                <TableHead className="text-[10px] uppercase font-bold text-slate-400">Payment</TableHead>
-                <TableHead className="text-[10px] uppercase font-bold text-slate-400">Total</TableHead>
-                <TableHead className="text-right pr-6 text-[10px] uppercase font-bold text-slate-400">Action</TableHead>
+                <TableHead className="py-4 pl-6 text-[10px] uppercase font-black text-slate-400 tracking-widest">Order ID</TableHead>
+                <TableHead className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Date</TableHead>
+                <TableHead className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Customer</TableHead>
+                <TableHead className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Payment</TableHead>
+                <TableHead className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Total</TableHead>
+                <TableHead className="text-right pr-6 text-[10px] uppercase font-black text-slate-400 tracking-widest">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && orders.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-slate-300" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="h-40 text-center"><Loader2 className="animate-spin mx-auto text-slate-300" /></TableCell></TableRow>
               ) : orders.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="h-32 text-center text-xs text-slate-400 font-medium">No transactions</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="h-40 text-center text-xs text-slate-400 font-bold uppercase tracking-widest">No transactions found</TableCell></TableRow>
               ) : (
                 orders.map((order) => (
-                  <TableRow key={order.id} className="hover:bg-slate-50/50 transition-colors border-slate-100">
-                    <TableCell className="py-3 pl-6 font-mono text-[10px] font-black text-slate-400 uppercase tracking-tighter">#{order.id.slice(0, 8)}</TableCell>
+                  <TableRow key={order.id} className="hover:bg-slate-50/50 transition-colors border-slate-100 group">
+                    <TableCell className="py-4 pl-6 font-mono text-[10px] font-black text-slate-400 uppercase tracking-tighter">#{order.id.slice(0, 8)}</TableCell>
                     <TableCell className="text-xs font-bold text-slate-700">
                       {new Date(order.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                       <span className="ml-1.5 font-normal text-slate-400">{new Date(order.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
                     </TableCell>
                     <TableCell className="text-xs font-bold text-slate-800">{order.member?.name || 'Walk-in'}</TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-black text-[9px] uppercase px-2 py-0.5 border-none">
+                      <Badge variant="outline" className="bg-slate-50 text-slate-600 font-black text-[9px] uppercase px-2 py-0.5 border-slate-200">
                         {formatPaymentDisplay(order.payment_method, order.payment_provider)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-xs font-black text-slate-900">{formatIDR(order.total)}</TableCell>
+                    <TableCell className="text-xs font-black text-slate-900 italic">{formatIDR(order.total)}</TableCell>
                     <TableCell className="text-right pr-6">
-                      <Button onClick={() => fetchOrderDetail(order.id)} variant="outline" className="h-7 px-3 rounded text-[10px] font-black uppercase tracking-tighter border-slate-200">Details</Button>
+                      <Button onClick={() => fetchOrderDetail(order.id)} variant="ghost" className="h-8 px-4 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-slate-900 group-hover:bg-slate-100 transition-all">Details</Button>
                     </TableCell>
                   </TableRow>
                 ))
@@ -271,11 +290,11 @@ function OrdersContent() {
         
         {orders.length > 0 && (
           <div className="flex items-center justify-between p-4 bg-slate-50/30 border-t">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{startItem}-{endItem} of {total}</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{startItem}-{endItem} <span className="text-slate-200 mx-1">/</span> {total}</p>
             <div className="flex items-center gap-1.5">
-              <Button variant="outline" size="sm" className="h-8 text-[10px] font-bold" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}>Prev</Button>
-              <div className="h-8 px-3 flex items-center justify-center bg-white border rounded text-[10px] font-black">{page} / {totalPages}</div>
-              <Button variant="outline" size="sm" className="h-8 text-[10px] font-bold" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>Next</Button>
+              <Button variant="outline" size="sm" className="h-9 px-4 text-[10px] font-black uppercase tracking-widest rounded-xl border-slate-200 bg-white" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}>Prev</Button>
+              <div className="h-9 px-4 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-[10px] font-black shadow-sm">{page} / {totalPages}</div>
+              <Button variant="outline" size="sm" className="h-9 px-4 text-[10px] font-black uppercase tracking-widest rounded-xl border-slate-200 bg-white" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>Next</Button>
             </div>
           </div>
         )}
@@ -290,16 +309,16 @@ function OrdersContent() {
 
 function StatsMiniCard({ title, value, icon: Icon }: { title: string, value: any, icon: any }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm group">
-      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{title}</p>
+    <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm group hover:shadow-md transition-all duration-300">
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em] mb-2">{title}</p>
       <div className="flex items-center justify-between">
-        <p className="text-lg font-black text-slate-900">{value}</p>
-        <div className="p-1.5 bg-slate-50 rounded-lg group-hover:bg-slate-100 transition-colors"><Icon className="h-4 w-4 text-slate-300" /></div>
+        <p className="text-xl font-black text-slate-900 italic tracking-tight">{value}</p>
+        <div className="p-2 bg-slate-50 rounded-xl group-hover:bg-slate-900 group-hover:text-white transition-all duration-500"><Icon className="h-4 w-4" /></div>
       </div>
     </div>
   )
 }
 
 export default function OrdersPage() {
-  return (<Suspense fallback={<div className="min-h-screen flex items-center justify-center text-slate-400 text-xs font-bold uppercase tracking-widest">Loading orders...</div>}><OrdersContent /></Suspense>)
+  return (<Suspense fallback={<div className="min-h-screen flex items-center justify-center text-slate-300 text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">Loading orders...</div>}><OrdersContent /></Suspense>)
 }
