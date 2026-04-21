@@ -128,7 +128,7 @@ export default function ProductsPage() {
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 font-black tracking-tight uppercase italic">Inventory</h1>
+          <h1 className="text-2xl font-bold text-slate-900 font-black tracking-tight uppercase">Inventory</h1>
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Product Catalog</p>
         </div>
         
@@ -197,19 +197,19 @@ export default function ProductsPage() {
           <Table>
             <TableHeader className="bg-slate-50/30">
               <TableRow className="border-none">
-                <TableHead className="py-4 pl-6 text-[10px] uppercase font-black text-slate-400 tracking-widest">Product</TableHead>
-                <TableHead className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Category</TableHead>
-                <TableHead className="text-[10px] uppercase font-black text-slate-400 tracking-widest">HPP</TableHead>
-                <TableHead className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Price</TableHead>
-                <TableHead className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Stock</TableHead>
-                <TableHead className="text-right pr-6 text-[10px] uppercase font-black text-slate-400 tracking-widest">Action</TableHead>
+                <TableHead className="py-4 pl-6 text-[11px] uppercase font-black text-slate-400 tracking-widest">Product</TableHead>
+                <TableHead className="text-[11px] uppercase font-black text-slate-400 tracking-widest">Category</TableHead>
+                <TableHead className="text-[11px] uppercase font-black text-slate-400 tracking-widest">HPP</TableHead>
+                <TableHead className="text-[11px] uppercase font-black text-slate-400 tracking-widest">Price</TableHead>
+                <TableHead className="text-[11px] uppercase font-black text-slate-400 tracking-widest">Stock</TableHead>
+                <TableHead className="text-right pr-6 text-[11px] uppercase font-black text-slate-400 tracking-widest">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && products.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="h-40 text-center"><Loader2 className="animate-spin mx-auto text-slate-300" /></TableCell></TableRow>
               ) : products.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="h-40 text-center text-xs text-slate-400 font-bold uppercase tracking-widest italic">No products found</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="h-40 text-center text-xs text-slate-400 font-bold uppercase tracking-widest">No products found</TableCell></TableRow>
               ) : (
                 products.map((product) => (
                   <TableRow key={product.id} className="hover:bg-slate-50/50 transition-colors border-slate-100 group">
@@ -226,12 +226,12 @@ export default function ProductsPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="bg-slate-50 text-slate-500 font-black px-2 py-0.5 text-[9px] uppercase border-slate-200">
+                      <Badge variant="outline" className="bg-slate-50 text-slate-500 font-black px-2 py-0.5 text-[10px] uppercase border-slate-200">
                         {product.category || 'General'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-xs text-slate-400 font-medium">{formatIDR(product.hpp || 0)}</TableCell>
-                    <TableCell className="text-xs font-black text-slate-900 italic">{formatIDR(product.price)}</TableCell>
+                    <TableCell className="text-sm text-slate-400 font-bold">{formatIDR(product.hpp || 0)}</TableCell>
+                    <TableCell className="text-sm font-black text-slate-900">{formatIDR(product.price)}</TableCell>
                     <TableCell>
                       <span className={`text-[11px] font-black px-2 py-0.5 rounded-md ${product.stock <= 5 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
                         {product.stock} pcs

@@ -268,7 +268,7 @@ export default function DashboardPage() {
               </BarChart>
             </ChartContainer>
           ) : (
-            <div className="h-[300px] flex flex-col items-center justify-center text-slate-300 border-2 border-dashed rounded-2xl border-slate-100 italic">
+            <div className="h-[300px] flex flex-col items-center justify-center text-slate-300 border-2 border-dashed rounded-2xl border-slate-100">
               <p className="text-[10px] font-black uppercase tracking-[0.2em]">No performance data</p>
             </div>
           )}
@@ -299,7 +299,7 @@ export default function DashboardPage() {
                 )
               })}
               {(!data?.paymentMethods || Object.keys(data.paymentMethods).length === 0) && (
-                <p className="text-center py-10 text-[10px] text-slate-300 font-black uppercase tracking-widest italic">No data yet</p>
+                <p className="text-center py-10 text-[10px] text-slate-300 font-black uppercase tracking-widest">No data yet</p>
               )}
             </div>
           </CardContent>
@@ -324,11 +324,11 @@ export default function DashboardPage() {
                       <TableCell>
                         <Badge variant="outline" className="text-[8px] font-black uppercase h-5 px-2 border-slate-200 text-slate-400 group-hover:border-slate-400 transition-all">{getPaymentMethodLabel(order.payment_method)}</Badge>
                       </TableCell>
-                      <TableCell className="text-right pr-8 font-black text-slate-900 text-xs italic">{formatIDR(order.total)}</TableCell>
+                      <TableCell className="text-right pr-8 font-black text-slate-900 text-xs">{formatIDR(order.total)}</TableCell>
                     </TableRow>
                   ))
                 ) : (
-                  <TableRow><TableCell className="h-40 text-center text-[10px] text-slate-300 font-black uppercase tracking-widest italic">Waiting for transactions...</TableCell></TableRow>
+                  <TableRow><TableCell className="h-40 text-center text-[10px] text-slate-300 font-black uppercase tracking-widest">Waiting for transactions...</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>

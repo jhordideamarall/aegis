@@ -250,12 +250,12 @@ function OrdersContent() {
           <Table>
             <TableHeader className="bg-slate-50/30">
               <TableRow className="border-none">
-                <TableHead className="py-4 pl-6 text-[10px] uppercase font-black text-slate-400 tracking-widest">Order ID</TableHead>
-                <TableHead className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Date</TableHead>
-                <TableHead className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Customer</TableHead>
-                <TableHead className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Payment</TableHead>
-                <TableHead className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Total</TableHead>
-                <TableHead className="text-right pr-6 text-[10px] uppercase font-black text-slate-400 tracking-widest">Action</TableHead>
+                <TableHead className="py-4 pl-6 text-[11px] uppercase font-black text-slate-400 tracking-widest">Order ID</TableHead>
+                <TableHead className="text-[11px] uppercase font-black text-slate-400 tracking-widest">Date</TableHead>
+                <TableHead className="text-[11px] uppercase font-black text-slate-400 tracking-widest">Customer</TableHead>
+                <TableHead className="text-[11px] uppercase font-black text-slate-400 tracking-widest">Payment</TableHead>
+                <TableHead className="text-[11px] uppercase font-black text-slate-400 tracking-widest">Total</TableHead>
+                <TableHead className="text-right pr-6 text-[11px] uppercase font-black text-slate-400 tracking-widest">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -267,17 +267,17 @@ function OrdersContent() {
                 orders.map((order) => (
                   <TableRow key={order.id} className="hover:bg-slate-50/50 transition-colors border-slate-100 group">
                     <TableCell className="py-4 pl-6 font-mono text-[10px] font-black text-slate-400 uppercase tracking-tighter">#{order.id.slice(0, 8)}</TableCell>
-                    <TableCell className="text-xs font-bold text-slate-700">
+                    <TableCell className="text-sm font-bold text-slate-700">
                       {new Date(order.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                       <span className="ml-1.5 font-normal text-slate-400">{new Date(order.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
                     </TableCell>
-                    <TableCell className="text-xs font-bold text-slate-800">{order.member?.name || 'Walk-in'}</TableCell>
+                    <TableCell className="text-sm font-bold text-slate-800">{order.member?.name || 'Walk-in'}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="bg-slate-50 text-slate-600 font-black text-[9px] uppercase px-2 py-0.5 border-slate-200">
                         {formatPaymentDisplay(order.payment_method, order.payment_provider)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-xs font-black text-slate-900">{formatIDR(order.total)}</TableCell>
+                    <TableCell className="text-sm font-black text-slate-900">{formatIDR(order.total)}</TableCell>
                     <TableCell className="text-right pr-6">
                       <Button onClick={() => fetchOrderDetail(order.id)} variant="ghost" className="h-8 px-4 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-slate-900 group-hover:bg-slate-100 transition-all">Details</Button>
                     </TableCell>

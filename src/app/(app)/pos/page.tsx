@@ -414,17 +414,17 @@ export default function POSPage() {
                     <Package className="w-10 h-10 text-slate-100 stroke-[1.5px]" />
                   )}
                 </div>
-                <div className="p-4 bg-white space-y-3">
-                  <h3 className="font-bold text-slate-900 text-xs leading-tight uppercase tracking-tight line-clamp-2 min-h-[2.5rem] break-words" title={p.name}>{p.name}</h3>
-                  <div className="flex justify-between items-end border-t border-slate-50 pt-3">
+                <div className="p-5 bg-white space-y-4">
+                  <h3 className="font-bold text-slate-900 text-[11px] leading-tight uppercase tracking-tight line-clamp-2 min-h-[2rem] break-words" title={p.name}>{p.name}</h3>
+                  <div className="flex justify-between items-end border-t border-slate-100 pt-4">
                     <div className="space-y-0.5">
-                       <p className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">Price</p>
-                       <span className="font-bold text-slate-900 text-sm tracking-tighter">{formatIDR(p.price)}</span>
+                       <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Price</p>
+                       <span className="font-black text-slate-900 text-sm tracking-tighter">{formatIDR(p.price)}</span>
                     </div>
-                    <div className={`px-2 py-0.5 rounded-lg border border-slate-100 ${
+                    <div className={`px-3 py-1.5 rounded-xl shadow-sm border border-slate-50 ${
                       p.stock <= 5 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'
                     }`}>
-                       <p className="text-[9px] font-bold">{p.stock} Unit</p>
+                       <p className="text-[10px] font-black">{p.stock} Unit</p>
                     </div>
                   </div>
                 </div>
@@ -486,11 +486,11 @@ export default function POSPage() {
         </ScrollArea>
 
         <div className="p-8 bg-white border-t space-y-6 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)]">
-          <Button variant="outline" className="w-full h-14 justify-start bg-slate-50 border-none rounded-2xl hover:bg-slate-100 transition-all group" onClick={() => setShowMemberModal(true)}>
+          <Button variant="outline" className="w-full h-14 justify-start bg-slate-50 border-none rounded-[1.5rem] hover:bg-slate-100 transition-all group px-5" onClick={() => setShowMemberModal(true)}>
             <div className="p-2.5 bg-white rounded-xl shadow-sm mr-4 group-hover:bg-slate-900 group-hover:text-white transition-all"><User size={16} /></div>
             <div className="text-left">
-              <p className="text-[9px] font-bold uppercase text-slate-400 tracking-widest leading-none mb-1">Customer</p>
-              <span className="text-[11px] font-bold uppercase text-slate-800">{selectedMember?.name || 'Walk-in Customer'}</span>
+              <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest leading-none mb-1">Customer</p>
+              <span className="text-[11px] font-black uppercase text-slate-800">{selectedMember?.name || 'Walk-in Guest'}</span>
             </div>
           </Button>
 
@@ -500,8 +500,8 @@ export default function POSPage() {
               <span className="text-xs font-bold text-slate-500">{formatIDR(cartTotal)}</span>
             </div>
             <div className="flex justify-between items-end px-1">
-              <span className="text-[10px] font-bold text-slate-900 uppercase tracking-[0.2em] mb-1">Total</span>
-              <span className="text-3xl font-bold tracking-tight text-slate-900">{formatIDR(estimatedTotal)}</span>
+              <span className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] mb-1">Payable Total</span>
+              <span className="text-3xl font-black tracking-tighter text-slate-900">{formatIDR(estimatedTotal)}</span>
             </div>
           </div>
 
