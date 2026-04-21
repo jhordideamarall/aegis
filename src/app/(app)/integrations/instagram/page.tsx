@@ -1,6 +1,7 @@
 'use client'
 
-import { Camera, Rocket, BarChart3, Heart, Users, Target, Loader2 } from 'lucide-react'
+import { Rocket, BarChart3, Heart, Users, Target, Loader2 } from 'lucide-react'
+import { InstagramIcon } from '@/components/ui/brand-icons'
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,8 +28,8 @@ export default function InstagramIntegrationPage() {
         <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none" 
              style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
         
-        <div className="inline-flex p-4 rounded-3xl bg-white/10 backdrop-blur-md mb-4">
-          <Camera className="text-white w-10 h-10" />
+        <div className="inline-flex p-4 rounded-3xl bg-white/10 backdrop-blur-md mb-4 text-white">
+          <InstagramIcon className="w-10 h-10" />
         </div>
         <h2 className="text-3xl md:text-5xl font-black text-white tracking-tighter leading-tight max-w-2xl mx-auto">
           Unleash your brand power with <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">Instagram Insights</span>

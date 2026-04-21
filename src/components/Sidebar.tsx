@@ -14,10 +14,10 @@ import {
   Menu,
   X,
   Bell,
-  Camera,
   ShoppingBag,
   Store
 } from 'lucide-react'
+import { InstagramIcon, ShopeeIcon, TikTokIcon } from '@/components/ui/brand-icons'
 import { useState } from 'react'
 
 interface Business {
@@ -54,9 +54,9 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
   ]
 
   const integrationNavItems = [
-    { href: '/integrations/instagram', label: 'Instagram', icon: Camera },
-    { href: '/integrations/shopee', label: 'Shopee', icon: ShoppingBag },
-    { href: '/integrations/tiktok', label: 'TikTok Shop', icon: Store },
+    { href: '/integrations/instagram', label: 'Instagram', icon: InstagramIcon },
+    { href: '/integrations/shopee', label: 'Shopee', icon: ShopeeIcon },
+    { href: '/integrations/tiktok', label: 'TikTok Shop', icon: TikTokIcon },
   ]
 
   return (
