@@ -170,7 +170,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 font-black tracking-tight uppercase italic">Analytics</h1>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase">Analytics</h1>
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Real-time Performance</p>
         </div>
         
@@ -218,7 +218,7 @@ export default function DashboardPage() {
         <CardHeader className="flex flex-row items-center justify-between py-5 px-8 border-b bg-slate-50/30">
           <CardTitle className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Sales Performance</CardTitle>
           <Tabs value={chartMode} onValueChange={(val: any) => setChartMode(val)}>
-            <TabsList className="h-9 p-1 bg-slate-200 rounded-xl">
+            <TabsList className="h-8 p-1 bg-slate-200 rounded-xl">
               <TabsTrigger value="sales" className="text-[9px] font-black uppercase px-4 h-7 rounded-lg data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all">Revenue</TabsTrigger>
               <TabsTrigger value="profit" className="text-[9px] font-black uppercase px-4 h-7 rounded-lg data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all">Profit</TabsTrigger>
             </TabsList>
@@ -324,7 +324,7 @@ export default function DashboardPage() {
                       <TableCell>
                         <Badge variant="outline" className="text-[8px] font-black uppercase h-5 px-2 border-slate-200 text-slate-400 group-hover:border-slate-400 transition-all">{getPaymentMethodLabel(order.payment_method)}</Badge>
                       </TableCell>
-                      <TableCell className="text-right pr-8 font-black text-slate-900 text-xs italic">{formatIDR(order.total)}</TableCell>
+                      <TableCell className="text-right pr-8 font-black text-slate-900 text-xs">{formatIDR(order.total)}</TableCell>
                     </TableRow>
                   ))
                 ) : (
@@ -347,7 +347,7 @@ function StatCard({ title, value, icon: Icon, trend, dark }: { title: string, va
         <div className="flex justify-between items-start">
           <div className="space-y-1.5">
             <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${dark ? 'text-slate-400' : 'text-slate-400'}`}>{title}</p>
-            <p className="text-2xl font-black tracking-tight italic group-hover:scale-105 transition-transform duration-500 origin-left">{value}</p>
+            <p className="text-2xl font-black tracking-tight group-hover:scale-105 transition-transform duration-500 origin-left">{value}</p>
           </div>
           <div className={`p-3 rounded-2xl transition-all duration-500 group-hover:rotate-12 ${dark ? 'bg-white/10' : 'bg-slate-50'}`}>
             <Icon size={18} className={dark ? 'text-white' : 'text-slate-400'} />

@@ -277,7 +277,7 @@ function OrdersContent() {
                         {formatPaymentDisplay(order.payment_method, order.payment_provider)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-xs font-black text-slate-900 italic">{formatIDR(order.total)}</TableCell>
+                    <TableCell className="text-xs font-black text-slate-900">{formatIDR(order.total)}</TableCell>
                     <TableCell className="text-right pr-6">
                       <Button onClick={() => fetchOrderDetail(order.id)} variant="ghost" className="h-8 px-4 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-slate-900 group-hover:bg-slate-100 transition-all">Details</Button>
                     </TableCell>
@@ -312,7 +312,7 @@ function StatsMiniCard({ title, value, icon: Icon }: { title: string, value: any
     <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm group hover:shadow-md transition-all duration-300">
       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em] mb-2">{title}</p>
       <div className="flex items-center justify-between">
-        <p className="text-xl font-black text-slate-900 italic tracking-tight">{value}</p>
+        <p className="text-xl font-black text-slate-900 tracking-tight">{value}</p>
         <div className="p-2 bg-slate-50 rounded-xl group-hover:bg-slate-900 group-hover:text-white transition-all duration-500"><Icon className="h-4 w-4" /></div>
       </div>
     </div>
