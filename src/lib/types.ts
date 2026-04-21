@@ -2,6 +2,7 @@ export interface Product {
   id: string
   name: string
   price: number
+  hpp: number
   stock: number
   category: string
   created_at: string
@@ -29,6 +30,7 @@ export interface OrderItem {
   product_id: string
   qty: number
   price: number
+  cost_price: number
   product?: Product
 }
 

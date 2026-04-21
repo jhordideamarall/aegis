@@ -31,7 +31,7 @@ export async function GET(request: Request) {
 
     let query = supabaseAdmin
       .from('products')
-      .select('id,name,price,stock,category,created_at', { count: 'exact' })
+      .select('id,name,price,hpp,stock,category,created_at', { count: 'exact' })
       .eq('business_id', businessContext.businessId)
       .order('name')
 
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { name, price, stock, category, business_id } = body
+    const { name, price, hpp, stock, category, business_id } = body
     const resolvedBusinessId = businessContext.businessId
 
     // Validation
@@ -88,6 +88,13 @@ export async function POST(request: Request) {
       )
     }
 
+    if (typeof hpp !== 'undefined' && (typeof hpp !== 'number' || hpp < 0)) {
+      return NextResponse.json(
+        { error: 'HPP must be a positive number' },
+        { status: 400 }
+      )
+    }
+
     const statusCheck = await assertBusinessActive(resolvedBusinessId)
     if (!statusCheck.ok) {
       return NextResponse.json(
@@ -101,6 +108,7 @@ export async function POST(request: Request) {
       .insert([{
         name,
         price,
+        hpp: hpp || 0,
         stock: stock || 0,
         category: category || '',
         business_id: resolvedBusinessId

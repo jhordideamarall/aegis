@@ -45,11 +45,15 @@ function parseLocalDateToUTC(dateString: string, includeTime: 'start' | 'end' = 
     return null
   }
 
-  // Create date in UTC
+  // Create date in UTC and adjust for WIB (UTC+7)
   if (includeTime === 'start') {
-    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
+    const d = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
+    d.setHours(d.getHours() - 7)
+    return d
   } else {
-    return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999))
+    const d = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999))
+    d.setHours(d.getHours() - 7)
+    return d
   }
 }
 
@@ -422,7 +426,7 @@ export async function POST(request: Request) {
       // Verify product exists and belongs to this business
       const { data: product, error: productFetchError } = await supabaseAdmin
         .from('products')
-        .select('id, stock, business_id, name')
+        .select('id, stock, hpp, business_id, name')
         .eq('id', item.product_id)
         .eq('business_id', resolvedBusinessId)
         .single()
@@ -447,6 +451,7 @@ export async function POST(request: Request) {
         product_id: item.product_id,
         qty: item.qty,
         price: item.price,
+        cost_price: product.hpp || 0,
         business_id: resolvedBusinessId
       })
 

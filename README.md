@@ -679,7 +679,6 @@ supabase
 ```
 pos-system/
 ├── database-schema.sql         ← RUN THIS FIRST!
-├── generate-dummy-data.sql     ← Sample data generator
 ├── README.md                   ← You are here
 ├── package.json                ← Dependencies & scripts
 ├── next.config.ts              ← Next.js configuration

@@ -47,14 +47,27 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json()
-    const picName = typeof body.pic_name === 'string' ? body.pic_name.trim() : ''
+    const { 
+      business_name, 
+      business_phone, 
+      business_email, 
+      business_address,
+      pic_name 
+    } = body
+
+    const updateData: any = {
+      updated_at: new Date().toISOString()
+    }
+
+    if (typeof business_name === 'string') updateData.business_name = business_name.trim()
+    if (typeof business_phone === 'string') updateData.phone = business_phone.trim()
+    if (typeof business_email === 'string') updateData.email = business_email.trim()
+    if (typeof business_address === 'string') updateData.address = business_address.trim()
+    if (typeof pic_name === 'string') updateData.pic_name = pic_name.trim()
 
     const { data: business, error: updateError } = await supabaseAdmin
       .from('businesses')
-      .update({
-        pic_name: picName || null,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', businessContext.businessId)
       .select('*')
       .single()
@@ -63,8 +76,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ business })
   } catch (error) {
-    // Log internally for debugging (use structured logging service in production)
-    // Don't expose internal error details to client
+    console.error('Error updating business:', error)
     return NextResponse.json(
       { error: 'Failed to update business' },
       { status: 500 }

@@ -2,617 +2,302 @@
 
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
-import { getClientCache, setClientCache } from '@/lib/clientCache'
-import { getClientAccessToken, getClientAuthHeaders } from '@/lib/clientAuth'
+import { getClientAuthHeaders } from '@/lib/clientAuth'
 import { supabase } from '@/lib/supabase'
-import { getBusinessDisplayName, getBusinessInitials } from '@/lib/businessBranding'
-
-interface Settings {
-  receipt_header: string
-  receipt_footer: string
-  paper_size: '58mm' | '80mm'
-  tax_enabled: boolean
-  tax_rate: number
-  service_enabled: boolean
-  service_rate: number
-}
+import { 
+  Building2, 
+  Receipt, 
+  Save, 
+  Loader2, 
+  Percent,
+  Smartphone,
+  Mail,
+  MapPin,
+  Printer
+} from 'lucide-react'
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Textarea } from "@/components/ui/textarea"
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select"
+import { formatIDR } from '@/lib/utils'
 
 export default function SettingsPage() {
-  const { business, loading, refresh } = useAuth()
-  const [settings, setSettings] = useState<Settings>({
-    receipt_header: '',
-    receipt_footer: 'Terima Kasih!',
-    paper_size: '58mm',
-    tax_enabled: false,
-    tax_rate: 0,
-    service_enabled: false,
-    service_rate: 0
-  })
+  const { business, loading: authLoading, refresh: refreshAuth } = useAuth()
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [picName, setPicName] = useState('')
-  const [logoUploading, setLogoUploading] = useState(false)
-  const [logoRemoving, setLogoRemoving] = useState(false)
-  const [passwordForm, setPasswordForm] = useState({
-    newPassword: '',
-    confirmPassword: ''
-  })
-  const [passwordSaving, setPasswordSaving] = useState(false)
-  const [passwordNotice, setPasswordNotice] = useState('')
+  const [settings, setSettings] = useState<any>(null)
+  const [businessData, setBusinessData] = useState<any>(null)
+  const [message, setMessage] = useState({ type: '', text: '' })
 
   useEffect(() => {
-    if (!loading && business) {
-      setPicName(business.pic_name || '')
+    if (!authLoading && business) {
+      setBusinessData({
+        business_name: business.business_name || '',
+        business_phone: business.phone || '',
+        business_email: business.email || '',
+        business_address: business.address || ''
+      })
       fetchSettings()
+    } else if (!authLoading && !business) {
+      setLoading(false)
     }
-  }, [loading, business])
+  }, [authLoading, business])
 
   const fetchSettings = async () => {
     if (!business) return
     try {
-      const cacheKey = `settings:${business.id}`
-      const cached = getClientCache<Settings>(cacheKey)
-      if (cached) {
-        setSettings(cached)
-      }
-
-      const res = await fetch(`/api/settings?business_id=${business.id}`, {
-        headers: await getClientAuthHeaders()
-      })
-      if (res.ok) {
-        const data = await res.json()
-        const nextSettings: Settings = {
-          receipt_header: data.receipt_header || business.business_name,
-          receipt_footer: data.receipt_footer || 'Terima Kasih!',
-          paper_size: data.receipt_paper_size || '58mm',
-          tax_enabled: data.tax_enabled === true || data.tax_enabled === 'true',
-          tax_rate: Number(data.tax_rate) || 0,
-          service_enabled: data.service_enabled === true || data.service_enabled === 'true',
-          service_rate: Number(data.service_rate) || 0
-        }
-        setSettings(nextSettings)
-        setClientCache(cacheKey, nextSettings)
-      }
-    } catch (error) {
-      console.error('Error fetching settings:', error)
-    }
+      const res = await fetch(`/api/settings?business_id=${business.id}`, { headers: await getClientAuthHeaders() })
+      if (res.ok) setSettings(await res.json())
+    } catch (error) {} finally { setLoading(false) }
   }
 
-  const handleSave = async () => {
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
     if (!business) return
     setSaving(true)
-    setSaved(false)
-
+    setMessage({ type: '', text: '' })
+    
     try {
-      const token = await getClientAccessToken()
-
-      if (!token) {
-        throw new Error('Session expired. Please login again.')
-      }
-
-      const businessRes = await fetch('/api/businesses/my', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          pic_name: picName
-        })
-      })
-
-      if (!businessRes.ok) {
-        const businessError = await businessRes.json()
-        throw new Error(businessError.error || 'Failed to save business profile')
-      }
-
-      const res = await fetch('/api/settings', {
+      // 1. Update Business Profile
+      const bizRes = await fetch('/api/businesses/my', {
         method: 'PUT',
         headers: await getClientAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          business_id: business.id,
-          settings: {
-            receipt_header: settings.receipt_header,
-            receipt_footer: settings.receipt_footer,
-            receipt_paper_size: settings.paper_size,
-            tax_enabled: settings.tax_enabled ? 'true' : 'false',
-            tax_rate: String(settings.tax_rate || 0),
-            service_enabled: settings.service_enabled ? 'true' : 'false',
-            service_rate: String(settings.service_rate || 0)
-          }
+        body: JSON.stringify(businessData)
+      })
+
+      // 2. Update Settings
+      const settingsRes = await fetch(`/api/settings?business_id=${business.id}`, {
+        method: 'PUT',
+        headers: await getClientAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ 
+          settings: settings, 
+          business_id: business.id 
         })
       })
 
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || 'Failed to save settings')
+      if (bizRes.ok && settingsRes.ok) {
+        setMessage({ type: 'success', text: 'All settings updated successfully' })
+        refreshAuth() // Refresh auth state to update business name globally
+      } else {
+        setMessage({ type: 'error', text: 'Some updates failed. Please try again.' })
       }
-
-      await refresh()
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-    } catch (error: any) {
-      alert(error.message || 'Failed to save settings')
-    } finally {
-      setSaving(false)
-    }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'An unexpected error occurred' })
+    } finally { setSaving(false) }
   }
 
-  const handleLogoUpload = async (file: File | null) => {
-    if (!business || !file) return
+  if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-slate-300" /></div>
+  if (!business) return <div className="p-10 text-center text-slate-400">Please log in to access settings.</div>
 
-    setLogoUploading(true)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-
-      if (!token) {
-        throw new Error('Session expired. Please login again.')
-      }
-
-      const formData = new FormData()
-      formData.append('file', file)
-
-      const res = await fetch('/api/businesses/my/logo', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`
-        },
-        body: formData
-      })
-
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || 'Failed to upload logo')
-      }
-
-      await refresh()
-    } catch (error: any) {
-      alert(error.message || 'Failed to upload logo')
-    } finally {
-      setLogoUploading(false)
-    }
-  }
-
-  const handleLogoRemove = async () => {
-    if (!business) return
-
-    setLogoRemoving(true)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-
-      if (!token) {
-        throw new Error('Session expired. Please login again.')
-      }
-
-      const res = await fetch('/api/businesses/my/logo', {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      })
-
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || 'Failed to remove logo')
-      }
-
-      await refresh()
-    } catch (error: any) {
-      alert(error.message || 'Failed to remove logo')
-    } finally {
-      setLogoRemoving(false)
-    }
-  }
-
-  const handlePasswordChange = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setPasswordSaving(true)
-    setPasswordNotice('')
-
-    try {
-      if (passwordForm.newPassword.length < 6) {
-        throw new Error('Password baru minimal 6 karakter.')
-      }
-
-      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-        throw new Error('Konfirmasi password tidak cocok.')
-      }
-
-      const { error } = await supabase.auth.updateUser({
-        password: passwordForm.newPassword
-      })
-
-      if (error) throw error
-
-      setPasswordForm({
-        newPassword: '',
-        confirmPassword: ''
-      })
-      setPasswordNotice('Password berhasil diperbarui.')
-    } catch (error: any) {
-      setPasswordNotice(error.message || 'Gagal memperbarui password.')
-    } finally {
-      setPasswordSaving(false)
-    }
-  }
-
-  const previewSubtotal = 25000
-  const previewDiscount = 0
-  const previewBase = Math.max(previewSubtotal - previewDiscount, 0)
-  const previewTax = settings.tax_enabled ? Math.round((previewBase * settings.tax_rate) / 100) : 0
-  const previewService = settings.service_enabled ? Math.round((previewBase * settings.service_rate) / 100) : 0
-  const previewTotal = previewBase + previewTax + previewService
+  const paperWidth = settings?.receipt_paper_size === '80mm' ? 'w-[300px]' : 'w-[220px]'
 
   return (
-    <div className="p-4 md:p-8">
-      <div className="max-w-4xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Settings</h1>
-          <p className="text-gray-500">Customize your POS system</p>
+    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6 pb-20">
+      <div className="flex items-center justify-between pb-4 border-b">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Configuration</p>
         </div>
+        <Button onClick={handleSave} disabled={saving} className="bg-slate-900 font-black h-10 text-xs px-8 rounded-xl shadow-lg shadow-slate-200 uppercase tracking-widest transition-all hover:scale-105 active:scale-95">
+          {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+          Save Changes
+        </Button>
+      </div>
 
-        {/* Business Info */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Business Information</h2>
-          <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-5">
-            <div className="flex flex-col gap-5 md:flex-row md:items-center">
-              <div className="flex items-center gap-4">
-                {business?.logo_url ? (
-                  <img
-                    src={business.logo_url}
-                    alt={business.business_name}
-                    className="h-20 w-20 rounded-2xl object-cover border border-gray-200 bg-white"
-                  />
-                ) : (
-                  <div className="h-20 w-20 rounded-2xl bg-gray-900 text-white flex items-center justify-center text-2xl font-semibold">
-                    {getBusinessInitials(business?.business_name)}
+      {message.text && (
+        <div className={`p-4 rounded-xl text-xs font-black uppercase tracking-widest animate-in fade-in slide-in-from-top-2 ${message.type === 'success' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
+          {message.text}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
+          {/* Business Profile */}
+          <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden bg-white">
+            <CardHeader className="bg-slate-50/50 border-b py-4 px-6 flex flex-row items-center gap-3">
+              <div className="p-2 bg-white rounded-lg shadow-sm"><Building2 className="h-4 w-4 text-slate-400" /></div>
+              <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600">Business Profile</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Business Name</Label>
+                  <Input value={businessData?.business_name || ''} onChange={(e) => setBusinessData({ ...businessData, business_name: e.target.value })} className="h-10 text-xs font-bold rounded-xl border-slate-200" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Phone Number</Label>
+                  <Input value={businessData?.business_phone || ''} onChange={(e) => setBusinessData({ ...businessData, business_phone: e.target.value })} className="h-10 text-xs font-bold rounded-xl border-slate-200" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Email Address</Label>
+                <Input value={businessData?.business_email || ''} onChange={(e) => setBusinessData({ ...businessData, business_email: e.target.value })} className="h-10 text-xs font-bold rounded-xl border-slate-200" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Address</Label>
+                <Textarea value={businessData?.business_address || ''} onChange={(e) => setBusinessData({ ...businessData, business_address: e.target.value })} className="text-xs font-bold min-h-[100px] rounded-xl border-slate-200" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Taxes & Charges */}
+          <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden bg-white">
+            <CardHeader className="bg-slate-50/50 border-b py-4 px-6 flex flex-row items-center gap-3">
+              <div className="p-2 bg-white rounded-lg shadow-sm"><Percent className="h-4 w-4 text-slate-400" /></div>
+              <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600">Financial Rules</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <div className="space-y-1">
+                  <p className="text-xs font-black text-slate-700 uppercase tracking-tight">Value Added Tax (VAT)</p>
+                  <p className="text-[10px] text-slate-500 font-bold">Calculate tax on each checkout</p>
+                </div>
+                <input type="checkbox" className="h-5 w-5 rounded-lg border-slate-300 accent-slate-900 cursor-pointer" checked={!!settings?.tax_enabled} onChange={(e) => setSettings({ ...settings, tax_enabled: e.target.checked })} />
+              </div>
+              {settings?.tax_enabled && (
+                <div className="px-4 py-3 space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Tax Rate (%)</Label>
+                  <div className="flex items-center gap-3">
+                    <Input type="number" value={settings?.tax_rate || 0} onChange={(e) => setSettings({ ...settings, tax_rate: parseFloat(e.target.value) })} className="h-10 text-xs font-black w-24 rounded-xl border-slate-200" />
+                    <span className="text-[10px] font-bold text-slate-400">Apply to all subtotal</span>
                   </div>
-                )}
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-gray-400">Brand Preview</p>
-                  <h3 className="text-xl font-semibold text-gray-900">
-                    {getBusinessDisplayName(business?.business_name)}
-                  </h3>
-                  <p className="text-sm text-gray-500">
-                    Jika logo belum diupload, sistem otomatis menampilkan nama bisnis.
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-col gap-3 md:ml-auto">
-                <label className="inline-flex items-center justify-center px-4 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-medium cursor-pointer hover:bg-gray-800">
-                  {logoUploading ? 'Uploading...' : 'Upload Logo'}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    disabled={logoUploading || logoRemoving}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null
-                      void handleLogoUpload(file)
-                      e.currentTarget.value = ''
-                    }}
-                  />
-                </label>
-                {business?.logo_url && (
-                  <button
-                    type="button"
-                    onClick={handleLogoRemove}
-                    disabled={logoUploading || logoRemoving}
-                    className="px-4 py-2.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-white disabled:opacity-50"
-                  >
-                    {logoRemoving ? 'Removing...' : 'Remove Logo'}
-                  </button>
-                )}
-                <p className="text-xs text-gray-500">Opsional. Format gambar umum, maksimal 3 MB.</p>
-              </div>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Business Name</label>
-              <input
-                type="text"
-                value={business?.business_name || ''}
-                disabled
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-              <input
-                type="text"
-                value={business?.email || ''}
-                disabled
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
-              <input
-                type="text"
-                value={business?.phone || ''}
-                disabled
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">PIC Brand/Toko</label>
-              <input
-                type="text"
-                value={picName}
-                onChange={(e) => setPicName(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g., Budi Santoso"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Industry</label>
-              <input
-                type="text"
-                value={business?.industry || ''}
-                disabled
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 capitalize"
-              />
-            </div>
-          </div>
-          <p className="text-sm text-gray-500 mt-4">
-            To update business information, please contact support.
-          </p>
-        </div>
-
-        {/* Receipt Settings */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Receipt Settings</h2>
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Receipt Header</label>
-              <input
-                type="text"
-                value={settings.receipt_header}
-                onChange={(e) => setSettings({ ...settings, receipt_header: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Your business name"
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                This will appear at the top of every receipt
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Receipt Footer</label>
-              <textarea
-                value={settings.receipt_footer}
-                onChange={(e) => setSettings({ ...settings, receipt_footer: e.target.value })}
-                rows={4}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Thank you message"
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                Use {'\\n'} for line breaks. Example: Terima Kasih!{'\\n'}Barang yang sudah dibeli tidak dapat ditukar
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Paper Size</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  onClick={() => setSettings({ ...settings, paper_size: '58mm' })}
-                  className={`p-4 rounded-lg border-2 font-medium transition-all ${
-                    settings.paper_size === '58mm'
-                      ? 'border-blue-500 bg-blue-50 text-blue-600'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="text-2xl mb-2">🧾</div>
-                  <div className="font-semibold">58mm</div>
-                  <div className="text-sm text-gray-500">Standard thermal printer</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSettings({ ...settings, paper_size: '80mm' })}
-                  className={`p-4 rounded-lg border-2 font-medium transition-all ${
-                    settings.paper_size === '80mm'
-                      ? 'border-blue-500 bg-blue-50 text-blue-600'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="text-2xl mb-2">📄</div>
-                  <div className="font-semibold">80mm</div>
-                  <div className="text-sm text-gray-500">Wide thermal printer</div>
-                </button>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tax & Service</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={settings.tax_enabled}
-                      onChange={(e) => setSettings({ ...settings, tax_enabled: e.target.checked })}
-                      className="w-4 h-4 text-blue-600 rounded"
-                    />
-                    Tax (%)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={settings.tax_rate}
-                    onChange={(e) => setSettings({ ...settings, tax_rate: parseFloat(e.target.value) || 0 })}
-                    disabled={!settings.tax_enabled}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-50"
-                    placeholder="e.g., 10"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={settings.service_enabled}
-                      onChange={(e) => setSettings({ ...settings, service_enabled: e.target.checked })}
-                      className="w-4 h-4 text-blue-600 rounded"
-                    />
-                    Service (%)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={settings.service_rate}
-                    onChange={(e) => setSettings({ ...settings, service_rate: parseFloat(e.target.value) || 0 })}
-                    disabled={!settings.service_enabled}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-50"
-                    placeholder="e.g., 5"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Receipt Preview */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Receipt Preview</h2>
-          <div className="flex justify-center overflow-x-auto">
-            <div
-              className={`bg-white border border-gray-300 shadow-sm ${
-                settings.paper_size === '58mm' ? 'w-[58mm]' : 'w-[80mm]'
-              }`}
-              style={{
-                padding: '8px',
-                fontFamily: 'monospace',
-                fontSize: settings.paper_size === '58mm' ? '10px' : '12px',
-                minHeight: '200px'
-              }}
-            >
-              <div className="text-center mb-2 font-bold">
-                {settings.receipt_header}
-              </div>
-              <div className="border-t border-dashed border-gray-400 my-2"></div>
-              <div className="flex justify-between text-xs">
-                <span>Order #: 123456</span>
-                <span>12/03/2026 10:30</span>
-              </div>
-              <div className="border-t border-dashed border-gray-400 my-2"></div>
-
-              <div className="space-y-1">
-                <div className="flex justify-between">
-                  <span>Kopi Latte</span>
-                  <span>25.000</span>
-                </div>
-                <div className="flex justify-between text-gray-500">
-                  <span>1 x 25.000</span>
-                </div>
-              </div>
-
-              <div className="border-t border-dashed border-gray-400 my-2"></div>
-
-              <div className="flex justify-between text-xs">
-                <span>Subtotal</span>
-                <span>{previewSubtotal.toLocaleString('id-ID')}</span>
-              </div>
-
-              {settings.tax_enabled && (
-                <div className="flex justify-between text-xs">
-                  <span>Tax ({settings.tax_rate}%)</span>
-                  <span>{previewTax.toLocaleString('id-ID')}</span>
                 </div>
               )}
-
-              {settings.service_enabled && (
-                <div className="flex justify-between text-xs">
-                  <span>Service ({settings.service_rate}%)</span>
-                  <span>{previewService.toLocaleString('id-ID')}</span>
+              
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <div className="space-y-1">
+                  <p className="text-xs font-black text-slate-700 uppercase tracking-tight">Service Charge</p>
+                  <p className="text-[10px] text-slate-500 font-bold">Additional handling fee</p>
+                </div>
+                <input type="checkbox" className="h-5 w-5 rounded-lg border-slate-300 accent-slate-900 cursor-pointer" checked={!!settings?.service_enabled} onChange={(e) => setSettings({ ...settings, service_enabled: e.target.checked })} />
+              </div>
+              {settings?.service_enabled && (
+                <div className="px-4 py-3 space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Service Rate (%)</Label>
+                  <div className="flex items-center gap-3">
+                    <Input type="number" value={settings?.service_rate || 0} onChange={(e) => setSettings({ ...settings, service_rate: parseFloat(e.target.value) })} className="h-10 text-xs font-black w-24 rounded-xl border-slate-200" />
+                    <span className="text-[10px] font-bold text-slate-400">Apply to all transactions</span>
+                  </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </div>
 
-              <div className="border-t border-dashed border-gray-400 my-2"></div>
-
-              <div
-                className="flex justify-between font-bold"
-                style={{ fontSize: settings.paper_size === '58mm' ? '10px' : '12px' }}
-              >
-                <span>TOTAL</span>
-                <span>{previewTotal.toLocaleString('id-ID')}</span>
+        <div className="space-y-8">
+          {/* Receipt Customization */}
+          <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden bg-white">
+            <CardHeader className="bg-slate-50/50 border-b py-4 px-6 flex flex-row items-center gap-3">
+              <div className="p-2 bg-white rounded-lg shadow-sm"><Receipt className="h-4 w-4 text-slate-400" /></div>
+              <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600">Receipt Design</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-5">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Paper Size</Label>
+                <Select value={settings?.receipt_paper_size || '58mm'} onValueChange={(val) => setSettings({ ...settings, receipt_paper_size: val })}>
+                  <SelectTrigger className="h-10 text-xs font-bold rounded-xl border-slate-200 bg-white"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="58mm" className="text-xs font-black">Standard (58mm)</SelectItem>
+                    <SelectItem value="80mm" className="text-xs font-black">Large (80mm)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Receipt Header</Label>
+                <Input value={settings?.receipt_header || ''} onChange={(e) => setSettings({ ...settings, receipt_header: e.target.value })} placeholder="Store Name" className="h-10 text-xs font-bold rounded-xl border-slate-200" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Footer Note</Label>
+                <Textarea value={settings?.receipt_footer || ''} onChange={(e) => setSettings({ ...settings, receipt_footer: e.target.value })} placeholder="Thank you!" className="text-xs font-bold min-h-[100px] rounded-xl border-slate-200" />
+              </div>
+            </CardContent>
+          </Card>
 
-              <div className="border-t border-dashed border-gray-400 my-2"></div>
-
-              <div
-                className="text-center"
-                style={{ fontSize: settings.paper_size === '58mm' ? '8px' : '10px' }}
-              >
-                {settings.receipt_footer.split('\\n').map((line, i) => (
-                  <p key={i}>{line}</p>
+          {/* Receipt Preview */}
+          <div className="flex flex-col items-center">
+            <div className="flex items-center gap-2 mb-4 text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">
+              <Printer size={12} />
+              <span>Real-time Preview</span>
+            </div>
+            
+            <div className={`${paperWidth} bg-white shadow-2xl rounded-sm p-4 relative border-t-8 border-slate-100 overflow-hidden`}>
+              {/* Paper Zigzag Top */}
+              <div className="absolute top-0 left-0 w-full flex justify-between px-0.5 -mt-1 opacity-20">
+                {Array.from({ length: 20 }).map((_, i) => (
+                  <div key={i} className="w-2 h-2 bg-slate-300 rounded-full" />
                 ))}
               </div>
-            </div>
-          </div>
-        </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Password</h2>
-          <p className="text-sm text-gray-500 mb-6">
-            Ubah password akun yang sedang kamu gunakan untuk login ke Aegis POS.
-          </p>
+              <div className="text-center mb-4 pt-2">
+                <p className="font-black text-xs uppercase text-slate-800 break-words">{settings?.receipt_header || businessData?.business_name || 'MY STORE'}</p>
+                <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">{businessData?.business_address || 'Jl. Contoh Alamat No. 123'}</p>
+                <p className="text-[8px] font-bold text-slate-400 uppercase">{businessData?.business_phone || '0812-3456-789'}</p>
+              </div>
 
-          <form onSubmit={handlePasswordChange} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
-              <input
-                type="password"
-                value={passwordForm.newPassword}
-                onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Minimal 6 karakter"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
-              <input
-                type="password"
-                value={passwordForm.confirmPassword}
-                onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Ulangi password baru"
-              />
-            </div>
-            <div className="md:col-span-2 flex flex-col gap-3">
-              {passwordNotice && (
-                <div className={`rounded-lg px-4 py-3 text-sm ${passwordNotice.includes('berhasil') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
-                  {passwordNotice}
+              <div className="border-t border-dashed border-slate-200 my-3" />
+
+              <div className="space-y-2 mb-4">
+                <div className="flex justify-between text-[8px] font-black text-slate-700">
+                  <span className="flex-1 truncate">Item Contoh A</span>
+                  <span className="ml-2">1 x 15.000</span>
+                  <span className="ml-4">15.000</span>
                 </div>
-              )}
-              <div className="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={passwordSaving}
-                  className="px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium disabled:opacity-50"
-                >
-                  {passwordSaving ? 'Updating...' : 'Update Password'}
-                </button>
+                <div className="flex justify-between text-[8px] font-black text-slate-700">
+                  <span className="flex-1 truncate">Produk Sempel B</span>
+                  <span className="ml-2">2 x 10.000</span>
+                  <span className="ml-4">20.000</span>
+                </div>
+              </div>
+
+              <div className="border-t border-dashed border-slate-200 my-3" />
+
+              <div className="space-y-1">
+                <div className="flex justify-between text-[9px] font-black text-slate-800">
+                  <span>Subtotal</span>
+                  <span>35.000</span>
+                </div>
+                {settings?.tax_enabled && (
+                  <div className="flex justify-between text-[8px] font-bold text-slate-500 italic">
+                    <span>Tax ({settings.tax_rate}%)</span>
+                    <span>{Math.round(35000 * settings.tax_rate / 100).toLocaleString()}</span>
+                  </div>
+                )}
+                {settings?.service_enabled && (
+                  <div className="flex justify-between text-[8px] font-bold text-slate-500 italic">
+                    <span>Service ({settings.service_rate}%)</span>
+                    <span>{Math.round(35000 * settings.service_rate / 100).toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-base font-black italic text-slate-900 pt-2">
+                  <span>TOTAL</span>
+                  <span>{formatIDR(35000 + (settings?.tax_enabled ? 35000 * settings.tax_rate / 100 : 0) + (settings?.service_enabled ? 35000 * settings.service_rate / 100 : 0))}</span>
+                </div>
+              </div>
+
+              <div className="border-t border-dashed border-slate-200 my-4" />
+
+              <div className="text-center space-y-1 mb-2">
+                {settings?.receipt_footer ? settings.receipt_footer.split('\n').map((line: string, i: number) => (
+                  <p key={i} className="text-[8px] font-black uppercase text-slate-400">{line}</p>
+                )) : (
+                  <p className="text-[8px] font-black uppercase text-slate-400 italic">Terima Kasih Atas Kunjungan Anda</p>
+                )}
+              </div>
+
+              {/* Bottom Decorative Zigzag */}
+              <div className="absolute bottom-0 left-0 w-full h-4 bg-slate-50 opacity-30 flex items-end">
+                <div className="w-full border-b-[8px] border-dashed border-white" />
               </div>
             </div>
-          </form>
-        </div>
-
-        {/* Save Button */}
-        <div className="flex items-center gap-4 flex-col md:flex-row">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full md:w-auto px-8 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 font-medium"
-          >
-            {saving ? 'Saving...' : 'Save Settings'}
-          </button>
-          {saved && (
-            <span className="text-green-600 font-medium">✓ Settings saved successfully!</span>
-          )}
+          </div>
         </div>
       </div>
     </div>

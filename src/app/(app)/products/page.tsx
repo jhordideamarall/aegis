@@ -6,16 +6,46 @@ import { getClientCache, setClientCache } from '@/lib/clientCache'
 import { getClientAuthHeaders } from '@/lib/clientAuth'
 import { formatIDR } from '@/lib/utils'
 import { Product } from '@/lib/types'
-import Modal from '@/components/Modal'
-import { ChevronLeft, ChevronRight } from 'react-feather'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  Plus, 
+  Search, 
+  Edit2, 
+  Trash2, 
+  Package, 
+  Layers, 
+  Loader2 
+} from 'lucide-react'
 
-// Helper functions for price formatting
 function formatPriceInput(value: number): string {
   return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-}
-
-function parsePriceInput(value: string): number {
-  return parseInt(value.replace(/[^0-9]/g, '')) || 0
 }
 
 export default function ProductsPage() {
@@ -80,272 +110,158 @@ export default function ProductsPage() {
   const endItem = Math.min(page * limit, total)
 
   const handleDelete = async (id: string) => {
-    if (!business) {
-      alert('Business not found. Please login again.')
-      return
-    }
-
+    if (!business) return
+    if (!window.confirm('Delete this product?')) return
     try {
       const res = await fetch(`/api/products/${id}?business_id=${business.id}`, {
         method: 'DELETE',
         headers: await getClientAuthHeaders()
       })
-
-      if (res.ok) {
-        setProducts(prev => prev.filter(p => p.id !== id))
-      } else {
-        const error = await res.json()
-        alert(error.error || 'Failed to delete product')
-      }
-    } catch (error: any) {
-      alert(`Failed to delete product: ${error.message}`)
-    }
+      if (res.ok) fetchProducts()
+    } catch (error) {}
   }
 
   return (
-    <div className="p-4 md:p-8">
-      <div className="flex items-center justify-between mb-6 md:mb-8 flex-wrap gap-3">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Products</h1>
-          <p className="text-gray-500">Manage your product inventory</p>
+          <h1 className="text-2xl font-bold text-slate-900">Inventory</h1>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Manage Products & HPP</p>
         </div>
-        <button
-          onClick={() => {
-            setEditingProduct(null)
-            setShowModal(true)
-          }}
-          className="px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 font-medium flex items-center gap-2"
-        >
-          <span className="text-xl">+</span> Add Product
-        </button>
-      </div>
-
-      {/* Filters */}
-      <div className="flex gap-4 mb-6 flex-wrap">
-        <input
-          type="text"
-          placeholder="Search products..."
-          value={searchQuery}
-          onChange={(e) => {
-            setSearchQuery(e.target.value)
-            setPage(1)
-          }}
-          className="w-full md:flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <select
-          value={selectedCategory}
-          onChange={(e) => {
-            setSelectedCategory(e.target.value)
-            setPage(1)
-          }}
-          className="w-full md:w-auto px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          {categories.map(cat => (
-            <option key={cat} value={cat}>{cat === 'all' ? 'All Categories' : cat}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Products List (Mobile) */}
-      <div className="md:hidden space-y-3">
-        {products.length === 0 ? (
-          <div className="bg-white rounded-lg border border-gray-200 p-4 text-center text-gray-400">
-            {isLoading ? 'Loading products...' : 'No products found'}
-          </div>
-        ) : (
-          products.map((product) => (
-            <div key={product.id} className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-gray-900">{product.name}</p>
-                  <p className="text-xs text-gray-500">{product.category}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold text-blue-600">{formatIDR(product.price)}</p>
-                  <p className={`text-xs ${product.stock > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                    {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() => {
-                    setEditingProduct(product)
-                    setShowModal(true)
-                  }}
-                  className="flex-1 px-3 py-2 text-blue-600 border border-blue-200 rounded-lg text-sm"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => {
-                    handleDelete(product.id)
-                  }}
-                  className="flex-1 px-3 py-2 text-red-600 border border-red-200 rounded-lg text-sm"
-                >
-                  Delete
-                </button>
-              </div>
+        
+        <div className="flex items-center gap-4">
+          <div className="hidden sm:flex items-center gap-8 px-6 py-3 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm">
+            <div className="text-left">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Stock Value</p>
+              <p className="text-lg font-black text-slate-900 tracking-tight">{formatIDR(products.reduce((acc, p) => acc + (p.price * p.stock), 0))}</p>
             </div>
-          ))
-        )}
+            <div className="w-px h-10 bg-slate-200" />
+            <div className="text-left">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Low Items</p>
+              <p className="text-lg font-black text-rose-600 tracking-tight">{products.filter(p => p.stock <= 5).length}</p>
+            </div>
+          </div>
+          <Button
+            onClick={() => {
+              setEditingProduct(null)
+              setShowModal(true)
+            }}
+            className="h-10 px-5 rounded-xl font-bold bg-slate-900 hover:bg-slate-800 text-xs shadow-lg shadow-slate-200"
+          >
+            <Plus className="mr-2 h-4 w-4" /> New Product
+          </Button>
+        </div>
       </div>
 
-      {/* Products Table (Desktop) */}
-      <div className="hidden md:block bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b">
-            <tr>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Product Name</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Category</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Price</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Stock</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Status</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && products.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
-                  Loading products...
-                </td>
-              </tr>
-            ) : products.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
-                  <div className="text-6xl mb-4">📦</div>
-                  <p>No products found</p>
-                  <button
-                    onClick={() => {
-                      setEditingProduct(null)
-                      setShowModal(true)
-                    }}
-                    className="mt-4 text-blue-600 hover:underline"
-                  >
-                    Add your first product
-                  </button>
-                </td>
-              </tr>
-            ) : (
-              products.map((product) => (
-                <tr key={product.id} className="border-b hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div>
-                      <p className="font-medium text-gray-800">{product.name}</p>
-                      <p className="text-sm text-gray-500">ID: {product.id.slice(0, 8)}</p>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
-                      {product.category}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="font-semibold text-blue-600">{formatIDR(product.price)}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={product.stock > 0 ? 'text-gray-800' : 'text-red-500 font-medium'}>
-                      {product.stock}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    {product.stock > 10 ? (
-                      <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">In Stock</span>
-                    ) : product.stock > 0 ? (
-                      <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm">Low Stock</span>
-                    ) : (
-                      <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">Out of Stock</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => {
-                          setEditingProduct(product)
-                          setShowModal(true)
-                        }}
-                        className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => {
-                          handleDelete(product.id)
-                        }}
-                        className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <Card className="border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white">
+        <div className="p-4 border-b bg-slate-50/50 flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <Input
+              placeholder="Search product..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setPage(1)
+              }}
+              className="pl-9 h-9 text-xs bg-white rounded-lg border-slate-200"
+            />
+          </div>
+          
+          <Select value={selectedCategory} onValueChange={(val) => {
+            if (val) {
+              setSelectedCategory(val)
+              setPage(1)
+            }
+          }}>
+            <SelectTrigger className="h-9 w-full sm:w-[180px] text-xs bg-white rounded-lg border-slate-200 font-medium">
+              <Layers className="mr-2 h-3 w-3 text-slate-400" />
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map(cat => (
+                <SelectItem key={cat} value={cat} className="text-xs font-medium">
+                  {cat === 'all' ? 'All Categories' : cat}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="bg-slate-50/30">
+              <TableRow className="border-none">
+                <TableHead className="py-3.5 pl-6 text-[10px] uppercase font-bold text-slate-400 tracking-wider">Product</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Category</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">HPP</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Price</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Stock</TableHead>
+                <TableHead className="text-right pr-6 text-[10px] uppercase font-bold text-slate-400 tracking-wider">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading && products.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-slate-300" /></TableCell></TableRow>
+              ) : products.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="h-32 text-center text-xs text-slate-400 font-medium italic">No products found in this criteria</TableCell></TableRow>
+              ) : (
+                products.map((product) => (
+                  <TableRow key={product.id} className="hover:bg-slate-50/50 transition-colors border-slate-100">
+                    <TableCell className="py-4 pl-6 font-bold text-slate-800 text-sm">{product.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="bg-slate-50 text-slate-500 font-bold px-2 py-0.5 text-[9px] uppercase border-slate-200">
+                        {product.category || 'General'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-slate-400 font-medium">{formatIDR(product.hpp || 0)}</TableCell>
+                    <TableCell className="text-xs font-black text-slate-900">{formatIDR(product.price)}</TableCell>
+                    <TableCell>
+                      <span className={`text-[11px] font-black px-2 py-0.5 rounded-md ${product.stock <= 5 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                        {product.stock} pcs
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right pr-6">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-900 hover:bg-slate-100" onClick={() => { setEditingProduct(product); setShowModal(true); }}>
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-rose-600 hover:bg-rose-50" onClick={() => handleDelete(product.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        
         {products.length > 0 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t bg-gray-50">
-            <div className="text-sm text-gray-600">
-              Showing {startItem}-{endItem} of {total}
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-white disabled:opacity-50"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <span className="text-sm text-gray-600">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-                className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-white disabled:opacity-50"
-              >
-                <ChevronRight size={16} />
-              </button>
+          <div className="flex items-center justify-between p-4 bg-slate-50/30 border-t">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              Showing {startItem}-{endItem} <span className="text-slate-200 mx-1">/</span> {total}
+            </p>
+            <div className="flex items-center gap-1.5">
+              <Button variant="outline" size="sm" className="h-8 px-3 text-[10px] font-bold rounded-lg border-slate-200" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}>
+                Prev
+              </Button>
+              <div className="h-8 px-3 flex items-center justify-center bg-white border border-slate-200 rounded-lg text-[10px] font-black">{page} / {totalPages}</div>
+              <Button variant="outline" size="sm" className="h-8 px-3 text-[10px] font-bold rounded-lg border-slate-200" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
+                Next
+              </Button>
             </div>
           </div>
         )}
-      </div>
+      </Card>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <p className="text-sm text-gray-500 mb-1">Total Products</p>
-          <p className="text-3xl font-bold text-gray-800">{products.length}</p>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <p className="text-sm text-gray-500 mb-1">In Stock</p>
-          <p className="text-3xl font-bold text-green-600">
-            {products.filter(p => p.stock > 10).length}
-          </p>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <p className="text-sm text-gray-500 mb-1">Low/Out of Stock</p>
-          <p className="text-3xl font-bold text-red-600">
-            {products.filter(p => p.stock <= 10).length}
-          </p>
-        </div>
-      </div>
-
-      {/* Add/Edit Product Modal */}
       {showModal && (
         <ProductFormModal
           product={editingProduct}
           businessId={business?.id || ''}
-          onClose={() => {
-            setShowModal(false)
-            setEditingProduct(null)
-          }}
-          onSuccess={() => {
-            fetchProducts()
-            setShowModal(false)
-            setEditingProduct(null)
-          }}
+          onClose={() => { setShowModal(false); setEditingProduct(null); }}
+          onSuccess={() => { fetchProducts(); setShowModal(false); setEditingProduct(null); }}
         />
       )}
     </div>
@@ -363,144 +279,77 @@ function ProductFormModal({ product, businessId, onClose, onSuccess }: ProductFo
   const [formData, setFormData] = useState({
     name: product?.name || '',
     price: product?.price || 0,
+    hpp: product?.hpp || 0,
     stock: product?.stock || 0,
     category: product?.category || ''
   })
   const [priceInput, setPriceInput] = useState(product?.price ? formatPriceInput(product.price) : '')
+  const [hppInput, setHppInput] = useState(product?.hpp ? formatPriceInput(product.hpp) : '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/[^0-9]/g, '')
-    const formatted = rawValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-    setPriceInput(formatted)
+    setPriceInput(rawValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.'))
     setFormData({ ...formData, price: parseInt(rawValue) || 0 })
+  }
+
+  const handleHppChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/[^0-9]/g, '')
+    setHppInput(rawValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.'))
+    setFormData({ ...formData, hpp: parseInt(rawValue) || 0 })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setError('')
-
     try {
       const url = product ? `/api/products/${product.id}` : '/api/products'
       const method = product ? 'PUT' : 'POST'
-
       const res = await fetch(url, {
         method,
         headers: await getClientAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ ...formData, business_id: businessId })
       })
-
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Failed to save product')
-      }
-
-      onSuccess()
-    } catch (err: any) {
-      setError(err.message || 'Failed to save product')
-    } finally {
-      setLoading(false)
-    }
+      if (res.ok) onSuccess()
+    } catch (err) {} finally { setLoading(false) }
   }
 
   return (
-    <Modal isOpen={true} onClose={onClose} title={product ? 'Edit Product' : 'Add New Product'} size="lg">
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {error && (
-          <div className="bg-red-50 text-red-600 p-4 rounded-lg text-sm">{error}</div>
-        )}
-
-        <div className="grid grid-cols-2 gap-6">
-          <div className="col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., Kopi Latte"
-              required
-            />
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[450px] rounded-2xl">
+        <DialogHeader><DialogTitle className="text-sm font-black uppercase tracking-widest text-slate-400">{product ? 'Edit Product' : 'Add New Product'}</DialogTitle></DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="name" className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Product Name</Label>
+            <Input id="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required className="h-10 text-xs font-bold rounded-xl border-slate-200" />
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Category *</label>
-            <input
-              type="text"
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., Minuman"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Price (IDR) *</label>
-            <input
-              type="text"
-              value={priceInput}
-              onChange={handlePriceChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., 25.000"
-              required
-            />
-            <p className="text-xs text-gray-500 mt-1">Format: 25.000 (auto-formatted)</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Stock *</label>
-            <input
-              type="number"
-              value={formData.stock}
-              onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., 100"
-              min="0"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Current Stock Level</label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, stock: Math.max(0, formData.stock - 10) })}
-                className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                -10
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, stock: formData.stock + 10 })}
-                className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                +10
-              </button>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="category" className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Category</Label>
+              <Input id="category" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} required className="h-10 text-xs font-bold rounded-xl border-slate-200" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="stock" className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Stock</Label>
+              <Input id="stock" type="number" value={formData.stock} onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })} required className="h-10 text-xs font-bold rounded-xl border-slate-200" />
             </div>
           </div>
-        </div>
-
-        <div className="flex gap-3 pt-6 border-t">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex-1 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 font-medium"
-          >
-            {loading ? 'Saving...' : product ? 'Update Product' : 'Create Product'}
-          </button>
-        </div>
-      </form>
-    </Modal>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="hpp" className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">HPP (Cost)</Label>
+              <Input id="hpp" value={hppInput} onChange={handleHppChange} required className="h-10 text-xs font-bold rounded-xl border-slate-200" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="price" className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Price (Sell)</Label>
+              <Input id="price" value={priceInput} onChange={handlePriceChange} required className="h-10 text-xs font-bold rounded-xl border-slate-200" />
+            </div>
+          </div>
+          <div className="flex gap-2 pt-4">
+            <Button type="button" variant="outline" className="flex-1 h-11 text-xs font-black uppercase tracking-wider rounded-xl" onClick={onClose}>Cancel</Button>
+            <Button type="submit" className="flex-1 h-11 text-xs font-black uppercase tracking-wider bg-slate-900 rounded-xl" disabled={loading}>{loading ? 'Saving...' : 'Confirm Save'}</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

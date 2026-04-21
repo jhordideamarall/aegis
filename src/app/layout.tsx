@@ -3,6 +3,11 @@ import Script from "next/script";
 import { getSiteUrl } from "@/lib/site";
 import { validateEnvironment } from "@/lib/env";
 import "./globals.css";
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+
 
 // Validate environment variables at startup (development only)
 if (process.env.NODE_ENV === 'development') {
@@ -174,7 +179,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" suppressHydrationWarning>
+    <html lang="id" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
       <head>
         {/* Canonical URL */}
         <link rel="canonical" href={siteUrl} />

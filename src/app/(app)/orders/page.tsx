@@ -12,7 +12,36 @@ import {
 import { supabase } from '@/lib/supabase'
 import { formatIDR, toLocalISODate } from '@/lib/utils'
 import ReceiptPrinter from '@/components/ReceiptPrinter'
-import { ChevronLeft, ChevronRight } from 'react-feather'
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  Search, 
+  ShoppingCart, 
+  TrendingUp, 
+  DollarSign, 
+  Calendar as CalendarIcon, 
+  Loader2, 
+  Clock 
+} from 'lucide-react'
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Card } from "@/components/ui/card"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 
 interface Order {
   id: string
@@ -66,555 +95,211 @@ function OrdersContent() {
   useEffect(() => {
     if (!loading && business) {
       fetchOrders()
-
-      // Check if we should print receipt (from POS checkout)
       const printParam = searchParams.get('print')
       const orderId = searchParams.get('id')
-      if (printParam === 'true' && orderId) {
-        fetchOrderDetail(orderId)
-      }
+      if (printParam === 'true' && orderId) fetchOrderDetail(orderId)
     }
   }, [loading, business, filter, page, searchQuery, startDate, endDate, paymentMethod, searchParams])
 
   const fetchOrders = async () => {
     if (!business) return
     try {
-      const { today, weekAgo } = getDateRangePresets()
-
-      const cacheKey = `orders:${business.id}:${filter}:${page}:${today}:${weekAgo}:${searchQuery}:${startDate}:${endDate}:${paymentMethod}`
-      const cached = getClientCache<{ data: Order[]; total: number; summaryTotalRevenue: number; summaryTotalOrders: number }>(cacheKey)
-      if (cached) {
-        console.log('Using cached orders:', cached.data.length)
-        setOrders(cached.data)
-        setTotal(cached.total)
-        setSummaryTotalRevenue(cached.summaryTotalRevenue)
-        setSummaryTotalOrders(cached.summaryTotalOrders)
-        setFetching(false)
-      } else {
-        setFetching(true)
-      }
-
-      const url = buildOrdersApiUrl({
-        businessId: business.id,
-        page,
-        limit,
-        today,
-        weekAgo,
-        filter,
-        startDate,
-        endDate,
-        paymentMethod,
-        searchQuery
-      })
-
-      console.log('Fetching orders from:', url)
+      const today = toLocalISODate()
+      const url = buildOrdersApiUrl({ businessId: business.id, page, limit, today, filter, startDate, endDate, paymentMethod, searchQuery })
       const { data: { session } } = await supabase.auth.getSession()
-      const res = await fetch(url, {
-        headers: session?.access_token
-          ? { Authorization: `Bearer ${session.access_token}` }
-          : {}
-      })
+      const res = await fetch(url, { headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} })
       if (res.ok) {
         const result = await res.json()
-        console.log('Orders result:', result.data?.length, 'total:', result.total)
         setOrders(result.data || [])
         setTotal(result.total || 0)
         setSummaryTotalRevenue(result.summary?.totalRevenue || 0)
         setSummaryTotalOrders(result.summary?.totalOrders || 0)
-        setClientCache(cacheKey, {
-          data: result.data || [],
-          total: result.total || 0,
-          summaryTotalRevenue: result.summary?.totalRevenue || 0,
-          summaryTotalOrders: result.summary?.totalOrders || 0
-        })
-      } else {
-        console.error('Failed to fetch orders:', res.status)
       }
-    } catch (error) {
-      console.error('Error fetching orders:', error)
-    } finally {
-      setFetching(false)
-    }
+    } catch (error) {} finally { setFetching(false) }
   }
 
   const fetchOrderDetail = async (orderId: string) => {
     if (!business) return
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      const res = await fetch(`/api/orders/${orderId}?business_id=${business.id}`, {
-        headers: session?.access_token
-          ? { Authorization: `Bearer ${session.access_token}` }
-          : {}
-      })
+      const res = await fetch(`/api/orders/${orderId}?business_id=${business.id}`, { headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} })
       if (res.ok) {
-        const order = await res.json()
-        setSelectedOrder(order)
+        setSelectedOrder(await res.json())
         setShowReceipt(true)
       }
-    } catch (error) {
-      console.error('Error fetching order:', error)
-    }
+    } catch (error) {}
   }
 
   const totalPages = Math.max(1, Math.ceil(total / limit))
   const startItem = total === 0 ? 0 : (page - 1) * limit + 1
   const endItem = Math.min(page * limit, total)
-  const averageOrderValue = summaryTotalOrders > 0 ? summaryTotalRevenue / summaryTotalOrders : 0
 
-  function getDateRangePresets() {
-    const today = toLocalISODate()
-    const weekAgo = toLocalISODate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
-    return { today, weekAgo }
-  }
-
-  function buildOrdersApiUrl(params: {
-    businessId: string
-    page?: number
-    limit?: number
-    today: string
-    weekAgo: string
-    filter: 'all' | 'today' | 'week' | 'custom'
-    startDate: string
-    endDate: string
-    paymentMethod: string
-    searchQuery: string
-    report?: boolean
-  }) {
-    const url = new URL(params.report ? '/api/orders/report' : '/api/orders', window.location.origin)
+  function buildOrdersApiUrl(params: any) {
+    const url = new URL('/api/orders', window.location.origin)
     url.searchParams.set('business_id', params.businessId)
-
-    if (!params.report) {
-      url.searchParams.set('page', String(params.page || 1))
-      url.searchParams.set('limit', String(params.limit || limit))
-    }
-
-    if (params.filter === 'today') {
-      url.searchParams.set('startDate', params.today)
-      url.searchParams.set('endDate', params.today)
-    }
-
-    if (params.filter === 'week') {
-      url.searchParams.set('startDate', params.weekAgo)
-      url.searchParams.set('endDate', params.today)
-    }
-
-    if (params.filter === 'custom' && params.startDate && params.endDate) {
-      url.searchParams.set('startDate', params.startDate)
-      url.searchParams.set('endDate', params.endDate)
-    }
-
-    if (params.paymentMethod !== 'all') {
-      url.searchParams.set('payment_method', params.paymentMethod)
-    }
-
-    if (params.searchQuery) {
-      url.searchParams.set('q', params.searchQuery)
-    }
-
+    url.searchParams.set('page', String(params.page || 1))
+    url.searchParams.set('limit', String(params.limit || limit))
+    if (params.filter === 'today') { url.searchParams.set('startDate', params.today); url.searchParams.set('endDate', params.today); }
+    if (params.filter === 'custom' && params.startDate && params.endDate) { url.searchParams.set('startDate', params.startDate); url.searchParams.set('endDate', params.endDate); }
+    if (params.paymentMethod !== 'all') url.searchParams.set('payment_method', params.paymentMethod)
+    if (params.searchQuery) url.searchParams.set('q', params.searchQuery)
     return `${url.pathname}${url.search}`
-  }
-
-  const getFilterLabel = () => {
-    if (filter === 'today') return 'Today'
-    if (filter === 'week') return 'This Week'
-    if (filter === 'custom' && startDate && endDate) return `Custom Range (${startDate} s/d ${endDate})`
-    return 'All Orders'
   }
 
   const handleDownloadReport = async () => {
     if (!business) return
-
-    const { today, weekAgo } = getDateRangePresets()
-    const reportParams = new URLSearchParams()
-    reportParams.set('filter', filter)
-    reportParams.set('filterLabel', getFilterLabel())
-
-    if (paymentMethod !== 'all') {
-      reportParams.set('payment_method', paymentMethod)
-    }
-
-    if (searchQuery) {
-      reportParams.set('q', searchQuery)
-    }
-
+    const reportParams = new URLSearchParams({ filter, business_id: business.id })
+    if (paymentMethod !== 'all') reportParams.set('payment_method', paymentMethod)
+    if (searchQuery) reportParams.set('q', searchQuery)
+    
     if (filter === 'today') {
+      const today = toLocalISODate()
       reportParams.set('startDate', today)
       reportParams.set('endDate', today)
+    } else if (filter === 'custom') {
+      if (startDate) reportParams.set('startDate', startDate)
+      if (endDate) reportParams.set('endDate', endDate)
     }
-
-    if (filter === 'week') {
-      reportParams.set('startDate', weekAgo)
-      reportParams.set('endDate', today)
-    }
-
-    if (filter === 'custom' && startDate && endDate) {
-      reportParams.set('startDate', startDate)
-      reportParams.set('endDate', endDate)
-    }
-
+    
     router.push(`/orders/report?${reportParams.toString()}`)
   }
 
-  const formatProofStatus = (order: Order) => {
-    if (!order.payment_proof_url) return 'Tanpa bukti'
-    if (!order.payment_proof_uploaded_at) return 'Bukti tersedia'
-
-    return `Bukti ${new Date(order.payment_proof_uploaded_at).toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'short'
-    })}`
-  }
-
   return (
-    <div className="p-4 md:p-8">
-      <div className="flex items-center justify-between mb-6 md:mb-8 flex-wrap gap-3">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Orders</h1>
-          <p className="text-gray-500">View and manage all transactions</p>
+          <h1 className="text-2xl font-bold text-slate-900">Transactions</h1>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">History & Reports</p>
         </div>
-        <button
-          onClick={handleDownloadReport}
-          disabled={isLoading || !business}
-          className="px-4 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
-        >
-          Download Report
-        </button>
-        <div className="flex flex-col gap-3 w-full">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search orders..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value)
-                  setPage(1)
-                }}
-                className="w-full md:w-56 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              />
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={() => {
-                  setFilter('all')
-                  setStartDate('')
-                  setEndDate('')
-                  setPage(1)
-                }}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  filter === 'all' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => {
-                  setFilter('today')
-                  setStartDate('')
-                  setEndDate('')
-                  setPage(1)
-                }}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  filter === 'today' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                Today
-              </button>
-              <button
-                onClick={() => {
-                  setFilter('week')
-                  setStartDate('')
-                  setEndDate('')
-                  setPage(1)
-                }}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  filter === 'week' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                This Week
-              </button>
-              <button
-                onClick={() => {
-                  setFilter('custom')
-                  setPage(1)
-                }}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  filter === 'custom' ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                Custom Range
-              </button>
-            </div>
-            <select
-              value={paymentMethod}
-              onChange={(e) => {
-                setPaymentMethod(e.target.value)
-                setPage(1)
-              }}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
-            >
-              <option value="all">All Payment</option>
-              {PAYMENT_METHOD_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          {filter === 'custom' && (
-            <div className="flex items-center gap-2 flex-wrap bg-gray-50 p-3 rounded-lg border border-gray-200">
-              <span className="text-sm text-gray-600 font-medium">Date Range:</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value)
-                  setPage(1)
-                }}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              />
-              <span className="text-gray-500">to</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value)
-                  setPage(1)
-                }}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                max={toLocalISODate()}
-              />
-            </div>
-          )}
-        </div>
+        <Button onClick={handleDownloadReport} disabled={isLoading} className="h-9 px-4 rounded-lg font-bold bg-slate-900 text-xs">
+          Export Report
+        </Button>
       </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <p className="text-sm text-gray-500 mb-1">Total Orders</p>
-                <p className="text-3xl font-bold text-gray-800">{summaryTotalOrders}</p>
-              </div>
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <p className="text-sm text-gray-500 mb-1">Total Revenue</p>
-                <p className="text-3xl font-bold text-blue-600">
-                  {formatIDR(summaryTotalRevenue)}
-                </p>
-              </div>
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <p className="text-sm text-gray-500 mb-1">Average Order Value</p>
-                <p className="text-3xl font-bold text-green-600">
-                  {formatIDR(averageOrderValue)}
-                </p>
-              </div>
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <StatsMiniCard title="Total Orders" value={summaryTotalOrders} icon={ShoppingCart} />
+        <StatsMiniCard title="Revenue" value={formatIDR(summaryTotalRevenue)} icon={TrendingUp} />
+        <StatsMiniCard title="Avg. Ticket" value={formatIDR(summaryTotalOrders > 0 ? summaryTotalRevenue / summaryTotalOrders : 0)} icon={DollarSign} />
+      </div>
 
-            {/* Orders List (Mobile) */}
-            <div className="md:hidden space-y-3">
-              {orders.length === 0 ? (
-                <div className="bg-white rounded-lg border border-gray-200 p-4 text-center text-gray-400">
-                  {isLoading ? 'Loading orders...' : 'No orders yet'}
-                </div>
-              ) : (
-                orders.map((order) => (
-                  <div key={order.id} className="bg-white rounded-lg border border-gray-200 p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-gray-500">
-                        #{order.id.slice(0, 8).toUpperCase()}
-                      </span>
-                      <div className="flex flex-col items-end gap-1">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${getPaymentMethodBadgeColor(order.payment_method)}`}>
-                          {formatPaymentDisplay(order.payment_method, order.payment_provider)}
-                        </span>
-                        <span className={`text-[11px] ${order.payment_proof_url ? 'text-emerald-600' : 'text-gray-400'}`}>
-                          {formatProofStatus(order)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {order.member ? order.member.name : 'General Customer'}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {new Date(order.created_at).toLocaleDateString('id-ID', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric'
-                          })}{' '}
-                          •{' '}
-                          {new Date(order.created_at).toLocaleTimeString('id-ID', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-blue-600">{formatIDR(order.total)}</p>
-                        <button
-                          onClick={() => fetchOrderDetail(order.id)}
-                          className="text-xs text-blue-600 hover:underline mt-1"
-                        >
-                          View
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
+      <Card className="border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white">
+        <div className="p-4 border-b bg-slate-50/50 flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <Input placeholder="Transaction ID..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }} className="pl-9 h-9 text-xs bg-white" />
             </div>
+            
+            <div className="flex items-center gap-2">
+              <Select value={filter} onValueChange={(val: any) => { setFilter(val); if (val !== 'custom') { setStartDate(''); setEndDate(''); } setPage(1); }}>
+                <SelectTrigger className="h-9 w-[120px] text-xs font-bold bg-white"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">This Week</SelectItem>
+                  <SelectItem value="custom">Custom Range</SelectItem>
+                </SelectContent>
+              </Select>
 
-            {/* Orders Table (Desktop) */}
-            <div className="hidden md:block bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Order ID</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Date & Time</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Customer</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Items</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Payment</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Total</th>
-                <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && orders.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
-                    Loading orders...
-                  </td>
-                </tr>
-              ) : orders.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
-                    <div className="text-6xl mb-4">📋</div>
-                    <p>No orders yet</p>
-                    <button
-                      onClick={() => router.push('/pos')}
-                      className="mt-4 text-blue-600 hover:underline"
-                    >
-                      Create your first order
-                    </button>
-                  </td>
-                </tr>
-              ) : (
-                orders.map((order) => (
-                  <tr key={order.id} className="border-b hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <span className="font-mono text-sm text-gray-600">
-                        #{order.id.slice(0, 8).toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="font-medium text-gray-800">
-                          {new Date(order.created_at).toLocaleDateString('id-ID', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric'
-                          })}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {new Date(order.created_at).toLocaleTimeString('id-ID', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      {order.member ? (
-                        <div>
-                          <p className="font-medium text-gray-800">{order.member.name}</p>
-                          <p className="text-sm text-gray-500">{order.member.phone}</p>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">General</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-gray-800">{order.order_items.length} items</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${getPaymentMethodBadgeColor(order.payment_method)}`}>
-                          {formatPaymentDisplay(order.payment_method, order.payment_provider)}
-                        </span>
-                        <p className={`text-xs ${order.payment_proof_url ? 'text-emerald-600' : 'text-gray-400'}`}>
-                          {formatProofStatus(order)}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="font-bold text-blue-600">{formatIDR(order.total)}</span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => fetchOrderDetail(order.id)}
-                        className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
-                      >
-                        View
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-          {orders.length > 0 && (
-            <div className="flex items-center justify-between px-6 py-4 border-t bg-gray-50">
-              <div className="text-sm text-gray-600">
-                Showing {startItem}-{endItem} of {total}
-              </div>
+              <Select value={paymentMethod} onValueChange={(val) => { if (val) { setPaymentMethod(val); setPage(1); } }}>
+                <SelectTrigger className="h-9 w-[140px] text-xs font-bold bg-white"><SelectValue placeholder="Method" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">ALL METHODS</SelectItem>
+                  {PAYMENT_METHOD_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label.toUpperCase()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {filter === 'custom' && (
+            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200 animate-in fade-in slide-in-from-top-2 duration-300">
+              <CalendarIcon size={14} className="text-slate-400" />
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                  className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-white disabled:opacity-50"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <span className="text-sm text-gray-600">
-                  Page {page} of {totalPages}
-                </span>
-                <button
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                  className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-white disabled:opacity-50"
-                >
-                  <ChevronRight size={16} />
-                </button>
+                <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1); }} className="h-8 text-[10px] w-32 font-bold" />
+                <span className="text-slate-300 font-bold">&rarr;</span>
+                <Input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1); }} className="h-8 text-[10px] w-32 font-bold" />
               </div>
             </div>
           )}
         </div>
+
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="bg-slate-50/30">
+              <TableRow className="border-none">
+                <TableHead className="py-3 pl-6 text-[10px] uppercase font-bold text-slate-400">Order ID</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold text-slate-400">Date</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold text-slate-400">Customer</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold text-slate-400">Payment</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold text-slate-400">Total</TableHead>
+                <TableHead className="text-right pr-6 text-[10px] uppercase font-bold text-slate-400">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading && orders.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="h-32 text-center"><Loader2 className="animate-spin mx-auto text-slate-300" /></TableCell></TableRow>
+              ) : orders.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="h-32 text-center text-xs text-slate-400 font-medium">No transactions</TableCell></TableRow>
+              ) : (
+                orders.map((order) => (
+                  <TableRow key={order.id} className="hover:bg-slate-50/50 transition-colors border-slate-100">
+                    <TableCell className="py-3 pl-6 font-mono text-[10px] font-black text-slate-400 uppercase tracking-tighter">#{order.id.slice(0, 8)}</TableCell>
+                    <TableCell className="text-xs font-bold text-slate-700">
+                      {new Date(order.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                      <span className="ml-1.5 font-normal text-slate-400">{new Date(order.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </TableCell>
+                    <TableCell className="text-xs font-bold text-slate-800">{order.member?.name || 'Walk-in'}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-black text-[9px] uppercase px-2 py-0.5 border-none">
+                        {formatPaymentDisplay(order.payment_method, order.payment_provider)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs font-black text-slate-900">{formatIDR(order.total)}</TableCell>
+                    <TableCell className="text-right pr-6">
+                      <Button onClick={() => fetchOrderDetail(order.id)} variant="outline" className="h-7 px-3 rounded text-[10px] font-black uppercase tracking-tighter border-slate-200">Details</Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        
+        {orders.length > 0 && (
+          <div className="flex items-center justify-between p-4 bg-slate-50/30 border-t">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{startItem}-{endItem} of {total}</p>
+            <div className="flex items-center gap-1.5">
+              <Button variant="outline" size="sm" className="h-8 text-[10px] font-bold" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}>Prev</Button>
+              <div className="h-8 px-3 flex items-center justify-center bg-white border rounded text-[10px] font-black">{page} / {totalPages}</div>
+              <Button variant="outline" size="sm" className="h-8 text-[10px] font-bold" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>Next</Button>
+            </div>
+          </div>
+        )}
+      </Card>
       
-      {/* Receipt Modal */}
       {showReceipt && selectedOrder && (
-        <ReceiptPrinter
-          order={selectedOrder}
-          businessId={business?.id}
-          onClose={() => {
-            setShowReceipt(false)
-            setSelectedOrder(null)
-            // Clear URL params
-            router.push('/orders')
-          }}
-        />
+        <ReceiptPrinter order={selectedOrder} businessId={business?.id} onClose={() => { setShowReceipt(false); setSelectedOrder(null); router.push('/orders'); }} />
       )}
     </div>
   )
 }
 
-export default function OrdersPage() {
+function StatsMiniCard({ title, value, icon: Icon }: { title: string, value: any, icon: any }) {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500">
-        Loading orders...
+    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm group">
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{title}</p>
+      <div className="flex items-center justify-between">
+        <p className="text-lg font-black text-slate-900">{value}</p>
+        <div className="p-1.5 bg-slate-50 rounded-lg group-hover:bg-slate-100 transition-colors"><Icon className="h-4 w-4 text-slate-300" /></div>
       </div>
-    }>
-      <OrdersContent />
-    </Suspense>
+    </div>
   )
+}
+
+export default function OrdersPage() {
+  return (<Suspense fallback={<div className="min-h-screen flex items-center justify-center text-slate-400 text-xs font-bold uppercase tracking-widest">Loading orders...</div>}><OrdersContent /></Suspense>)
 }

@@ -3,7 +3,17 @@
 import { useState, useEffect } from 'react'
 import { getClientAuthHeaders } from '@/lib/clientAuth'
 import { Member } from '@/lib/types'
-import Modal from './Modal'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Label } from "@/components/ui/label"
+import { Loader2, Search, UserPlus } from 'lucide-react'
 
 interface MemberSearchProps {
   onSelect: (member: Member) => void
@@ -73,76 +83,78 @@ export default function MemberSearch({ onSelect, onClose, businessId }: MemberSe
   }
 
   return (
-    <Modal isOpen={true} onClose={onClose} title="Select Member">
-      <div className="space-y-4">
-        <div className="relative">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name or phone..."
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            autoFocus
-          />
-        </div>
+    <>
+      <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Select Member</DialogTitle>
+          </DialogHeader>
 
-        <div className="max-h-96 overflow-y-auto space-y-2">
-          {loading ? (
-            <div className="text-center py-8 text-gray-500">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
-              Searching...
+          <div className="space-y-4 py-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by name or phone..."
+                className="pl-9"
+                autoFocus
+              />
             </div>
-          ) : members.length > 0 ? (
-            members.map((member) => (
-              <button
-                key={member.id}
-                onClick={() => handleSelectMember(member)}
-                className="w-full p-4 bg-white border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-gray-800">{member.name}</p>
-                    <p className="text-sm text-gray-500">{member.phone}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-blue-600">{member.points} pts</p>
-                    <p className="text-xs text-gray-400">
-                      {(member.total_purchases / 100).toLocaleString('id-ID')} total
-                    </p>
-                  </div>
+
+            <ScrollArea className="h-[300px] w-full rounded-md border p-4">
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground h-full">
+                  <Loader2 className="h-6 w-6 animate-spin mb-2" />
+                  <p className="text-sm">Searching...</p>
                 </div>
-              </button>
-            ))
-          ) : searchQuery.length > 0 ? (
-            <div className="text-center py-8 text-gray-400">
-              <p>No members found</p>
-              <p className="text-sm mt-1">Try different search terms</p>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-400">
-              <p className="text-lg">⭐</p>
-              <p>Start typing to search members</p>
-            </div>
-          )}
-        </div>
+              ) : members.length > 0 ? (
+                <div className="space-y-2">
+                  {members.map((member) => (
+                    <button
+                      key={member.id}
+                      onClick={() => handleSelectMember(member)}
+                      className="w-full flex items-center justify-between p-3 rounded-lg border border-transparent hover:border-primary/50 hover:bg-primary/5 transition-all text-left group"
+                    >
+                      <div>
+                        <p className="font-medium text-foreground group-hover:text-primary transition-colors">{member.name}</p>
+                        <p className="text-xs text-muted-foreground">{member.phone}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-primary">{member.points} pts</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Rp {(member.total_purchases / 100).toLocaleString('id-ID')}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : searchQuery.length > 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground h-full">
+                  <p className="text-sm">No members found</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground h-full">
+                  <Search className="h-8 w-8 opacity-20 mb-2" />
+                  <p className="text-sm">Start typing to search</p>
+                </div>
+              )}
+            </ScrollArea>
 
-        <div className="flex gap-3 pt-4 border-t">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="flex-1 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium"
-          >
-            + Add New Member
-          </button>
-        </div>
-      </div>
+            <div className="flex gap-2 w-full pt-2">
+              <Button variant="outline" className="flex-1" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button className="flex-1" onClick={() => setShowAddForm(true)}>
+                <UserPlus className="mr-2 h-4 w-4" />
+                Add New Member
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-      {/* Add Member Form */}
       {showAddForm && (
         <AddMemberForm
           businessId={businessId}
@@ -153,7 +165,7 @@ export default function MemberSearch({ onSelect, onClose, businessId }: MemberSe
           onCancel={() => setShowAddForm(false)}
         />
       )}
-    </Modal>
+    </>
   )
 }
 
@@ -200,62 +212,65 @@ function AddMemberForm({ businessId, onSuccess, onCancel }: AddMemberFormProps) 
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-md w-full p-6">
-        <h3 className="text-xl font-bold mb-4">Add New Member</h3>
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <Dialog open={true} onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Add New Member</DialogTitle>
+        </DialogHeader>
+        
+        <form onSubmit={handleSubmit} className="space-y-4 py-4">
           {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">{error}</div>
+            <div className="bg-destructive/10 text-destructive px-3 py-2 rounded-md text-sm">
+              {error}
+            </div>
           )}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Name *</label>
-            <input
+          
+          <div className="space-y-2">
+            <Label htmlFor="name">Name *</Label>
+            <Input
+              id="name"
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Phone *</label>
-            <input
+          
+          <div className="space-y-2">
+            <Label htmlFor="phone">Phone *</Label>
+            <Input
+              id="phone"
               type="tel"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               placeholder="08xxxxxxxxxx"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               pattern="08[0-9]{8,11}"
               required
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-            <input
+          
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="e.g., ahmad@email.com"
             />
           </div>
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="flex-1 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
-            >
+          
+          <div className="flex gap-2 w-full pt-4">
+            <Button type="button" variant="outline" className="flex-1" onClick={onCancel}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 font-medium"
-            >
+            </Button>
+            <Button type="submit" className="flex-1" disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {loading ? 'Adding...' : 'Add Member'}
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
