@@ -17,7 +17,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
     const { id } = await params
     const body = await request.json()
-    const { name, price, hpp, stock, category, business_id } = body
+    const { name, price, hpp, stock, category, image_url, business_id } = body
     const resolvedBusinessId = businessContext.businessId
 
     if (business_id && business_id !== resolvedBusinessId) {
@@ -70,6 +70,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         hpp,
         stock,
         category,
+        image_url,
         updated_at: new Date().toISOString()
       })
       .eq('id', id)

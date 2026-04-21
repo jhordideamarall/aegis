@@ -324,7 +324,7 @@ export default function DashboardPage() {
                       <TableCell>
                         <Badge variant="outline" className="text-[8px] font-black uppercase h-5 px-2 border-slate-200 text-slate-400 group-hover:border-slate-400 transition-all">{getPaymentMethodLabel(order.payment_method)}</Badge>
                       </TableCell>
-                      <TableCell className="text-right pr-8 font-black text-slate-900 text-xs">{formatIDR(order.total)}</TableCell>
+                      <TableCell className="text-right pr-8 font-black text-slate-900 text-xs italic">{formatIDR(order.total)}</TableCell>
                     </TableRow>
                   ))
                 ) : (

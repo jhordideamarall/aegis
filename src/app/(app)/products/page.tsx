@@ -6,6 +6,7 @@ import { getClientCache, setClientCache } from '@/lib/clientCache'
 import { getClientAuthHeaders } from '@/lib/clientAuth'
 import { formatIDR } from '@/lib/utils'
 import { Product } from '@/lib/types'
+import { supabase } from '@/lib/supabase'
 import {
   Dialog,
   DialogContent,
@@ -41,7 +42,9 @@ import {
   Trash2, 
   Package, 
   Layers, 
-  Loader2 
+  Loader2,
+  Camera,
+  Image as ImageIcon
 } from 'lucide-react'
 
 function formatPriceInput(value: number): string {
@@ -125,7 +128,7 @@ export default function ProductsPage() {
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 font-black tracking-tight uppercase">Inventory</h1>
+          <h1 className="text-2xl font-bold text-slate-900 font-black tracking-tight uppercase italic">Inventory</h1>
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Product Catalog</p>
         </div>
         
@@ -210,14 +213,25 @@ export default function ProductsPage() {
               ) : (
                 products.map((product) => (
                   <TableRow key={product.id} className="hover:bg-slate-50/50 transition-colors border-slate-100 group">
-                    <TableCell className="py-4 pl-6 font-bold text-slate-800 text-sm">{product.name}</TableCell>
+                    <TableCell className="py-4 pl-6 font-bold text-slate-800 text-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex-shrink-0 overflow-hidden flex items-center justify-center">
+                          {product.image_url ? (
+                            <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <Package className="w-5 h-5 text-slate-200" />
+                          )}
+                        </div>
+                        <span>{product.name}</span>
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="bg-slate-50 text-slate-500 font-black px-2 py-0.5 text-[9px] uppercase border-slate-200">
                         {product.category || 'General'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-xs text-slate-400 font-medium">{formatIDR(product.hpp || 0)}</TableCell>
-                    <TableCell className="text-xs font-black text-slate-900">{formatIDR(product.price)}</TableCell>
+                    <TableCell className="text-xs font-black text-slate-900 italic">{formatIDR(product.price)}</TableCell>
                     <TableCell>
                       <span className={`text-[11px] font-black px-2 py-0.5 rounded-md ${product.stock <= 5 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
                         {product.stock} pcs
@@ -283,13 +297,15 @@ function ProductFormModal({ product, businessId, onClose, onSuccess }: ProductFo
     price: product?.price || 0,
     hpp: product?.hpp || 0,
     stock: product?.stock || 0,
-    category: product?.category || ''
+    category: product?.category || '',
+    image_url: product?.image_url || null
   })
   const [priceInput, setPriceInput] = useState(product?.price ? formatPriceInput(product.price) : '')
   const [hppInput, setHppInput] = useState(product?.hpp ? formatPriceInput(product.hpp) : '')
   const [stockInput, setStockInput] = useState(product?.stock !== undefined ? product.stock.toString() : '0')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [uploading, setUploading] = useState(false)
 
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/[^0-9]/g, '')
@@ -309,6 +325,35 @@ function ProductFormModal({ product, businessId, onClose, onSuccess }: ProductFo
     setFormData({ ...formData, stock: parseInt(rawValue) || 0 })
   }
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploading(true)
+    setError('')
+
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${businessId}/${Date.now()}.${fileExt}`
+      
+      const { data, error: uploadError } = await supabase.storage
+        .from('products')
+        .upload(fileName, file)
+
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('products')
+        .getPublicUrl(fileName)
+
+      setFormData({ ...formData, image_url: publicUrl })
+    } catch (err: any) {
+      setError(`Upload failed: ${err.message}`)
+    } finally {
+      setUploading(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -321,7 +366,15 @@ function ProductFormModal({ product, businessId, onClose, onSuccess }: ProductFo
         body: JSON.stringify({ ...formData, business_id: businessId })
       })
       if (res.ok) onSuccess()
-    } catch (err) {} finally { setLoading(false) }
+      else {
+        const data = await res.json()
+        setError(data.error || 'Failed to save product')
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -329,6 +382,27 @@ function ProductFormModal({ product, businessId, onClose, onSuccess }: ProductFo
       <DialogContent className="sm:max-w-[450px] rounded-2xl border-none shadow-2xl">
         <DialogHeader><DialogTitle className="text-sm font-black uppercase tracking-widest text-slate-400">{product ? 'Edit Product' : 'Add New Product'}</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
+          {error && <div className="p-3 bg-rose-50 text-rose-600 text-xs font-bold rounded-xl border border-rose-100">{error}</div>}
+          
+          <div className="flex flex-col items-center gap-4 mb-4">
+             <div className="relative group w-24 h-24 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 overflow-hidden flex items-center justify-center transition-all hover:border-slate-400">
+                {formData.image_url ? (
+                  <>
+                    <img src={formData.image_url} alt="Preview" className="w-full h-full object-cover" />
+                    <button type="button" onClick={() => setFormData({ ...formData, image_url: null })} className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white"><Trash2 size={16} /></button>
+                  </>
+                ) : uploading ? (
+                  <Loader2 className="w-6 h-6 animate-spin text-slate-300" />
+                ) : (
+                  <Label htmlFor="image-upload" className="cursor-pointer flex flex-col items-center gap-1">
+                    <Camera size={20} className="text-slate-300" />
+                    <span className="text-[8px] font-black uppercase text-slate-400">Add Photo</span>
+                    <Input id="image-upload" type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                  </Label>
+                )}
+             </div>
+          </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="name" className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Product Name</Label>
             <Input id="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required className="h-11 text-xs font-bold rounded-xl border-slate-200 shadow-sm focus:ring-slate-900" />
@@ -355,7 +429,7 @@ function ProductFormModal({ product, businessId, onClose, onSuccess }: ProductFo
           </div>
           <div className="flex gap-2 pt-4">
             <Button type="button" variant="outline" className="flex-1 h-12 text-xs font-black uppercase tracking-widest rounded-xl border-slate-200" onClick={onClose}>Cancel</Button>
-            <Button type="submit" className="flex-1 h-12 text-xs font-black uppercase tracking-widest bg-slate-900 rounded-xl shadow-lg shadow-slate-200" disabled={loading}>{loading ? 'Saving...' : 'Confirm Save'}</Button>
+            <Button type="submit" className="flex-1 h-12 text-xs font-black uppercase tracking-widest bg-slate-900 rounded-xl shadow-lg shadow-slate-200" disabled={loading || uploading}>{loading ? 'Saving...' : 'Confirm Save'}</Button>
           </div>
         </form>
       </DialogContent>

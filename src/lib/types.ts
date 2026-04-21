@@ -5,6 +5,7 @@ export interface Product {
   hpp: number
   stock: number
   category: string
+  image_url?: string | null
   created_at: string
 }
 

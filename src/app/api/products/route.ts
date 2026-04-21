@@ -31,7 +31,7 @@ export async function GET(request: Request) {
 
     let query = supabaseAdmin
       .from('products')
-      .select('id,name,price,hpp,stock,category,created_at', { count: 'exact' })
+      .select('id,name,price,hpp,stock,category,image_url,created_at', { count: 'exact' })
       .eq('business_id', businessContext.businessId)
       .order('name')
 
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { name, price, hpp, stock, category, business_id } = body
+    const { name, price, hpp, stock, category, image_url, business_id } = body
     const resolvedBusinessId = businessContext.businessId
 
     // Validation
@@ -111,6 +111,7 @@ export async function POST(request: Request) {
         hpp: hpp || 0,
         stock: stock || 0,
         category: category || '',
+        image_url: image_url || null,
         business_id: resolvedBusinessId
       }])
       .select()

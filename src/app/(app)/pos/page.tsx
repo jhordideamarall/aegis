@@ -21,7 +21,7 @@ import { formatIDR } from '@/lib/utils'
 import { Product, CartItem, Member } from '@/lib/types'
 import MemberSearch from '@/components/MemberSearch'
 import { MemberCombobox } from '@/components/MemberCombobox'
-import { ShoppingCart, Plus, Minus, X, Search, User, CreditCard, Package, Loader2, Camera, Trash2 } from 'lucide-react'
+import { ShoppingCart, Plus, Minus, X, Search, User, CreditCard, Package, Loader2, Camera, Trash2, Layers } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -39,6 +39,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 
 interface PaymentSubmission {
   method: PaymentMethod
@@ -318,55 +319,152 @@ export default function POSPage() {
   return (
     <div className="flex h-screen overflow-hidden bg-white">
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div><h1 className="text-2xl font-black text-slate-900 tracking-tight">Point of Sale</h1><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Ready to Sell</p></div>
-          <div className="relative w-full md:w-72"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" /><Input placeholder="Search product..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-10 text-xs bg-slate-50 border-none rounded-xl" /></div>
+        <div className="p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase">Point of Sale</h1>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Ready to Sell</p>
+          </div>
+          
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
+            <Input 
+              placeholder="Quick search products..." 
+              value={searchQuery} 
+              onChange={(e) => setSearchQuery(e.target.value)} 
+              className="pl-11 h-12 text-sm bg-slate-50 border-none rounded-2xl focus:ring-slate-900 shadow-inner font-medium" 
+            />
+          </div>
         </div>
 
-        <div className="px-6 md:px-8 pb-4 overflow-x-auto flex gap-2">
-          {categories.map(cat => (
-            <Button key={cat} variant={selectedCategory === cat ? "default" : "secondary"} onClick={() => setSelectedCategory(cat)} className={`h-8 px-4 rounded-lg text-[10px] font-black uppercase tracking-widest ${selectedCategory === cat ? 'bg-slate-900' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>{cat === 'all' ? 'All Items' : cat}</Button>
-          ))}
+        <div className="px-6 md:px-8 pb-6 overflow-x-auto flex items-center gap-2 no-scrollbar">
+           <div className="p-1 bg-slate-100 rounded-2xl flex items-center gap-1">
+            {categories.map(cat => (
+              <button 
+                key={cat} 
+                onClick={() => setSelectedCategory(cat)} 
+                className={`h-9 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                  selectedCategory === cat 
+                    ? 'bg-white text-slate-900 shadow-md ring-1 ring-black/5' 
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                {cat === 'all' ? 'All' : cat}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 md:px-8 pb-8 pt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+        <div className="flex-1 overflow-y-auto px-6 md:px-8 pb-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6 no-scrollbar">
           {productsLoading && filteredProducts.length === 0 ? (
-            <div className="col-span-full h-64 flex flex-col items-center justify-center text-slate-300">
-              <Loader2 className="w-8 h-8 animate-spin mb-4" />
-              <p className="text-[10px] font-black uppercase tracking-widest">Fetching Products...</p>
+            <div className="col-span-full h-96 flex flex-col items-center justify-center text-slate-300">
+              <Loader2 className="w-10 h-10 animate-spin mb-4" />
+              <p className="text-[11px] font-black uppercase tracking-[0.3em]">Inventory Loading...</p>
             </div>
           ) : (
             filteredProducts.map(p => (
-              <div key={p.id} onClick={() => p.stock > 0 && addToCart(p)} className={`group relative bg-white border border-slate-100 p-3 rounded-2xl transition-all hover:shadow-xl hover:border-slate-300 cursor-pointer active:scale-95 ${p.stock <= 0 ? 'opacity-40 grayscale' : ''}`}>
-                <div className="aspect-square bg-slate-50 rounded-xl mb-3 flex items-center justify-center"><Package className="text-slate-200" size={32} /></div>
-                <h3 className="font-bold text-slate-800 text-xs truncate mb-1">{p.name}</h3>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-2">{p.category}</p>
-                <div className="flex items-center justify-between"><span className="font-black text-slate-900 text-xs">{formatIDR(p.price)}</span><span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${p.stock <= 5 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>{p.stock}</span></div>
+              <div 
+                key={p.id} 
+                onClick={() => p.stock > 0 && addToCart(p)} 
+                className={`group relative bg-white rounded-2xl border border-slate-100 overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-slate-300 cursor-pointer active:scale-95 ${p.stock <= 0 ? 'opacity-40 grayscale pointer-events-none' : ''}`}
+              >
+                <div className="aspect-square bg-slate-50 flex items-center justify-center overflow-hidden">
+                  {p.image_url ? (
+                    <img src={p.image_url} alt={p.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                  ) : (
+                    <Package className="w-10 h-10 text-slate-200" />
+                  )}
+                </div>
+                <div className="p-3 bg-white">
+                  <h3 className="font-bold text-slate-800 text-xs truncate mb-2 uppercase tracking-tight">{p.name}</h3>
+                  <div className="flex justify-between items-center">
+                    <span className="font-black text-slate-900 text-sm">{formatIDR(p.price)}</span>
+                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${p.stock <= 5 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>{p.stock}</span>
+                  </div>
+                </div>
               </div>
             ))
           )}
         </div>
       </div>
 
-      <div className="hidden lg:flex flex-col bg-slate-50 border-l w-[380px]">
-        <div className="p-6 border-b flex justify-between items-center"><div className="flex items-center gap-2"><ShoppingCart size={16} className="text-slate-900" /><span className="font-black text-sm uppercase tracking-widest">Cart</span></div>{cart.length > 0 && <Button variant="ghost" onClick={clearCart} className="text-[10px] font-black uppercase text-rose-500 p-0 h-auto">Clear</Button>}</div>
-        <ScrollArea className="flex-1 p-6">
-          <div className="space-y-4">
-            {cart.map(item => (
-              <div key={item.product.id} className="flex gap-3">
-                <div className="flex-1 min-w-0"><p className="font-bold text-slate-800 text-xs truncate">{item.product.name}</p><p className="text-[10px] font-black text-slate-400">{formatIDR(item.product.price)}</p></div>
-                <div className="flex items-center bg-white rounded-lg border h-8 px-1"><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => updateQty(item.product.id, item.qty - 1)}><Minus size={10} /></Button><span className="w-6 text-center text-[10px] font-black">{item.qty}</span><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => updateQty(item.product.id, item.qty + 1)}><Plus size={10} /></Button></div>
+      {/* Cart Sidebar - Refined Sidebar */}
+      <div className="hidden lg:flex flex-col bg-slate-50 border-l w-[400px]">
+        <div className="p-8 border-b bg-white flex justify-between items-center shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-slate-900 text-white rounded-2xl shadow-xl shadow-slate-200">
+              <ShoppingCart size={20} />
+            </div>
+            <div>
+              <span className="font-black text-sm uppercase tracking-widest block leading-none">Order</span>
+              <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{cart.length} unique items</p>
+            </div>
+          </div>
+          {cart.length > 0 && (
+            <Button variant="ghost" onClick={clearCart} className="text-[10px] font-black uppercase text-rose-500 hover:bg-rose-50 px-3 rounded-xl transition-all">
+              Clear All
+            </Button>
+          )}
+        </div>
+
+        <ScrollArea className="flex-1 px-8 py-6">
+          <div className="space-y-6">
+            {cart.length === 0 ? (
+              <div className="h-64 flex flex-col items-center justify-center text-slate-300 opacity-50">
+                <Package size={48} className="mb-4 stroke-[1px]" />
+                <p className="text-[10px] font-black uppercase tracking-[0.3em]">Empty Selection</p>
               </div>
-            ))}
+            ) : (
+              cart.map(item => (
+                <div key={item.product.id} className="flex gap-4 animate-in fade-in slide-in-from-right-4 duration-500">
+                  <div className="w-14 h-14 rounded-2xl bg-white border border-slate-100 flex-shrink-0 overflow-hidden shadow-sm">
+                    {item.product.image_url ? (
+                      <img src={item.product.image_url} alt={item.product.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center"><Package size={20} className="text-slate-100" /></div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0 py-1">
+                    <p className="font-black text-slate-800 text-xs truncate uppercase tracking-tight">{item.product.name}</p>
+                    <p className="text-[11px] font-black text-slate-400 mt-0.5">{formatIDR(item.product.price)}</p>
+                  </div>
+                  <div className="flex items-center bg-white rounded-2xl border border-slate-100 p-1 shadow-sm h-10">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-slate-400 hover:text-slate-900" onClick={() => updateQty(item.product.id, item.qty - 1)}><Minus size={12} /></Button>
+                    <span className="w-8 text-center text-xs font-black text-slate-900">{item.qty}</span>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-slate-400 hover:text-slate-900" onClick={() => updateQty(item.product.id, item.qty + 1)}><Plus size={12} /></Button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </ScrollArea>
-        <div className="p-6 bg-white border-t space-y-4">
-          <Button variant="outline" className="w-full h-12 justify-start bg-slate-50 border-none rounded-xl" onClick={() => setShowPaymentModal(true)}>
-            <User size={14} className="mr-2 text-slate-400" />
-            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{selectedMember?.name || 'Customer Member'}</span>
+
+        <div className="p-8 bg-white border-t space-y-6 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)]">
+          <Button variant="outline" className="w-full h-14 justify-start bg-slate-50 border-none rounded-[1.5rem] hover:bg-slate-100 transition-all group" onClick={() => setShowPaymentModal(true)}>
+            <div className="p-2.5 bg-white rounded-xl shadow-sm mr-4 group-hover:bg-slate-900 group-hover:text-white transition-all"><User size={16} /></div>
+            <div className="text-left">
+              <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest leading-none mb-1">Customer</p>
+              <span className="text-[11px] font-black uppercase text-slate-800">{selectedMember?.name || 'Walk-in Guest'}</span>
+            </div>
           </Button>
-          <div className="space-y-1.5"><div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-tighter"><span>Subtotal</span><span>{formatIDR(cartTotal)}</span></div><div className="flex justify-between text-lg font-black"><span>TOTAL</span><span>{formatIDR(estimatedTotal)}</span></div></div>
-          <Button onClick={() => setShowPaymentModal(true)} disabled={cart.length === 0} className="w-full h-14 bg-slate-900 rounded-xl font-black uppercase tracking-widest shadow-lg">Checkout</Button>
+
+          <div className="space-y-2">
+            <div className="flex justify-between items-center px-1">
+              <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Subtotal</span>
+              <span className="text-xs font-black text-slate-500">{formatIDR(cartTotal)}</span>
+            </div>
+            <div className="flex justify-between items-end px-1">
+              <span className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] mb-1">Payable Total</span>
+              <span className="text-3xl font-black tracking-tighter text-slate-900">{formatIDR(estimatedTotal)}</span>
+            </div>
+          </div>
+
+          <Button 
+            onClick={() => setShowPaymentModal(true)} 
+            disabled={cart.length === 0} 
+            className="w-full h-16 bg-slate-900 hover:bg-black rounded-[1.5rem] font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-slate-200 transition-all hover:scale-[1.02] active:scale-95"
+          >
+            Confirm Order
+          </Button>
         </div>
       </div>
 
