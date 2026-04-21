@@ -14,8 +14,8 @@ import {
   Menu,
   X,
   Bell,
-  ShoppingBag,
-  Store
+  MessageSquare,
+  Cpu
 } from 'lucide-react'
 import { InstagramIcon, ShopeeIcon, TikTokIcon } from '@/components/ui/brand-icons'
 import { useState } from 'react'
@@ -54,9 +54,14 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
   ]
 
   const integrationNavItems = [
-    { href: '/integrations/instagram', label: 'Instagram', icon: InstagramIcon },
-    { href: '/integrations/shopee', label: 'Shopee', icon: ShopeeIcon },
-    { href: '/integrations/tiktok', label: 'TikTok Shop', icon: TikTokIcon },
+    { href: '/integrations/instagram', label: 'Instagram' },
+    { href: '/integrations/shopee', label: 'Shopee' },
+    { href: '/integrations/tiktok', label: 'TikTok Shop' },
+  ]
+
+  const aiNavItems = [
+    { href: '/ai/chat', label: 'ChatAegis', icon: MessageSquare },
+    { href: '/ai/mcp', label: 'MCP Server', icon: Cpu },
   ]
 
   return (
@@ -79,7 +84,7 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
 
       {/* Sidebar */}
       <aside className={`
-        bg-white border-r border-gray-100 h-screen w-64 flex flex-col fixed lg:fixed lg:inset-y-0 left-0
+        bg-white border-r border-slate-100 h-screen w-64 flex flex-col fixed lg:fixed lg:inset-y-0 left-0
         transition-transform duration-300 ease-in-out z-50
         ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
@@ -109,7 +114,7 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
           </div>
         </div>
 
-        <nav className="flex-1 p-4 overflow-y-auto space-y-6 no-scrollbar">
+        <nav className="flex-1 p-4 overflow-y-auto space-y-8 no-scrollbar pb-10">
           {/* Core POS Section */}
           <div className="space-y-1">
             {coreNavItems.map((item) => {
@@ -133,6 +138,37 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
                 </li>
               )
             })}
+          </div>
+
+          {/* AI Labs Section */}
+          <div className="space-y-3">
+            <div className="px-4">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">AI Intelligence</p>
+            </div>
+            
+            <div className="space-y-1">
+              {aiNavItems.map((item) => {
+                const Icon = item.icon
+                const isActive = pathname === item.href
+
+                return (
+                  <li key={item.href} className="list-none">
+                    <Link
+                      href={item.href}
+                      onClick={() => setIsOpen(false)}
+                      className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-gray-900 text-white shadow-sm'
+                          : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
+                      <span className="text-sm font-medium">{item.label}</span>
+                    </Link>
+                  </li>
+                )
+              })}
+            </div>
           </div>
 
           {/* Business Integrations Section */}

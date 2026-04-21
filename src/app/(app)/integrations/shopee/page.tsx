@@ -1,7 +1,6 @@
 'use client'
 
 import { Rocket, LayoutGrid, Package, TrendingUp, DollarSign, Loader2 } from 'lucide-react'
-import { ShopeeIcon } from '@/components/ui/brand-icons'
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -24,13 +23,10 @@ export default function ShopeeIntegrationPage() {
       </div>
 
       {/* Hero Section */}
-      <div className="relative overflow-hidden rounded-[2.5rem] bg-[#EE4D2D] p-8 md:p-16 text-center space-y-6 shadow-2xl shadow-orange-100">
+      <div className="relative overflow-hidden rounded-[2.5rem] bg-[#EE4D2D] p-12 md:p-20 text-center space-y-6 shadow-2xl shadow-orange-100">
         <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none" 
              style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
         
-        <div className="inline-flex p-4 rounded-3xl bg-white/20 backdrop-blur-md mb-4 text-white">
-          <ShopeeIcon className="w-10 h-10" />
-        </div>
         <h2 className="text-3xl md:text-5xl font-black text-white tracking-tighter leading-tight max-w-2xl mx-auto">
           Scale your Shopee orders with <span className="text-white">Unified Automation</span>
         </h2>
@@ -38,7 +34,7 @@ export default function ShopeeIntegrationPage() {
           Manage your Shopee store, track revenue, and monitor order status without leaving Aegis POS. Simplify your multi-channel sales today.
         </p>
         <div className="pt-4 flex justify-center">
-            <span className="text-[10px] font-black text-white/60 uppercase tracking-[0.3em] border border-white/20 px-4 py-1.5 rounded-full backdrop-blur-sm">Shopee Partner API Ready</span>
+            <span className="text-[10px] font-black text-white/60 uppercase tracking-[0.3em] border border-white/20 px-4 py-1.5 rounded-full backdrop-blur-sm">Shopee Partner API Integration</span>
         </div>
       </div>
 

@@ -1,7 +1,6 @@
 'use client'
 
 import { Rocket, Music2, ShoppingBag, Zap, BarChart, Loader2 } from 'lucide-react'
-import { TikTokIcon } from '@/components/ui/brand-icons'
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -24,15 +23,12 @@ export default function TikTokIntegrationPage() {
       </div>
 
       {/* Hero Section */}
-      <div className="relative overflow-hidden rounded-[2.5rem] bg-black p-8 md:p-16 text-center space-y-6 shadow-2xl shadow-slate-300">
+      <div className="relative overflow-hidden rounded-[2.5rem] bg-black p-12 md:p-20 text-center space-y-6 shadow-2xl shadow-slate-300">
         <div className="absolute top-0 left-0 w-full h-full opacity-20 pointer-events-none" 
              style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, #25F4EE 1px, transparent 0), radial-gradient(circle at 12px 12px, #FE2C55 1px, transparent 0)', backgroundSize: '48px 48px' }}></div>
         
-        <div className="inline-flex p-4 rounded-3xl bg-white/10 backdrop-blur-md mb-4 border border-white/10 text-white">
-          <TikTokIcon className="w-10 h-10" />
-        </div>
         <h2 className="text-3xl md:text-5xl font-black text-white tracking-tighter leading-tight max-w-2xl mx-auto">
-          Turn viral trends into <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#25F4EE] via-white to-[#FE2C55]">Instant Sales</span>
+          Turn viral trends into <span className="text-white">Instant Sales</span>
         </h2>
         <p className="text-slate-400 text-sm md:text-base max-w-xl mx-auto font-medium leading-relaxed">
           The power of TikTok Shop, now inside your POS. Track orders from live streams and short videos in real-time.
