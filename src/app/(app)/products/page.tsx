@@ -287,6 +287,7 @@ function ProductFormModal({ product, businessId, onClose, onSuccess }: ProductFo
   })
   const [priceInput, setPriceInput] = useState(product?.price ? formatPriceInput(product.price) : '')
   const [hppInput, setHppInput] = useState(product?.hpp ? formatPriceInput(product.hpp) : '')
+  const [stockInput, setStockInput] = useState(product?.stock !== undefined ? product.stock.toString() : '0')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -300,6 +301,12 @@ function ProductFormModal({ product, businessId, onClose, onSuccess }: ProductFo
     const rawValue = e.target.value.replace(/[^0-9]/g, '')
     setHppInput(rawValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.'))
     setFormData({ ...formData, hpp: parseInt(rawValue) || 0 })
+  }
+
+  const handleStockChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/[^0-9]/g, '')
+    setStockInput(rawValue)
+    setFormData({ ...formData, stock: parseInt(rawValue) || 0 })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -333,7 +340,7 @@ function ProductFormModal({ product, businessId, onClose, onSuccess }: ProductFo
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="stock" className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Stock</Label>
-              <Input id="stock" type="number" value={formData.stock} onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })} required className="h-11 text-xs font-bold rounded-xl border-slate-200 shadow-sm focus:ring-slate-900" />
+              <Input id="stock" type="text" inputMode="numeric" value={stockInput} onChange={handleStockChange} required className="h-11 text-xs font-bold rounded-xl border-slate-200 shadow-sm focus:ring-slate-900" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
