@@ -228,73 +228,91 @@ export default function SettingsPage() {
               <span>Real-time Preview</span>
             </div>
             
-            <div className={`${paperWidth} bg-white shadow-2xl rounded-sm p-4 relative border-t-8 border-slate-100 overflow-hidden`}>
+            <div className={`${paperWidth} bg-white shadow-2xl rounded-sm p-6 relative border-t-8 border-slate-200 overflow-hidden`}>
               {/* Paper Zigzag Top */}
-              <div className="absolute top-0 left-0 w-full flex justify-between px-0.5 -mt-1 opacity-20">
-                {Array.from({ length: 20 }).map((_, i) => (
-                  <div key={i} className="w-2 h-2 bg-slate-300 rounded-full" />
+              <div className="absolute top-0 left-0 w-full flex justify-between px-1 -mt-1 opacity-10">
+                {Array.from({ length: 25 }).map((_, i) => (
+                  <div key={i} className="w-2 h-2 bg-slate-500 rounded-full" />
                 ))}
               </div>
 
-              <div className="text-center mb-4 pt-2">
-                <p className="font-black text-xs uppercase text-slate-800 break-words">{settings?.receipt_header || businessData?.business_name || 'MY STORE'}</p>
-                <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">{businessData?.business_address || 'Jl. Contoh Alamat No. 123'}</p>
-                <p className="text-[8px] font-bold text-slate-400 uppercase">{businessData?.business_phone || '0812-3456-789'}</p>
+              <div className="text-center mb-6 pt-4">
+                <p className="font-black text-sm uppercase text-slate-900 break-words leading-tight">{settings?.receipt_header || businessData?.business_name || 'AEGIS POS'}</p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase mt-2">{businessData?.business_address || 'Business Address'}</p>
+                <p className="text-[8px] font-bold text-slate-400 uppercase">{businessData?.business_phone || 'Contact Number'}</p>
               </div>
 
-              <div className="border-t border-dashed border-slate-200 my-3" />
+              <div className="border-t border-dashed border-slate-200 my-4" />
 
-              <div className="space-y-2 mb-4">
-                <div className="flex justify-between text-[8px] font-black text-slate-700">
-                  <span className="flex-1 truncate">Item Contoh A</span>
-                  <span className="ml-2">1 x 15.000</span>
-                  <span className="ml-4">15.000</span>
-                </div>
-                <div className="flex justify-between text-[8px] font-black text-slate-700">
-                  <span className="flex-1 truncate">Produk Sempel B</span>
-                  <span className="ml-2">2 x 10.000</span>
-                  <span className="ml-4">20.000</span>
-                </div>
+              <div className="space-y-1 mb-4 text-[9px] font-bold text-slate-500 uppercase tracking-tighter">
+                <div className="flex justify-between"><span>Order ID</span><span>#EXAMPLE</span></div>
+                <div className="flex justify-between"><span>Date</span><span>{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span></div>
+                <div className="flex justify-between"><span>Payment</span><span>CASH</span></div>
               </div>
 
-              <div className="border-t border-dashed border-slate-200 my-3" />
+              <div className="border-t border-dashed border-slate-200 my-4" />
 
-              <div className="space-y-1">
-                <div className="flex justify-between text-[9px] font-black text-slate-800">
-                  <span>Subtotal</span>
-                  <span>35.000</span>
+              <div className="space-y-3 mb-4">
+                <div className="text-[10px] font-bold text-slate-800">
+                  <div className="flex justify-between mb-0.5">
+                    <span className="flex-1 pr-4 leading-tight">Contoh Produk A</span>
+                    <span className="font-black">15.000</span>
+                  </div>
+                  <div className="text-[9px] text-slate-400 font-medium italic">1 x 15.000</div>
                 </div>
-                {settings?.tax_enabled && (
-                  <div className="flex justify-between text-[8px] font-bold text-slate-500 italic">
-                    <span>Tax ({settings.tax_rate}%)</span>
-                    <span>{Math.round(35000 * settings.tax_rate / 100).toLocaleString()}</span>
+                <div className="text-[10px] font-bold text-slate-800">
+                  <div className="flex justify-between mb-0.5">
+                    <span className="flex-1 pr-4 leading-tight">Sample Item B</span>
+                    <span className="font-black">20.000</span>
                   </div>
-                )}
-                {settings?.service_enabled && (
-                  <div className="flex justify-between text-[8px] font-bold text-slate-500 italic">
-                    <span>Service ({settings.service_rate}%)</span>
-                    <span>{Math.round(35000 * settings.service_rate / 100).toLocaleString()}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-base font-black italic text-slate-900 pt-2">
-                  <span>TOTAL</span>
-                  <span>{formatIDR(35000 + (settings?.tax_enabled ? 35000 * settings.tax_rate / 100 : 0) + (settings?.service_enabled ? 35000 * settings.service_rate / 100 : 0))}</span>
+                  <div className="text-[9px] text-slate-400 font-medium italic">2 x 10.000</div>
                 </div>
               </div>
 
               <div className="border-t border-dashed border-slate-200 my-4" />
 
-              <div className="text-center space-y-1 mb-2">
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-[10px] font-bold text-slate-500">
+                  <span>SUBTOTAL</span>
+                  <span>35.000</span>
+                </div>
+                {settings?.tax_enabled && (
+                  <div className="flex justify-between text-[10px] font-bold text-slate-500">
+                    <span>TAX ({settings.tax_rate}%)</span>
+                    <span>{formatIDR(35000 * settings.tax_rate / 100)}</span>
+                  </div>
+                )}
+                {settings?.service_enabled && (
+                  <div className="flex justify-between text-[10px] font-bold text-slate-500">
+                    <span>SERVICE ({settings.service_rate}%)</span>
+                    <span>{formatIDR(35000 * settings.service_rate / 100)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-xl font-black text-slate-900 pt-3 italic tracking-tighter">
+                  <span>TOTAL</span>
+                  <span>{formatIDR(35000 + (settings?.tax_enabled ? 35000 * settings.tax_rate / 100 : 0) + (settings?.service_enabled ? 35000 * settings.service_rate / 100 : 0))}</span>
+                </div>
+              </div>
+
+              <div className="border-t border-dashed border-slate-200 my-6" />
+
+              <div className="text-center space-y-2 mb-4">
                 {settings?.receipt_footer ? settings.receipt_footer.split('\n').map((line: string, i: number) => (
-                  <p key={i} className="text-[8px] font-black uppercase text-slate-400">{line}</p>
+                  <p key={i} className="text-[9px] font-black uppercase text-slate-400 leading-tight">{line}</p>
                 )) : (
-                  <p className="text-[8px] font-black uppercase text-slate-400 italic">Terima Kasih Atas Kunjungan Anda</p>
+                  <p className="text-[9px] font-black uppercase text-slate-400 italic">Terima Kasih Atas Kunjungan Anda</p>
                 )}
               </div>
 
+              <div className="text-center mt-6 mb-2">
+                 <div className="inline-block px-4 py-2 border-2 border-slate-900 rounded-sm">
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-900">PAID</p>
+                 </div>
+              </div>
+
               {/* Bottom Decorative Zigzag */}
-              <div className="absolute bottom-0 left-0 w-full h-4 bg-slate-50 opacity-30 flex items-end">
-                <div className="w-full border-b-[8px] border-dashed border-white" />
+              <div className="absolute bottom-0 left-0 w-full h-4 bg-slate-50 opacity-20 flex items-end">
+                <div className="w-full border-b-[8px] border-dashed border-slate-300" />
               </div>
             </div>
           </div>

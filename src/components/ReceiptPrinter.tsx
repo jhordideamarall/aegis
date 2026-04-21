@@ -201,9 +201,15 @@ export default function ReceiptPrinter({ order, onClose, businessId }: ReceiptPr
 
                     {/* Receipt Content */}
                     <div className="text-center mb-6 pt-4">
-                      <p className="font-black text-sm uppercase text-slate-900 break-words leading-tight">{settings?.receipt_header || settings?.business_name || 'AEGIS POS'}</p>
-                      <p className="text-[9px] font-bold text-slate-400 uppercase mt-2">{settings?.business_address || 'Business Address'}</p>
-                      <p className="text-[9px] font-bold text-slate-400 uppercase">{settings?.business_phone || 'Contact Number'}</p>
+                      <p className="font-black text-sm uppercase text-slate-900 break-words leading-tight">
+                        {settings?.receipt_header || settings?.business_name || 'AEGIS POS'}
+                      </p>
+                      {settings?.business_address && (
+                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-2">{settings.business_address}</p>
+                      )}
+                      {settings?.business_phone && (
+                        <p className="text-[9px] font-bold text-slate-400 uppercase">{settings.business_phone}</p>
+                      )}
                     </div>
 
                     <div className="border-t border-dashed border-slate-200 my-4" />

@@ -29,11 +29,25 @@ export async function GET(request: Request) {
 
     if (error) throw error
 
+    // Fetch business profile for branding
+    const { data: business, error: bizError } = await supabaseAdmin
+      .from('businesses')
+      .select('business_name, address, phone')
+      .eq('id', businessContext.businessId)
+      .single()
+
     // Convert to key-value object
-    const settings: Record<string, string> = {}
+    const settings: Record<string, any> = {}
     data?.forEach(item => {
       settings[item.key] = item.value
     })
+
+    // Inject business info into settings for component convenience
+    if (business) {
+      settings.business_name = business.business_name
+      settings.business_address = business.address
+      settings.business_phone = business.phone
+    }
 
     return NextResponse.json(settings)
   } catch (error) {
