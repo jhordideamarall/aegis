@@ -132,7 +132,6 @@ export default function ReceiptPrinter({ order: providedOrder, onClose, business
   const subtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0)
   const taxableBase = Math.max(subtotal - discount, 0)
   
-  // Handle tax_rate/service_rate as potentially strings from API
   const activeTaxRate = Number(settings?.tax_rate) || 0
   const activeServiceRate = Number(settings?.service_rate) || 0
   const calcTax = settings?.tax_enabled ? Math.round((taxableBase * activeTaxRate) / 100) : 0
@@ -142,8 +141,8 @@ export default function ReceiptPrinter({ order: providedOrder, onClose, business
 
   const paperWidthClass = paperSize === '80mm' ? 'w-[320px]' : 'w-[240px]'
 
-  const ReceiptContent = () => (
-    <div className={`${paperWidthClass} bg-white shadow-2xl rounded-sm p-6 relative border-t-8 border-slate-200 overflow-hidden print-container animate-in fade-in zoom-in-95 duration-500`}>
+  const ReceiptBody = () => (
+    <div className={`${paperWidthClass} bg-white shadow-2xl rounded-sm p-6 relative border-t-8 border-slate-200 overflow-hidden print-container transition-all duration-300 ease-in-out`}>
       {/* Paper Zigzag Top */}
       <div className="absolute top-0 left-0 w-full flex justify-between px-1 -mt-1 opacity-10 no-print">
         {Array.from({ length: 25 }).map((_, i) => (
@@ -158,8 +157,8 @@ export default function ReceiptPrinter({ order: providedOrder, onClose, business
         </p>
         {(settings?.business_address || settings?.business_phone) && (
           <div className="mt-2 space-y-0.5">
-            {settings?.business_address && <p className="text-[9px] font-bold text-slate-400 uppercase">{settings.business_address}</p>}
-            {settings?.business_phone && <p className="text-[9px] font-bold text-slate-400 uppercase">{settings.business_phone}</p>}
+            {settings?.business_address && <p className="text-[9px] font-bold text-slate-400 uppercase leading-tight">{settings.business_address}</p>}
+            {settings?.business_phone && <p className="text-[9px] font-bold text-slate-400 uppercase leading-tight">{settings.business_phone}</p>}
           </div>
         )}
       </div>
@@ -244,7 +243,7 @@ export default function ReceiptPrinter({ order: providedOrder, onClose, business
   )
 
   if (isEmbedded) {
-    return <ReceiptContent />
+    return <ReceiptBody />
   }
 
   return (
@@ -321,9 +320,9 @@ export default function ReceiptPrinter({ order: providedOrder, onClose, business
                 </TabsList>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-8 flex justify-center items-start no-scrollbar">
-                <TabsContent value="preview" className="m-0 focus-visible:ring-0 no-scrollbar">
-                  <ReceiptContent />
+              <div className="flex-1 overflow-y-auto p-8 flex items-center justify-center no-scrollbar">
+                <TabsContent value="preview" className="m-0 focus-visible:ring-0 no-scrollbar flex justify-center w-full">
+                  <ReceiptBody />
                 </TabsContent>
 
                 {order.payment_proof_url && (
