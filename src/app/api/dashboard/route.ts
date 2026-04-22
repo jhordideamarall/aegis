@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getOrderPaymentColumnSupport } from '@/lib/orderPaymentColumns'
 import { supabaseAdmin } from '@/lib/supabase'
+import { toTimeZoneHourKey, toTimeZoneISODate } from '@/lib/utils'
 import {
   forbiddenResponse,
   getBusinessContextFromRequest,
@@ -215,14 +216,7 @@ export async function GET(request: Request) {
     const profitByDate: Record<string, number> = {}
 
     normalizedOrders.forEach(order => {
-      let key = ''
-      const orderDate = new Date(order.created_at)
-      const wibTime = new Date(orderDate.getTime() + (7 * 3600000))
-      if (isSingleDay) {
-        key = `${startDate}T${String(wibTime.getHours()).padStart(2, '0')}:00`
-      } else {
-        key = wibTime.toISOString().split('T')[0]
-      }
+      const key = isSingleDay ? toTimeZoneHourKey(order.created_at) : toTimeZoneISODate(order.created_at)
       salesByDate[key] = (salesByDate[key] || 0) + order.total
       const orderProfit = order.order_items?.reduce((oSum, item) => oSum + ((item.price - item.cost_price) * item.qty), 0) || 0
       profitByDate[key] = (profitByDate[key] || 0) + orderProfit

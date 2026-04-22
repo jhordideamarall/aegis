@@ -39,3 +39,36 @@ export function isSameLocalDate(a: Date, b: Date): boolean {
     a.getDate() === b.getDate()
   )
 }
+
+export const DEFAULT_TIME_ZONE = 'Asia/Jakarta'
+
+function getZonedDateParts(value: Date | string, timeZone: string = DEFAULT_TIME_ZONE) {
+  const date = typeof value === 'string' ? new Date(value) : value
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(date)
+
+  const getPart = (type: string) => parts.find((part) => part.type === type)?.value || ''
+
+  return {
+    year: getPart('year'),
+    month: getPart('month'),
+    day: getPart('day'),
+    hour: getPart('hour')
+  }
+}
+
+export function toTimeZoneISODate(value: Date | string, timeZone: string = DEFAULT_TIME_ZONE): string {
+  const parts = getZonedDateParts(value, timeZone)
+  return `${parts.year}-${parts.month}-${parts.day}`
+}
+
+export function toTimeZoneHourKey(value: Date | string, timeZone: string = DEFAULT_TIME_ZONE): string {
+  const parts = getZonedDateParts(value, timeZone)
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:00`
+}

@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { getClientCache, setClientCache } from '@/lib/clientCache'
 import { formatPaymentDisplay, getPaymentMethodLabel } from '@/lib/payments'
 import { supabase } from '@/lib/supabase'
-import { formatIDR, isSameLocalDate, toLocalISODate } from '@/lib/utils'
+import { DEFAULT_TIME_ZONE, formatIDR, toLocalISODate } from '@/lib/utils'
 import {
   TrendingUp,
   ShoppingBag,
@@ -26,7 +26,7 @@ import { DateRange } from 'react-day-picker'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { BarChart, Bar, Cell, CartesianGrid, XAxis, YAxis } from 'recharts'
+import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis, Cell } from 'recharts'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -58,6 +58,24 @@ const chartConfig = {
     label: "Net Profit",
     color: "#475569",
   },
+}
+
+function formatChartDateLabel(dateKey: string): string {
+  if (dateKey.includes('T')) {
+    const hour = dateKey.split('T')[1]?.slice(0, 2) || '00'
+    return `${Number(hour)}:00`
+  }
+
+  const [year, month, day] = dateKey.split('-').map(Number)
+  if (!year || !month || !day) {
+    return dateKey
+  }
+
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: DEFAULT_TIME_ZONE
+  }).format(new Date(Date.UTC(year, month - 1, day, 12, 0, 0)))
 }
 
 export default function DashboardPage() {
@@ -154,14 +172,7 @@ export default function DashboardPage() {
   const membersTrend = data ? buildTrend(data.newMembers, data.prevNewMembers) : null
 
   const chartData = data?.salesChart?.map(item => {
-    let label = ''
-    if (item.date.includes('T')) {
-      const hour = new Date(item.date).getHours()
-      label = `${hour}:00`
-    } else {
-      label = new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
-    }
-    return { date: label, sales: item.sales, profit: item.profit }
+    return { date: formatChartDateLabel(item.date), sales: item.sales, profit: item.profit }
   }) || []
 
   return (
@@ -214,8 +225,8 @@ export default function DashboardPage() {
       </div>
 
       {/* Sales Performance Chart */}
-      <Card className="border-slate-200 shadow-sm rounded-3xl overflow-hidden bg-white">
-        <CardHeader className="flex flex-row items-center justify-between py-5 px-8 border-b bg-slate-50/30">
+      <Card className="border-slate-200 shadow-[0_18px_45px_-35px_rgba(15,23,42,0.45)] rounded-3xl overflow-hidden bg-white">
+        <CardHeader className="flex flex-row items-center justify-between py-5 px-8 border-b bg-white/90">
           <CardTitle className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Sales Performance</CardTitle>
           <Tabs value={chartMode} onValueChange={(val: any) => setChartMode(val)}>
             <TabsList className="h-8 p-1 bg-slate-200 rounded-xl">
@@ -224,13 +235,15 @@ export default function DashboardPage() {
             </TabsList>
           </Tabs>
         </CardHeader>
-        <CardContent className="p-8">
+        <CardContent className="relative overflow-hidden p-6 md:p-8 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_55%,#ecfeff_100%)]">
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(148,163,184,0.13)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.13)_1px,transparent_1px)] bg-[size:28px_28px]" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white/80 to-transparent" />
           {isLoading ? (
-            <div className="h-[300px] flex items-center justify-center"><Loader2 className="animate-spin text-slate-300" /></div>
+            <div className="relative h-[300px] flex items-center justify-center"><Loader2 className="animate-spin text-slate-300" /></div>
           ) : chartData.length > 0 ? (
-            <ChartContainer config={chartConfig} className="h-[300px] w-full">
-              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#f1f5f9" />
+            <ChartContainer config={chartConfig} className="relative h-[320px] w-full">
+              <ComposedChart data={chartData} margin={{ top: 40, right: 16, left: -20, bottom: 0 }}>
+                <CartesianGrid vertical={false} strokeDasharray="4 6" stroke="#e2e8f0" strokeOpacity={0.6} />
                 <XAxis 
                   dataKey="date" 
                   axisLine={false} 
@@ -243,9 +256,10 @@ export default function DashboardPage() {
                   tickLine={false} 
                   tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} 
                   tickFormatter={(value) => `Rp${(value / 1000).toLocaleString()}k`}
+                  domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.2)]}
                 />
                 <ChartTooltip 
-                  cursor={{ fill: '#f8fafc', radius: 4 }}
+                  cursor={{ fill: 'rgba(241,245,249,0.7)', radius: 8 }}
                   content={<ChartTooltipContent hideLabel indicator="line" formatter={(v) => formatIDR(v as number)} />} 
                 />
                 <Bar 
@@ -265,10 +279,24 @@ export default function DashboardPage() {
                     })
                   })()}
                 </Bar>
-              </BarChart>
+                <Line
+                  type="monotone"
+                  dataKey={chartMode}
+                  stroke="#0f172a"
+                  strokeWidth={2.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  dot={{ r: 4, stroke: '#0f172a', strokeWidth: 2.5, fill: '#ffffff' }}
+                  activeDot={{ r: 6, stroke: '#000000', strokeWidth: 3, fill: '#ffffff' }}
+                  animationBegin={120}
+                  animationDuration={1200}
+                  animationEasing="ease-out"
+                  connectNulls
+                />
+              </ComposedChart>
             </ChartContainer>
           ) : (
-            <div className="h-[300px] flex flex-col items-center justify-center text-slate-300 border-2 border-dashed rounded-2xl border-slate-100">
+            <div className="relative h-[300px] flex flex-col items-center justify-center text-slate-300 border-2 border-dashed rounded-2xl border-slate-100 bg-white/60">
               <p className="text-[10px] font-black uppercase tracking-[0.2em]">No performance data</p>
             </div>
           )}
