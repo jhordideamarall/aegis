@@ -139,10 +139,14 @@ export default function ReceiptPrinter({ order: providedOrder, onClose, business
   const grandTotal = taxableBase + calcTax + calcService
   const paymentDisplay = formatPaymentDisplay(order.payment_method, order.payment_provider)
 
-  const paperWidthClass = paperSize === '80mm' ? 'w-[320px]' : 'w-[240px]'
+  // Explicit width values for smooth interpolation
+  const paperWidth = paperSize === '80mm' ? 320 : 240
 
-  const ReceiptBody = () => (
-    <div className={`${paperWidthClass} bg-white shadow-2xl rounded-sm p-6 relative border-t-8 border-slate-200 overflow-hidden print-container transition-all duration-300 ease-in-out`}>
+  const receiptContentJSX = (
+    <div 
+      className="bg-white shadow-2xl rounded-sm p-6 relative border-t-8 border-slate-200 overflow-hidden print-container transition-[width] duration-500 ease-in-out mx-auto"
+      style={{ width: `${paperWidth}px` }}
+    >
       {/* Paper Zigzag Top */}
       <div className="absolute top-0 left-0 w-full flex justify-between px-1 -mt-1 opacity-10 no-print">
         {Array.from({ length: 25 }).map((_, i) => (
@@ -243,7 +247,7 @@ export default function ReceiptPrinter({ order: providedOrder, onClose, business
   )
 
   if (isEmbedded) {
-    return <ReceiptBody />
+    return receiptContentJSX
   }
 
   return (
@@ -286,11 +290,11 @@ export default function ReceiptPrinter({ order: providedOrder, onClose, business
                     <div className="flex gap-1 mt-1">
                       <button 
                         onClick={() => setPaperSize('58mm')}
-                        className={`text-[9px] px-2 py-0.5 rounded font-black border ${paperSize === '58mm' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'}`}
+                        className={`text-[9px] px-2 py-0.5 rounded font-black border transition-all ${paperSize === '58mm' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'}`}
                       >58MM</button>
                       <button 
                         onClick={() => setPaperSize('80mm')}
-                        className={`text-[9px] px-2 py-0.5 rounded font-black border ${paperSize === '80mm' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'}`}
+                        className={`text-[9px] px-2 py-0.5 rounded font-black border transition-all ${paperSize === '80mm' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'}`}
                       >80MM</button>
                     </div>
                   </div>
@@ -309,7 +313,7 @@ export default function ReceiptPrinter({ order: providedOrder, onClose, business
           </div>
 
           {/* Right Area - Receipt Preview Content */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col bg-slate-100/30">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
               <div className="p-4 border-b border-slate-100 bg-white flex justify-center">
                 <TabsList className="bg-slate-100 p-1 rounded-xl h-9">
@@ -322,7 +326,7 @@ export default function ReceiptPrinter({ order: providedOrder, onClose, business
 
               <div className="flex-1 overflow-y-auto p-8 flex items-center justify-center no-scrollbar">
                 <TabsContent value="preview" className="m-0 focus-visible:ring-0 no-scrollbar flex justify-center w-full">
-                  <ReceiptBody />
+                  {receiptContentJSX}
                 </TabsContent>
 
                 {order.payment_proof_url && (
