@@ -6,15 +6,11 @@ import { formatPaymentDisplay } from '@/lib/payments'
 import { formatIDR } from '@/lib/utils'
 import { 
   Printer, 
-  X, 
-  Settings as SettingsIcon, 
-  Eye, 
-  Download, 
   CheckCircle2,
-  FileText,
   CreditCard,
   User,
-  Smartphone
+  Smartphone,
+  Package
 } from 'lucide-react'
 import {
   Dialog,
@@ -27,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 
 interface ReceiptPrinterProps {
-  order: {
+  order?: {
     id: string
     total: number
     payment_method: string
@@ -51,6 +47,8 @@ interface ReceiptPrinterProps {
   }
   onClose: () => void
   businessId?: string
+  isEmbedded?: boolean
+  customSettings?: ReceiptSettings
 }
 
 interface ReceiptSettings {
@@ -66,15 +64,40 @@ interface ReceiptSettings {
   business_phone?: string
 }
 
-export default function ReceiptPrinter({ order, onClose, businessId }: ReceiptPrinterProps) {
-  const [paperSize, setPaperSize] = useState<'58mm' | '80mm'>('58mm')
-  const [loading, setLoading] = useState(false)
-  const [settings, setSettings] = useState<ReceiptSettings | null>(null)
+const EXAMPLE_ORDER = {
+  id: 'EXAMPLE-123',
+  total: 35000,
+  payment_method: 'cash',
+  payment_provider: null,
+  payment_proof_url: null,
+  payment_proof_uploaded_at: null,
+  payment_notes: null,
+  created_at: new Date().toISOString(),
+  member_id: null,
+  points_earned: 0,
+  points_used: 0,
+  discount: 0,
+  order_items: [
+    { id: '1', product_id: 'p1', qty: 1, price: 15000, product: { name: 'Sample Product A' } },
+    { id: '2', product_id: 'p2', qty: 2, price: 10000, product: { name: 'Demo Item B' } }
+  ],
+  member: null
+}
+
+export default function ReceiptPrinter({ order: providedOrder, onClose, businessId, isEmbedded, customSettings }: ReceiptPrinterProps) {
+  const order = providedOrder || EXAMPLE_ORDER
+  const [paperSize, setPaperSize] = useState<'58mm' | '80mm'>(customSettings?.receipt_paper_size || '58mm')
+  const [settings, setSettings] = useState<ReceiptSettings | null>(customSettings || null)
   const [activeTab, setActiveTab] = useState('preview')
 
   useEffect(() => {
-    fetchSettings()
-  }, [])
+    if (customSettings) {
+      setSettings(customSettings)
+      setPaperSize(customSettings.receipt_paper_size)
+    } else {
+      fetchSettings()
+    }
+  }, [customSettings])
 
   const fetchSettings = async () => {
     try {
@@ -108,12 +131,121 @@ export default function ReceiptPrinter({ order, onClose, businessId }: ReceiptPr
   const discount = order.discount || 0
   const subtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0)
   const taxableBase = Math.max(subtotal - discount, 0)
-  const taxAmount = settings?.tax_enabled ? Math.round((taxableBase * settings.tax_rate) / 100) : 0
-  const serviceAmount = settings?.service_enabled ? Math.round((taxableBase * settings.service_rate) / 100) : 0
-  const grandTotal = taxableBase + taxAmount + serviceAmount
+  
+  // Handle tax_rate/service_rate as potentially strings from API
+  const activeTaxRate = Number(settings?.tax_rate) || 0
+  const activeServiceRate = Number(settings?.service_rate) || 0
+  const calcTax = settings?.tax_enabled ? Math.round((taxableBase * activeTaxRate) / 100) : 0
+  const calcService = settings?.service_enabled ? Math.round((taxableBase * activeServiceRate) / 100) : 0
+  const grandTotal = taxableBase + calcTax + calcService
   const paymentDisplay = formatPaymentDisplay(order.payment_method, order.payment_provider)
 
   const paperWidthClass = paperSize === '80mm' ? 'w-[320px]' : 'w-[240px]'
+
+  const ReceiptContent = () => (
+    <div className={`${paperWidthClass} bg-white shadow-2xl rounded-sm p-6 relative border-t-8 border-slate-200 overflow-hidden print-container animate-in fade-in zoom-in-95 duration-500`}>
+      {/* Paper Zigzag Top */}
+      <div className="absolute top-0 left-0 w-full flex justify-between px-1 -mt-1 opacity-10 no-print">
+        {Array.from({ length: 25 }).map((_, i) => (
+          <div key={i} className="w-2 h-2 bg-slate-500 rounded-full" />
+        ))}
+      </div>
+
+      {/* Header */}
+      <div className="text-center mb-6 pt-4">
+        <p className="font-black text-sm uppercase text-slate-900 break-words leading-tight">
+          {settings?.receipt_header || settings?.business_name || 'AEGIS POS'}
+        </p>
+        {(settings?.business_address || settings?.business_phone) && (
+          <div className="mt-2 space-y-0.5">
+            {settings?.business_address && <p className="text-[9px] font-bold text-slate-400 uppercase">{settings.business_address}</p>}
+            {settings?.business_phone && <p className="text-[9px] font-bold text-slate-400 uppercase">{settings.business_phone}</p>}
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-dashed border-slate-200 my-4" />
+
+      <div className="space-y-1 mb-4 text-[9px] font-bold text-slate-500 uppercase tracking-tighter">
+        <div className="flex justify-between"><span>Order ID</span><span>#{order.id.slice(0, 8).toUpperCase()}</span></div>
+        <div className="flex justify-between"><span>Date</span><span>{formatDate(order.created_at)}</span></div>
+        <div className="flex justify-between"><span>Payment</span><span>{paymentDisplay}</span></div>
+        {order.member && <div className="flex justify-between"><span>Customer</span><span>{order.member.name}</span></div>}
+      </div>
+
+      <div className="border-t border-dashed border-slate-200 my-4" />
+
+      <div className="space-y-3 mb-6">
+        {items.map((item, index) => (
+          <div key={index} className="text-[10px] font-bold text-slate-800">
+            <div className="flex justify-between mb-0.5">
+              <span className="flex-1 pr-4 leading-tight">{item.product?.name || 'Item'}</span>
+              <span className="font-black">{formatIDR(item.price * item.qty)}</span>
+            </div>
+            <div className="text-[9px] text-slate-400 font-black uppercase tracking-tighter">
+              {item.qty} x {formatIDR(item.price)}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="border-t border-dashed border-slate-200 my-4" />
+
+      <div className="space-y-1.5">
+        <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase">
+          <span>Subtotal</span>
+          <span>{formatIDR(subtotal)}</span>
+        </div>
+        {discount > 0 && (
+          <div className="flex justify-between text-[10px] font-black text-emerald-600 uppercase">
+            <span>Discount</span>
+            <span>-{formatIDR(discount)}</span>
+          </div>
+        )}
+        {settings?.tax_enabled && (
+          <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase">
+            <span>Tax ({activeTaxRate}%)</span>
+            <span>{formatIDR(calcTax)}</span>
+          </div>
+        )}
+        {settings?.service_enabled && (
+          <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase">
+            <span>Service ({activeServiceRate}%)</span>
+            <span>{formatIDR(calcService)}</span>
+          </div>
+        )}
+        <div className="flex justify-between text-2xl font-black text-slate-900 pt-4 tracking-tighter">
+          <span>TOTAL</span>
+          <span>{formatIDR(grandTotal)}</span>
+        </div>
+      </div>
+
+      <div className="border-t border-dashed border-slate-200 my-6" />
+
+      <div className="text-center space-y-2 mb-4">
+        {settings?.receipt_footer ? settings.receipt_footer.split('\n').map((line: string, i: number) => (
+          <p key={i} className="text-[9px] font-black uppercase text-slate-400 leading-tight">{line}</p>
+        )) : (
+          <p className="text-[9px] font-black uppercase text-slate-400">Thank you for your purchase!</p>
+        )}
+      </div>
+
+      <div className="text-center mt-6 mb-2">
+         <div className="inline-block px-4 py-2 border-2 border-slate-900 rounded-sm">
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-900">PAID</p>
+         </div>
+      </div>
+
+      {/* Bottom Decorative Zigzag */}
+      <div className="absolute bottom-0 left-0 w-full h-4 bg-slate-50 opacity-20 flex items-end no-print">
+        <div className="w-full border-b-[8px] border-dashed border-slate-300" />
+      </div>
+    </div>
+  )
+
+  if (isEmbedded) {
+    return <ReceiptContent />
+  }
 
   return (
     <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
@@ -191,104 +323,7 @@ export default function ReceiptPrinter({ order, onClose, businessId }: ReceiptPr
 
               <div className="flex-1 overflow-y-auto p-8 flex justify-center items-start no-scrollbar">
                 <TabsContent value="preview" className="m-0 focus-visible:ring-0 no-scrollbar">
-                  <div className={`${paperWidthClass} bg-white shadow-2xl rounded-sm p-6 relative border-t-8 border-slate-200 overflow-hidden print-container animate-in fade-in zoom-in-95 duration-500`}>
-                    {/* Paper Zigzag Top */}
-                    <div className="absolute top-0 left-0 w-full flex justify-between px-1 -mt-1 opacity-10 no-print">
-                      {Array.from({ length: 25 }).map((_, i) => (
-                        <div key={i} className="w-2 h-2 bg-slate-500 rounded-full" />
-                      ))}
-                    </div>
-
-                    {/* Receipt Content */}
-                    <div className="text-center mb-6 pt-4">
-                      <p className="font-black text-sm uppercase text-slate-900 break-words leading-tight">
-                        {settings?.receipt_header || settings?.business_name || 'AEGIS POS'}
-                      </p>
-                      {settings?.business_address && (
-                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-2">{settings.business_address}</p>
-                      )}
-                      {settings?.business_phone && (
-                        <p className="text-[9px] font-bold text-slate-400 uppercase">{settings.business_phone}</p>
-                      )}
-                    </div>
-
-                    <div className="border-t border-dashed border-slate-200 my-4" />
-
-                    <div className="space-y-1 mb-4 text-[9px] font-bold text-slate-500 uppercase tracking-tighter">
-                      <div className="flex justify-between"><span>Order ID</span><span>#{order.id.slice(0, 8).toUpperCase()}</span></div>
-                      <div className="flex justify-between"><span>Date</span><span>{formatDate(order.created_at)}</span></div>
-                      <div className="flex justify-between"><span>Payment</span><span>{paymentDisplay}</span></div>
-                      {order.member && <div className="flex justify-between"><span>Customer</span><span>{order.member.name}</span></div>}
-                    </div>
-
-                    <div className="border-t border-dashed border-slate-200 my-4" />
-
-                    <div className="space-y-3 mb-6">
-                      {items.map((item, index) => (
-                        <div key={index} className="text-[10px] font-bold text-slate-800">
-                          <div className="flex justify-between mb-0.5">
-                            <span className="flex-1 pr-4 leading-tight">{item.product?.name || 'Item'}</span>
-                            <span className="font-black">{formatIDR(item.price * item.qty)}</span>
-                          </div>
-                          <div className="text-[9px] text-slate-400 font-medium italic">
-                            {item.qty} x {formatIDR(item.price)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="border-t border-dashed border-slate-200 my-4" />
-
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-[10px] font-bold text-slate-500">
-                        <span>SUBTOTAL</span>
-                        <span>{formatIDR(subtotal)}</span>
-                      </div>
-                      {discount > 0 && (
-                        <div className="flex justify-between text-[10px] font-bold text-emerald-600">
-                          <span>DISCOUNT</span>
-                          <span>-{formatIDR(discount)}</span>
-                        </div>
-                      )}
-                      {settings?.tax_enabled && (
-                        <div className="flex justify-between text-[10px] font-bold text-slate-500">
-                          <span>TAX ({settings.tax_rate}%)</span>
-                          <span>{formatIDR(taxAmount)}</span>
-                        </div>
-                      )}
-                      {settings?.service_enabled && (
-                        <div className="flex justify-between text-[10px] font-bold text-slate-500">
-                          <span>SERVICE ({settings.service_rate}%)</span>
-                          <span>{formatIDR(serviceAmount)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between text-xl font-black text-slate-900 pt-3 italic tracking-tighter">
-                        <span>TOTAL</span>
-                        <span>{formatIDR(grandTotal)}</span>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-dashed border-slate-200 my-6" />
-
-                    <div className="text-center space-y-2 mb-4">
-                      {settings?.receipt_footer ? settings.receipt_footer.split('\n').map((line: string, i: number) => (
-                        <p key={i} className="text-[9px] font-black uppercase text-slate-400 leading-tight">{line}</p>
-                      )) : (
-                        <p className="text-[9px] font-black uppercase text-slate-400 italic">Thank you for your purchase!</p>
-                      )}
-                    </div>
-
-                    <div className="text-center mt-6 mb-2">
-                       <div className="inline-block px-4 py-2 border-2 border-slate-900 rounded-sm">
-                          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-900">PAID</p>
-                       </div>
-                    </div>
-
-                    {/* Bottom Decorative Zigzag */}
-                    <div className="absolute bottom-0 left-0 w-full h-4 bg-slate-50 opacity-20 flex items-end no-print">
-                      <div className="w-full border-b-[8px] border-dashed border-slate-300" />
-                    </div>
-                  </div>
+                  <ReceiptContent />
                 </TabsContent>
 
                 {order.payment_proof_url && (
