@@ -26,7 +26,7 @@ import { DateRange } from 'react-day-picker'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis, Cell } from 'recharts'
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from 'recharts'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -172,7 +172,11 @@ export default function DashboardPage() {
   const membersTrend = data ? buildTrend(data.newMembers, data.prevNewMembers) : null
 
   const chartData = data?.salesChart?.map(item => {
-    return { date: formatChartDateLabel(item.date), sales: item.sales, profit: item.profit }
+    return { 
+      date: formatChartDateLabel(item.date), 
+      sales: item.sales, 
+      profit: item.profit
+    }
   }) || []
 
   return (
@@ -242,7 +246,7 @@ export default function DashboardPage() {
             <div className="relative h-[300px] flex items-center justify-center"><Loader2 className="animate-spin text-slate-300" /></div>
           ) : chartData.length > 0 ? (
             <ChartContainer config={chartConfig} className="relative h-[320px] w-full">
-              <ComposedChart data={chartData} margin={{ top: 40, right: 16, left: -20, bottom: 0 }}>
+              <BarChart data={chartData} margin={{ top: 20, right: 16, left: -20, bottom: 0 }}>
                 <CartesianGrid vertical={false} strokeDasharray="4 6" stroke="#e2e8f0" strokeOpacity={0.6} />
                 <XAxis 
                   dataKey="date" 
@@ -264,7 +268,7 @@ export default function DashboardPage() {
                 />
                 <Bar 
                   dataKey={chartMode} 
-                  radius={[6, 6, 0, 0]}
+                  radius={[8, 8, 0, 0]}
                   barSize={32}
                   animationDuration={1000}
                 >
@@ -272,28 +276,14 @@ export default function DashboardPage() {
                     const maxValue = Math.max(...chartData.map((d: any) => d[chartMode]), 0)
                     return chartData.map((entry: any, index: number) => {
                       const val = entry[chartMode]
-                      let color = '#f59e0b' // Low (Amber/Yellow)
-                      if (val > 0 && val >= maxValue * 0.7) color = '#8b5cf6' // High (Violet/Purple)
-                      else if (val > 0 && val >= maxValue * 0.3) color = '#10b981' // Mid (Emerald/Green)
+                      let color = '#fbbf24' // Low (Amber-400)
+                      if (val > 0 && val >= maxValue * 0.7) color = '#7c3aed' // High (Violet-600)
+                      else if (val > 0 && val >= maxValue * 0.3) color = '#059669' // Mid (Emerald-600)
                       return <Cell key={`cell-${index}`} fill={color} />
                     })
                   })()}
                 </Bar>
-                <Line
-                  type="monotone"
-                  dataKey={chartMode}
-                  stroke="#0f172a"
-                  strokeWidth={2.5}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  dot={{ r: 4, stroke: '#0f172a', strokeWidth: 2.5, fill: '#ffffff' }}
-                  activeDot={{ r: 6, stroke: '#000000', strokeWidth: 3, fill: '#ffffff' }}
-                  animationBegin={120}
-                  animationDuration={1200}
-                  animationEasing="ease-out"
-                  connectNulls
-                />
-              </ComposedChart>
+              </BarChart>
             </ChartContainer>
           ) : (
             <div className="relative h-[300px] flex flex-col items-center justify-center text-slate-300 border-2 border-dashed rounded-2xl border-slate-100 bg-white/60">

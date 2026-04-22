@@ -41,6 +41,8 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 
+const POS_PRODUCTS_CACHE_TTL_MS = 30 * 1000
+
 interface PaymentSubmission {
   method: PaymentMethod
   provider: PaymentProvider | null
@@ -253,6 +255,29 @@ function AddMemberQuickForm({ onClose, onSuccess }: any) {
   )
 }
 
+function ProductGridSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 10 }).map((_, index) => (
+        <div
+          key={index}
+          className="min-h-[220px] overflow-hidden rounded-2xl border border-slate-100 bg-white"
+        >
+          <div className="aspect-[4/3] animate-pulse border-b border-slate-100 bg-slate-100" />
+          <div className="space-y-4 p-3.5 md:p-4">
+            <div className="h-4 w-3/4 animate-pulse rounded bg-slate-100" />
+            <div className="h-4 w-1/2 animate-pulse rounded bg-slate-100" />
+            <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+              <div className="h-4 w-20 animate-pulse rounded bg-slate-100" />
+              <div className="h-5 w-10 animate-pulse rounded-full bg-slate-100" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </>
+  )
+}
+
 export default function POSPage() {
   const router = useRouter()
   const { business, loading } = useAuth()
@@ -265,14 +290,27 @@ export default function POSPage() {
   const [showMemberModal, setShowMemberModal] = useState(false)
   const [showCartSheet, setShowCartSheet] = useState(false)
   const [processing, setProcessing] = useState(false)
-  const [productsLoading, setProductsLoading] = useState(false)
+  const [productsLoading, setProductsLoading] = useState(true)
   const [portalReady, setPortalReady] = useState(false)
   const [renderMobileCheckout, setRenderMobileCheckout] = useState(false)
   const [animateMobileCheckout, setAnimateMobileCheckout] = useState(false)
   const previousCartCountRef = useRef(0)
   const [charges, setCharges] = useState({ tax_enabled: false, tax_rate: 0, service_enabled: false, service_rate: 0 })
 
-  useEffect(() => { if (!loading && business) { fetchProducts(); fetchCharges(); } }, [loading, business])
+  useEffect(() => {
+    if (loading) {
+      setProductsLoading(true)
+      return
+    }
+
+    if (!business) {
+      setProductsLoading(false)
+      return
+    }
+
+    fetchProducts()
+    fetchCharges()
+  }, [loading, business])
   useEffect(() => { setPortalReady(true) }, [])
 
   useEffect(() => {
@@ -297,10 +335,25 @@ export default function POSPage() {
 
   const fetchProducts = async () => {
     if (!business) return
-    try {
+    const cacheKey = `pos-products:${business.id}`
+    const cached = getClientCache<Product[]>(cacheKey)
+
+    if (cached) {
+      setProducts(cached)
+      setProductsLoading(false)
+    } else {
+      setProducts([])
       setProductsLoading(true)
+    }
+
+    try {
       const res = await fetch(`/api/products?business_id=${business.id}&limit=1000`, { headers: await getClientAuthHeaders() })
-      if (res.ok) { const data = await res.json(); setProducts(data.data || []); }
+      if (res.ok) {
+        const data = await res.json()
+        const nextProducts = data.data || []
+        setProducts(nextProducts)
+        setClientCache(cacheKey, nextProducts, POS_PRODUCTS_CACHE_TTL_MS)
+      }
     } catch (error) {} finally { setProductsLoading(false) }
   }
 
@@ -396,10 +449,7 @@ export default function POSPage() {
 
         <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-5 no-scrollbar">
           {productsLoading && filteredProducts.length === 0 ? (
-            <div className="col-span-full h-96 flex flex-col items-center justify-center text-slate-300 animate-pulse">
-              <Loader2 className="w-10 h-10 animate-spin mb-4" />
-              <p className="text-[11px] font-black uppercase tracking-[0.4em]">Inventory Synchronizing</p>
-            </div>
+            <ProductGridSkeleton />
           ) : filteredProducts.length === 0 ? (
             <div className="col-span-full h-96 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 text-center">
               <Package className="mb-4 h-10 w-10 text-slate-300" />
