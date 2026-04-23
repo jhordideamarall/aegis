@@ -447,7 +447,7 @@ export default function POSPage() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-5 no-scrollbar">
+        <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 md:gap-5 no-scrollbar">
           {productsLoading && filteredProducts.length === 0 ? (
             <ProductGridSkeleton />
           ) : filteredProducts.length === 0 ? (
@@ -464,7 +464,7 @@ export default function POSPage() {
                 onClick={() => p.stock > 0 && addToCart(p)} 
                 disabled={p.stock <= 0}
                 aria-label={`${p.name}, harga ${formatIDR(p.price)}, stok ${p.stock}`}
-                className={`group relative flex min-h-[220px] flex-col overflow-hidden rounded-2xl border bg-white text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 ${
+                className={`group relative flex min-h-[140px] sm:min-h-[220px] flex-col overflow-hidden rounded-2xl border bg-white text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 ${
                   p.stock <= 0
                     ? 'cursor-not-allowed border-slate-100 opacity-60 grayscale'
                     : 'cursor-pointer border-slate-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg active:scale-[0.98]'
@@ -477,16 +477,16 @@ export default function POSPage() {
                     <Package className="w-10 h-10 text-slate-200" />
                   )}
                 </div>
-                <div className="p-3.5 md:p-4 bg-white flex flex-col flex-1">
-                  <h3 className="min-h-10 font-black text-slate-900 text-sm leading-5 break-words" title={p.name}>
+                <div className="p-3 sm:p-4 bg-white flex flex-col flex-1 gap-2">
+                  <h3 className="font-black text-slate-900 text-xs sm:text-sm leading-tight sm:leading-5 break-words line-clamp-2" title={p.name}>
                     {p.name}
                   </h3>
 
-                  <div className="mt-auto flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
-                    <span className="min-w-0 text-sm font-black text-slate-900 tabular-nums">
+                  <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 sm:pt-3">
+                    <span className="text-sm font-black text-slate-900 tabular-nums whitespace-nowrap">
                       {formatIDR(p.price)}
                     </span>
-                    <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[10px] font-black tabular-nums ${
+                    <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 sm:px-2.5 sm:py-1 text-[9px] sm:text-[10px] font-black tabular-nums ${
                       p.stock <= 0
                         ? 'bg-slate-100 text-slate-500'
                         : p.stock <= 5
