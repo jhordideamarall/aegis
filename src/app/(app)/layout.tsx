@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth'
 import Sidebar from '@/components/Sidebar'
 import MobileNav from '@/components/MobileNav'
 import PageTransition from '@/components/PageTransition'
+import { GlobalCommand } from '@/components/GlobalCommand'
 
 export default function AppLayout({
   children,
@@ -40,6 +41,9 @@ export default function AppLayout({
 
       {/* Mobile Navigation */}
       <MobileNav />
+
+      {/* Global AI Command Center */}
+      <GlobalCommand />
 
       {/* Main Content */}
       <PageTransition>
