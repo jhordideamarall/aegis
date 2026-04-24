@@ -74,33 +74,42 @@ function MemberPointsCard({ settings, setSettings }: { settings: any; setSetting
                   <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Earn Rate</Label>
                   <p className="text-[10px] text-slate-400">Setiap belanja Rp berapa = 1 poin</p>
                   <Input
-                    type="number"
-                    value={settings?.points_earn_rate ?? 10000}
-                    onChange={(e) => setSettings({ ...settings, points_earn_rate: Number(e.target.value) })}
+                    type="text"
+                    inputMode="numeric"
+                    value={settings?.points_earn_rate ?? ''}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, '')
+                      setSettings({ ...settings, points_earn_rate: raw === '' ? '' : Number(raw) })
+                    }}
                     className="h-10 text-sm font-bold rounded-xl border-slate-200"
-                    min={1}
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Nilai Poin (Redeem Rate)</Label>
                   <p className="text-[10px] text-slate-400">1 poin = Rp berapa diskon</p>
                   <Input
-                    type="number"
-                    value={settings?.points_redeem_rate ?? 100}
-                    onChange={(e) => setSettings({ ...settings, points_redeem_rate: Number(e.target.value) })}
+                    type="text"
+                    inputMode="numeric"
+                    value={settings?.points_redeem_rate ?? ''}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, '')
+                      setSettings({ ...settings, points_redeem_rate: raw === '' ? '' : Number(raw) })
+                    }}
                     className="h-10 text-sm font-bold rounded-xl border-slate-200"
-                    min={1}
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Minimum Redeem</Label>
                   <p className="text-[10px] text-slate-400">Poin minimum untuk bisa redeem</p>
                   <Input
-                    type="number"
-                    value={settings?.points_min_redeem ?? 20}
-                    onChange={(e) => setSettings({ ...settings, points_min_redeem: Number(e.target.value) })}
+                    type="text"
+                    inputMode="numeric"
+                    value={settings?.points_min_redeem ?? ''}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, '')
+                      setSettings({ ...settings, points_min_redeem: raw === '' ? '' : Number(raw) })
+                    }}
                     className="h-10 text-sm font-bold rounded-xl border-slate-200"
-                    min={1}
                   />
                 </div>
               </div>
@@ -195,6 +204,7 @@ export default function SettingsPage() {
     if (!authLoading && business) {
       setBusinessData({
         business_name: business.business_name || '',
+        pic_name: business.pic_name || '',
         business_phone: business.phone || '',
         business_email: business.email || '',
         business_address: business.address || ''
@@ -285,13 +295,19 @@ export default function SettingsPage() {
                   <Input value={businessData?.business_name || ''} onChange={(e) => setBusinessData({ ...businessData, business_name: e.target.value })} className="h-10 text-xs font-bold rounded-xl border-slate-200" />
                 </div>
                 <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Nama PIC</Label>
+                  <Input value={businessData?.pic_name || ''} onChange={(e) => setBusinessData({ ...businessData, pic_name: e.target.value })} placeholder="Nama pemilik / penanggung jawab" className="h-10 text-xs font-bold rounded-xl border-slate-200" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Phone Number</Label>
                   <Input value={businessData?.business_phone || ''} onChange={(e) => setBusinessData({ ...businessData, business_phone: e.target.value })} className="h-10 text-xs font-bold rounded-xl border-slate-200" />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Email Address</Label>
-                <Input value={businessData?.business_email || ''} onChange={(e) => setBusinessData({ ...businessData, business_email: e.target.value })} className="h-10 text-xs font-bold rounded-xl border-slate-200" />
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Email Address</Label>
+                  <Input value={businessData?.business_email || ''} onChange={(e) => setBusinessData({ ...businessData, business_email: e.target.value })} className="h-10 text-xs font-bold rounded-xl border-slate-200" />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Address</Label>
