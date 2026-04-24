@@ -49,12 +49,14 @@ export async function POST(request: Request) {
 
     const convId = conversationId as string
 
-    const [businessData, historyData] = await Promise.all([
+    const [businessData, historyData, bizMeta] = await Promise.all([
       fetchBusinessContext(businessId),
-      loadHistory(convId, prompt)
+      loadHistory(convId, prompt),
+      supabaseAdmin.from('businesses').select('pic_name, business_name').eq('id', businessId).single()
     ])
 
-    const systemPrompt = buildSystemPrompt(businessData)
+    const userName = bizMeta.data?.pic_name?.split(' ')[0] || null
+    const systemPrompt = buildSystemPrompt(businessData, userName)
     const messages = [
       { role: 'system', content: systemPrompt },
       ...historyData,
@@ -236,8 +238,10 @@ async function calcStats(businessId: string, from: Date) {
   return { count: orderIds.length, revenue, profit: revenue - cost }
 }
 
-function buildSystemPrompt(context: string): string {
+function buildSystemPrompt(context: string, userName: string | null): string {
+  const userCtx = userName ? `Nama user yang sedang chat: ${userName}. Panggil dengan nama ini kalau natural, jangan tiap kalimat.` : ''
   return `Kamu adalah Aegis — business advisor AI di AEGIS POS, built-in langsung di sistem mereka.
+${userCtx}
 
 ## Kepribadian & Cara Bicara
 
