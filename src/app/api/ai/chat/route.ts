@@ -159,7 +159,8 @@ async function fetchBusinessContext(businessId: string): Promise<string> {
   const [
     productsRes, membersRes, recentOrdersRes,
     allOrdersRes, yearOrdersRes,
-    statsToday, statsWeek, statsMonth
+    statsToday, statsWeek, statsMonth,
+    businessRes, settingsRes
   ] = await Promise.all([
     supabaseAdmin.from('products').select('id, name, price, stock, category, hpp').eq('business_id', businessId).order('name'),
     supabaseAdmin.from('members').select('id, name, phone, points, total_purchases').eq('business_id', businessId).order('total_purchases', { ascending: false }).limit(100),
@@ -169,12 +170,17 @@ async function fetchBusinessContext(businessId: string): Promise<string> {
     calcStats(businessId, todayStart),
     calcStats(businessId, weekStart),
     calcStats(businessId, monthStart),
+    supabaseAdmin.from('businesses').select('business_name, industry, city, address, phone, email').eq('id', businessId).single(),
+    supabaseAdmin.from('settings').select('key, value').eq('business_id', businessId),
   ])
 
   const products = productsRes.data || []
   const members = membersRes.data || []
   const orders = recentOrdersRes.data || []
+  const biz = businessRes.data
+  const settings = (settingsRes.data || []).reduce<Record<string, string>>((acc, s) => { acc[s.key] = s.value; return acc }, {})
   const fmt = (n: number) => `Rp${n.toLocaleString('id-ID')}`
+  const nowJkt = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   const fmtS = (s: { count: number; revenue: number; profit: number }) =>
     `${s.count} order | ${fmt(s.revenue)} revenue | ${fmt(s.profit)} profit`
 
@@ -199,7 +205,23 @@ async function fetchBusinessContext(businessId: string): Promise<string> {
       return `${monthNames[parseInt(mo) - 1]} ${yr}: ${s.count} order | ${fmt(s.revenue)}`
     }).join('\n') || 'Belum ada data'
 
+  const settingsStr = Object.entries(settings).map(([k, v]) => `${k}: ${v}`).join('\n') || 'Default'
+
   const result = [
+    `[WAKTU SEKARANG]
+${nowJkt} (WIB)`,
+
+    `[PROFIL BISNIS]
+Nama: ${biz?.business_name || '-'}
+Industri: ${biz?.industry || '-'}
+Kota: ${biz?.city || '-'}
+Alamat: ${biz?.address || '-'}
+Telepon: ${biz?.phone || '-'}
+Email: ${biz?.email || '-'}`,
+
+    `[SETTINGS BISNIS]
+${settingsStr}`,
+
     `[FINANSIAL]
 All time: ${allTimeCount} order | ${fmt(allTimeRevenue)} total revenue
 Hari ini: ${fmtS(statsToday)}
