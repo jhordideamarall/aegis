@@ -69,7 +69,7 @@ export async function POST(request: Request) {
         'X-Title': 'AEGIS POS',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ model: 'openai/gpt-oss-120b:free', messages, stream: true })
+      body: JSON.stringify({ model: 'z-ai/glm-4.5-air:free', messages, stream: true })
     })
 
     if (!response.ok) {
