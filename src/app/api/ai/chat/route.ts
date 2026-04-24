@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { getBusinessContextFromRequest, unauthorizedResponse } from '@/lib/requestAuth'
 import { supabaseAdmin } from '@/lib/supabase'
 
+export const maxDuration = 60
+
 const HISTORY_LIMIT = 30
 const contextCache = new Map<string, { data: string; ts: number }>()
 const CACHE_TTL = 60_000

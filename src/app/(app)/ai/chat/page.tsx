@@ -198,7 +198,12 @@ export default function ChatAegisPage() {
         headers: await getClientAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ conversationId: conversationId ?? undefined, prompt })
       })
-      if (!res.ok || !res.body) throw new Error('Stream failed')
+      if (!res.ok || !res.body) {
+        const errText = await res.text().catch(() => '')
+        let errMsg = 'Stream failed'
+        try { errMsg = JSON.parse(errText).error ?? errMsg } catch { errMsg = errText || errMsg }
+        throw new Error(errMsg)
+      }
 
       // Read conversationId from response header
       const newConvId = res.headers.get('X-Conversation-Id')
