@@ -80,19 +80,12 @@ function formatShortDate(dateString: string): string {
 }
 
 function getDerivedPeriod(orders: ReportOrder[]): { start?: string; end?: string } {
-  if (orders.length === 0) {
-    return {}
-  }
-
+  if (orders.length === 0) return {}
   const timestamps = orders
-    .map((order) => new Date(order.created_at).getTime())
-    .filter((value) => !Number.isNaN(value))
+    .map((o) => new Date(o.created_at).getTime())
+    .filter((v) => !Number.isNaN(v))
     .sort((a, b) => a - b)
-
-  if (timestamps.length === 0) {
-    return {}
-  }
-
+  if (timestamps.length === 0) return {}
   return {
     start: new Date(timestamps[0]).toISOString(),
     end: new Date(timestamps[timestamps.length - 1]).toISOString()
@@ -101,18 +94,11 @@ function getDerivedPeriod(orders: ReportOrder[]): { start?: string; end?: string
 
 function getPeriodText(meta: ReportMeta, orders: ReportOrder[]): string {
   const derived = getDerivedPeriod(orders)
-  const periodStart = meta.startDate || derived.start
-  const periodEnd = meta.endDate || derived.end
-
-  if (periodStart && periodEnd) {
-    return `${formatShortDate(periodStart)} - ${formatShortDate(periodEnd)}`
-  }
-
-  if (periodStart) {
-    return `${formatShortDate(periodStart)}`
-  }
-
-  return 'Semua periode transaksi'
+  const start = meta.startDate || derived.start
+  const end = meta.endDate || derived.end
+  if (start && end) return `${formatShortDate(start)} – ${formatShortDate(end)}`
+  if (start) return formatShortDate(start)
+  return 'Semua periode'
 }
 
 function escapeHtml(value: string): string {
@@ -126,13 +112,8 @@ function escapeHtml(value: string): string {
 
 function getMethodBreakdown(orders: ReportOrder[]) {
   const counts = new Map<string, number>()
-
-  orders.forEach((order) => {
-    counts.set(order.payment_method, (counts.get(order.payment_method) || 0) + 1)
-  })
-
+  orders.forEach((o) => counts.set(o.payment_method, (counts.get(o.payment_method) || 0) + 1))
   const total = orders.length || 1
-
   return Array.from(counts.entries())
     .map(([method, count]) => ({
       label: getPaymentMethodLabel(method),
@@ -143,50 +124,38 @@ function getMethodBreakdown(orders: ReportOrder[]) {
 }
 
 function getProviderBreakdown(orders: ReportOrder[]) {
-  const qrisOrders = orders.filter((order) => order.payment_method === 'qris')
+  const qrisOrders = orders.filter((o) => o.payment_method === 'qris')
   const counts = new Map<string, number>()
-
-  qrisOrders.forEach((order) => {
-    const label = formatPaymentDisplay(order.payment_method, order.payment_provider)
+  qrisOrders.forEach((o) => {
+    const label = formatPaymentDisplay(o.payment_method, o.payment_provider)
     counts.set(label, (counts.get(label) || 0) + 1)
   })
-
   const total = qrisOrders.length || 1
-
   return Array.from(counts.entries())
-    .map(([label, count]) => ({
-      label,
-      count,
-      percentage: (count / total) * 100
-    }))
+    .map(([label, count]) => ({ label, count, percentage: (count / total) * 100 }))
     .sort((a, b) => b.count - a.count)
 }
 
 function getDailyBreakdown(orders: ReportOrder[]) {
   const dailyMap = new Map<string, { date: string; label: string; revenue: number; orders: number }>()
-
-  orders.forEach((order) => {
-    const date = toLocalISODate(new Date(order.created_at))
-    const label = formatShortDate(order.created_at)
-    const existing = dailyMap.get(date) || { date, label, revenue: 0, orders: 0 }
-    existing.revenue += order.total
-    existing.orders += 1
-    dailyMap.set(date, existing)
+  orders.forEach((o) => {
+    const date = toLocalISODate(new Date(o.created_at))
+    const label = formatShortDate(o.created_at)
+    const ex = dailyMap.get(date) || { date, label, revenue: 0, orders: 0 }
+    ex.revenue += o.total
+    ex.orders += 1
+    dailyMap.set(date, ex)
   })
-
   return Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date))
 }
 
 export function buildReportMetrics(orders: ReportOrder[]): ReportMetrics {
-  const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0)
+  const totalRevenue = orders.reduce((s, o) => s + o.total, 0)
   const totalOrders = orders.length
-  const totalItemsSold = orders.reduce((sum, order) => {
-    return sum + (order.order_items?.reduce((itemSum, item) => itemSum + item.qty, 0) || 0)
-  }, 0)
-  const withProofCount = orders.filter((order) => !!order.payment_proof_url).length
+  const totalItemsSold = orders.reduce((s, o) => s + (o.order_items?.reduce((is, i) => is + i.qty, 0) || 0), 0)
+  const withProofCount = orders.filter((o) => !!o.payment_proof_url).length
   const withoutProofCount = totalOrders - withProofCount
   const proofCoverageRate = totalOrders > 0 ? (withProofCount / totalOrders) * 100 : 0
-
   return {
     totalRevenue,
     totalOrders,
@@ -202,62 +171,43 @@ export function buildReportMetrics(orders: ReportOrder[]): ReportMetrics {
   }
 }
 
-export function buildReportNarrative(meta: ReportMeta, orders: ReportOrder[], metrics: ReportMetrics): ReportNarrative {
+export function buildReportNarrative(_meta: ReportMeta, orders: ReportOrder[], metrics: ReportMetrics): ReportNarrative {
   const topMethod = metrics.paymentMethodBreakdown[0]
   const topProvider = metrics.paymentProviderBreakdown[0]
   const strongestDay = [...metrics.dailyBreakdown].sort((a, b) => b.revenue - a.revenue)[0]
-  const highValueWithoutProof = orders
-    .filter((order) => !order.payment_proof_url)
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 3)
-  const qrisCount = orders.filter((order) => order.payment_method === 'qris').length
+  const highValueWithoutProof = orders.filter((o) => !o.payment_proof_url).sort((a, b) => b.total - a.total).slice(0, 3)
+  const qrisCount = orders.filter((o) => o.payment_method === 'qris').length
   const qrisShare = metrics.totalOrders > 0 ? (qrisCount / metrics.totalOrders) * 100 : 0
 
   const summaryParagraphs = [
-    `${meta.reportTitle} ini merangkum ${metrics.totalOrders} transaksi dengan total omzet ${formatIDR(metrics.totalRevenue)} dan rata-rata nilai order ${formatIDR(metrics.averageOrderValue)}.`,
+    `${metrics.totalOrders} transaksi dengan total omzet ${formatIDR(metrics.totalRevenue)} dan rata-rata ${formatIDR(metrics.averageOrderValue)} per order.`,
     topMethod
-      ? `Metode pembayaran paling dominan adalah ${topMethod.label} dengan kontribusi ${topMethod.count} transaksi (${topMethod.percentage.toFixed(0)}%).${topProvider ? ` Untuk kanal QRIS, provider paling sering dipakai adalah ${topProvider.label}.` : ''}`
-      : 'Belum ada metode pembayaran dominan pada periode ini.',
+      ? `Metode dominan: ${topMethod.label} (${topMethod.count} transaksi, ${topMethod.percentage.toFixed(0)}%).${topProvider ? ` QRIS provider utama: ${topProvider.label}.` : ''}`
+      : 'Belum ada metode dominan pada periode ini.',
     strongestDay
-      ? `Hari penjualan terkuat jatuh pada ${strongestDay.label} dengan omzet ${formatIDR(strongestDay.revenue)} dari ${strongestDay.orders} transaksi.`
-      : 'Belum ada pola hari penjualan yang bisa diidentifikasi pada periode ini.'
+      ? `Penjualan terkuat: ${strongestDay.label} — ${formatIDR(strongestDay.revenue)} dari ${strongestDay.orders} transaksi.`
+      : 'Belum ada pola hari penjualan yang teridentifikasi.'
   ]
 
   const highlights = [
-    `Coverage bukti pembayaran tercatat ${metrics.proofCoverageRate.toFixed(0)}% (${metrics.withProofCount} dari ${metrics.totalOrders} transaksi).`,
-    `Total item terjual pada periode ini mencapai ${metrics.totalItemsSold} unit.`,
-    qrisCount > 0
-      ? `Pembayaran QRIS mewakili ${qrisShare.toFixed(0)}% dari seluruh transaksi.`
-      : 'Belum ada transaksi QRIS pada periode ini.'
+    `Bukti pembayaran: ${metrics.proofCoverageRate.toFixed(0)}% coverage (${metrics.withProofCount}/${metrics.totalOrders} transaksi).`,
+    `Total item terjual: ${metrics.totalItemsSold} unit.`,
+    qrisCount > 0 ? `QRIS: ${qrisShare.toFixed(0)}% dari semua transaksi.` : 'Belum ada transaksi QRIS.'
   ]
 
   const recommendedActions: string[] = []
+  if (metrics.proofCoverageRate < 70)
+    recommendedActions.push('Disiplinkan unggah bukti pembayaran, terutama QRIS dan transfer.')
+  if (highValueWithoutProof.length > 0)
+    recommendedActions.push(`Audit transaksi tanpa bukti bernilai besar, mulai dari #${highValueWithoutProof[0].id.slice(0, 8).toUpperCase()}.`)
+  if (qrisShare >= 40)
+    recommendedActions.push('Pastikan alur verifikasi QRIS tetap cepat saat jam sibuk.')
+  if (strongestDay)
+    recommendedActions.push(`Jadwalkan staf & stok optimal di hari seperti ${strongestDay.label}.`)
+  if (recommendedActions.length === 0)
+    recommendedActions.push('Pertahankan konsistensi pencatatan dan review laporan secara berkala.')
 
-  if (metrics.proofCoverageRate < 70) {
-    recommendedActions.push('Prioritaskan disiplin unggah bukti pembayaran untuk transaksi QRIS dan bank transfer, terutama pada transaksi bernilai besar.')
-  }
-
-  if (highValueWithoutProof.length > 0) {
-    recommendedActions.push(`Audit manual transaksi tanpa bukti dengan nominal tertinggi, seperti order #${highValueWithoutProof[0].id.slice(0, 8).toUpperCase()}.`)
-  }
-
-  if (qrisShare >= 40) {
-    recommendedActions.push('Optimalkan operasional pembayaran digital dengan memastikan alur QRIS dan verifikasi bukti pembayaran tetap cepat saat jam sibuk.')
-  }
-
-  if (strongestDay) {
-    recommendedActions.push(`Gunakan pola penjualan tertinggi pada ${strongestDay.label} sebagai acuan penjadwalan staf dan stok barang.`)
-  }
-
-  if (recommendedActions.length === 0) {
-    recommendedActions.push('Pertahankan konsistensi pencatatan transaksi dan review laporan ini secara berkala untuk mendeteksi perubahan pola pembayaran.')
-  }
-
-  return {
-    summaryParagraphs,
-    highlights,
-    recommendedActions
-  }
+  return { summaryParagraphs, highlights, recommendedActions }
 }
 
 export function prepareReport(meta: ReportMeta, orders: ReportOrder[]): PreparedReport {
@@ -269,110 +219,87 @@ export function prepareReport(meta: ReportMeta, orders: ReportOrder[]): Prepared
 function renderMetricCards(metrics: ReportMetrics): string {
   const cards = [
     { label: 'Total Omzet', value: formatIDR(metrics.totalRevenue) },
-    { label: 'Total Transaksi', value: String(metrics.totalOrders) },
+    { label: 'Transaksi', value: String(metrics.totalOrders) },
     { label: 'Rata-rata Order', value: formatIDR(metrics.averageOrderValue) },
     { label: 'Coverage Bukti', value: `${metrics.proofCoverageRate.toFixed(0)}%` }
   ]
-
-  return cards
-    .map(
-      (card) => `
-        <div class="metric-card">
-          <div class="metric-label">${escapeHtml(card.label)}</div>
-          <div class="metric-value">${escapeHtml(card.value)}</div>
-        </div>
-      `
-    )
-    .join('')
+  return cards.map((c) => `
+    <div class="metric-card">
+      <div class="metric-label">${escapeHtml(c.label)}</div>
+      <div class="metric-value">${escapeHtml(c.value)}</div>
+    </div>`).join('')
 }
 
 function renderBreakdownRows(rows: Array<{ label: string; count: number; percentage: number }>): string {
-  if (rows.length === 0) {
-    return '<div class="empty-block">Belum ada data pada bagian ini.</div>'
-  }
-
-  return rows
-    .map(
-      (row) => `
-        <div class="breakdown-row">
-          <div class="breakdown-head">
-            <span>${escapeHtml(row.label)}</span>
-            <span>${row.count} transaksi (${row.percentage.toFixed(0)}%)</span>
-          </div>
-          <div class="breakdown-track">
-            <div class="breakdown-fill" style="width:${Math.max(row.percentage, 4)}%"></div>
-          </div>
-        </div>
-      `
-    )
-    .join('')
+  if (rows.length === 0) return '<div class="empty-block">Tidak ada data.</div>'
+  return rows.map((r) => `
+    <div class="breakdown-row">
+      <div class="breakdown-head">
+        <span>${escapeHtml(r.label)}</span>
+        <span class="muted">${r.count}x &nbsp;${r.percentage.toFixed(0)}%</span>
+      </div>
+      <div class="breakdown-track">
+        <div class="breakdown-fill" style="width:${Math.max(r.percentage, 4)}%"></div>
+      </div>
+    </div>`).join('')
 }
 
+const ROWS_PER_PAGE = 25
+
 function renderTransactionTable(orders: ReportOrder[]): string {
-  if (orders.length === 0) {
-    return '<div class="empty-block">Tidak ada transaksi yang cocok dengan filter report ini.</div>'
+  if (orders.length === 0) return '<div class="empty-block">Tidak ada transaksi pada filter ini.</div>'
+
+  const header = `
+    <thead>
+      <tr>
+        <th style="width:80px">#Order</th>
+        <th style="width:110px">Waktu</th>
+        <th>Pelanggan</th>
+        <th>Pembayaran</th>
+        <th style="width:60px">Bukti</th>
+        <th style="width:90px;text-align:right">Total</th>
+      </tr>
+    </thead>`
+
+  const chunks: ReportOrder[][] = []
+  for (let i = 0; i < orders.length; i += ROWS_PER_PAGE) {
+    chunks.push(orders.slice(i, i + ROWS_PER_PAGE))
   }
 
-  return `
-    <table class="report-table">
-      <thead>
-        <tr>
-          <th>ID Order</th>
-          <th>Waktu</th>
-          <th>Pelanggan</th>
-          <th>Pembayaran</th>
-          <th>Status Bukti</th>
-          <th>Total</th>
-        </tr>
-      </thead>
+  return chunks.map((chunk, idx) => `
+    <table class="report-table${idx > 0 ? ' page-break-before' : ''}">
+      ${header}
       <tbody>
-        ${orders
-          .map(
-            (order) => `
-              <tr>
-                <td>#${escapeHtml(order.id.slice(0, 8).toUpperCase())}</td>
-                <td>${escapeHtml(formatDateTime(order.created_at))}</td>
-                <td>${escapeHtml(order.member?.name || 'General Customer')}</td>
-                <td>
-                  <div>${escapeHtml(formatPaymentDisplay(order.payment_method, order.payment_provider))}</div>
-                  ${order.payment_notes ? `<div class="muted small">${escapeHtml(order.payment_notes)}</div>` : ''}
-                </td>
-                <td>${order.payment_proof_url ? 'Tersedia' : 'Tidak ada'}</td>
-                <td>${escapeHtml(formatIDR(order.total))}</td>
-              </tr>
-            `
-          )
-          .join('')}
+        ${chunk.map((o) => `
+          <tr>
+            <td class="mono">#${escapeHtml(o.id.slice(0, 8).toUpperCase())}</td>
+            <td class="muted small">${escapeHtml(formatDateTime(o.created_at))}</td>
+            <td>${escapeHtml(o.member?.name || 'Umum')}</td>
+            <td>
+              ${escapeHtml(formatPaymentDisplay(o.payment_method, o.payment_provider))}
+              ${o.payment_notes ? `<div class="muted small">${escapeHtml(o.payment_notes)}</div>` : ''}
+            </td>
+            <td class="${o.payment_proof_url ? 'proof-yes' : 'proof-no'}">${o.payment_proof_url ? '✓' : '–'}</td>
+            <td style="text-align:right;font-weight:600">${escapeHtml(formatIDR(o.total))}</td>
+          </tr>`).join('')}
       </tbody>
-    </table>
-  `
+    </table>`).join('')
 }
 
 function renderProofAppendix(orders: ReportOrder[]): string {
-  const proofOrders = orders.filter((order) => !!order.payment_proof_url)
+  const proofOrders = orders.filter((o) => !!o.payment_proof_url)
+  if (proofOrders.length === 0) return '<div class="empty-block">Tidak ada bukti pembayaran pada periode ini.</div>'
 
-  if (proofOrders.length === 0) {
-    return '<div class="empty-block">Tidak ada lampiran bukti pembayaran pada periode ini.</div>'
-  }
-
-  return proofOrders
-    .map(
-      (order) => `
-        <div class="proof-card">
-          <div class="proof-meta">
-            <div class="proof-order">#${escapeHtml(order.id.slice(0, 8).toUpperCase())}</div>
-            <div>${escapeHtml(formatDateTime(order.created_at))}</div>
-            <div>${escapeHtml(formatPaymentDisplay(order.payment_method, order.payment_provider))}</div>
-            <div>${escapeHtml(formatIDR(order.total))}</div>
-            ${order.payment_notes ? `<div class="muted">${escapeHtml(order.payment_notes)}</div>` : ''}
-          </div>
-          <div class="proof-image-wrap">
-            <img src="${escapeHtml(order.payment_proof_url || '')}" alt="Bukti pembayaran ${escapeHtml(order.id)}" class="proof-image" />
-          </div>
-        </div>
-      `
-    )
-    .join('')
+  return `<div class="proof-grid">` + proofOrders.map((o) => `
+    <div class="proof-card">
+      <img src="${escapeHtml(o.payment_proof_url || '')}" alt="Bukti #${escapeHtml(o.id.slice(0, 8))}" class="proof-image" />
+      <div class="proof-meta">
+        <div class="proof-id">#${escapeHtml(o.id.slice(0, 8).toUpperCase())}</div>
+        <div class="muted small">${escapeHtml(formatDateTime(o.created_at))}</div>
+        <div class="small">${escapeHtml(formatPaymentDisplay(o.payment_method, o.payment_provider))}</div>
+        <div class="proof-total">${escapeHtml(formatIDR(o.total))}</div>
+      </div>
+    </div>`).join('') + `</div>`
 }
 
 export function generateReportHtml(
@@ -381,420 +308,347 @@ export function generateReportHtml(
   options?: { autoPrint?: boolean }
 ): string {
   const { metrics, narrative } = prepareReport(meta, orders)
-  const derivedPeriod = getDerivedPeriod(orders)
   const periodText = getPeriodText(meta, orders)
   const autoPrintScript = options?.autoPrint
-    ? `
-        <script>
-          window.addEventListener('load', function () {
-            setTimeout(function () {
-              window.focus();
-              window.print();
-            }, 900);
-          });
-        </script>
-      `
+    ? `<script>window.addEventListener('load',function(){setTimeout(function(){window.focus();window.print()},900)})</script>`
     : ''
 
-  return `
-    <!DOCTYPE html>
-    <html lang="id">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>${escapeHtml(meta.reportTitle)}</title>
-        <style>
-          @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(meta.reportTitle)}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-          :root {
-            --ink: #142033;
-            --muted: #617089;
-            --line: #d9e0ea;
-            --soft: #f4f6fa;
-            --accent: #173b63;
-            --accent-soft: #dce7f5;
-            --accent-deep: #0f2742;
-            --success: #0b7a55;
-            --paper-shadow: 0 28px 80px -40px rgba(20, 32, 51, 0.35);
-          }
-          * { box-sizing: border-box; }
-          body {
-            margin: 0;
-            font-family: "Poppins", "Helvetica Neue", Helvetica, Arial, sans-serif;
-            color: var(--ink);
-            background:
-              radial-gradient(circle at top left, rgba(220, 231, 245, 0.7), transparent 36%),
-              linear-gradient(180deg, #eef2f7 0%, #e9edf4 100%);
-          }
-          .page {
-            width: 210mm;
-            margin: 0 auto;
-            background: white;
-            padding: 16mm 14mm 18mm;
-            box-shadow: var(--paper-shadow);
-          }
-          .header {
-            border-bottom: 1px solid rgba(20, 32, 51, 0.12);
-            padding-bottom: 9mm;
-            margin-bottom: 8mm;
-          }
-          .eyebrow {
-            text-transform: uppercase;
-            letter-spacing: 0.22em;
-            font-size: 10px;
-            color: var(--accent);
-            margin-bottom: 12px;
-            font-weight: 700;
-          }
-          .title {
-            font-size: 30px;
-            line-height: 1.15;
-            margin: 0;
-            letter-spacing: -0.03em;
-          }
-          .subtitle {
-            margin-top: 12px;
-            color: var(--muted);
-            font-size: 13px;
-            line-height: 1.6;
-            max-width: 760px;
-          }
-          .hero-band {
-            display: grid;
-            grid-template-columns: 1.2fr 0.8fr;
-            gap: 14px;
-            margin-top: 18px;
-            align-items: stretch;
-          }
-          .period-card {
-            padding: 16px 18px;
-            border-radius: 18px;
-            background: linear-gradient(135deg, var(--accent-deep) 0%, var(--accent) 100%);
-            color: white;
-          }
-          .period-label {
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.18em;
-            opacity: 0.7;
-            margin-bottom: 8px;
-            font-weight: 600;
-          }
-          .period-value {
-            font-size: 24px;
-            line-height: 1.25;
-            font-weight: 700;
-            letter-spacing: -0.03em;
-          }
-          .period-footnote {
-            margin-top: 10px;
-            font-size: 12px;
-            line-height: 1.6;
-            color: rgba(255,255,255,0.8);
-          }
-          .meta-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin-top: 0;
-          }
-          .meta-card, .metric-card, .summary-card, .panel {
-            border: 1px solid var(--line);
-            border-radius: 18px;
-            background: #fff;
-          }
-          .meta-card {
-            padding: 14px;
-            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-          }
-          .meta-label, .metric-label {
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.16em;
-            color: var(--muted);
-            margin-bottom: 8px;
-            font-weight: 600;
-          }
-          .meta-value, .metric-value {
-            font-size: 14px;
-            font-weight: 700;
-            line-height: 1.4;
-          }
-          .section {
-            margin-top: 8mm;
-          }
-          .section-title {
-            font-size: 18px;
-            margin: 0 0 14px;
-            letter-spacing: -0.02em;
-          }
-          .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 12px;
-          }
-          .metric-card {
-            padding: 16px;
-            background: linear-gradient(180deg, #fff 0%, #f7f9fd 100%);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
-          }
-          .metric-value {
-            font-size: 23px;
-            letter-spacing: -0.03em;
-          }
-          .summary-layout {
-            display: grid;
-            grid-template-columns: 1.15fr 0.85fr;
-            gap: 16px;
-          }
-          .summary-card {
-            padding: 18px;
-          }
-          .summary-card p {
-            margin: 0 0 12px;
-            line-height: 1.7;
-            font-size: 13px;
-          }
-          .bullet-list {
-            margin: 0;
-            padding-left: 18px;
-          }
-          .bullet-list li {
-            margin-bottom: 10px;
-            line-height: 1.6;
-            font-size: 13px;
-          }
-          .breakdown-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-          }
-          .panel {
-            padding: 18px;
-          }
-          .panel h3 {
-            margin: 0 0 12px;
-            font-size: 15px;
-            letter-spacing: -0.02em;
-          }
-          .breakdown-row {
-            margin-bottom: 12px;
-          }
-          .breakdown-head {
-            display: flex;
-            justify-content: space-between;
-            gap: 12px;
-            font-size: 12px;
-            margin-bottom: 6px;
-          }
-          .breakdown-track {
-            height: 10px;
-            background: #edf1f7;
-            border-radius: 999px;
-            overflow: hidden;
-          }
-          .breakdown-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--accent-deep) 0%, #3d73b8 100%);
-            border-radius: 999px;
-          }
-          .report-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-          }
-          .report-table th,
-          .report-table td {
-            padding: 10px 8px;
-            border: 1px solid var(--line);
-            text-align: left;
-            vertical-align: top;
-          }
-          .report-table th {
-            background: #f6f8fc;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-            font-weight: 700;
-          }
-          .muted {
-            color: var(--muted);
-          }
-          .small {
-            font-size: 11px;
-            line-height: 1.5;
-          }
-          .proof-grid {
-            display: grid;
-            gap: 14px;
-          }
-          .proof-card {
-            display: grid;
-            grid-template-columns: 220px 1fr;
-            gap: 16px;
-            border: 1px solid var(--line);
-            border-radius: 18px;
-            overflow: hidden;
-            page-break-inside: avoid;
-          }
-          .proof-meta {
-            padding: 14px;
-            background: linear-gradient(180deg, #f8fafc 0%, #eef3f9 100%);
-            font-size: 12px;
-            line-height: 1.7;
-          }
-          .proof-order {
-            font-size: 16px;
-            font-weight: 700;
-            margin-bottom: 8px;
-          }
-          .proof-image-wrap {
-            padding: 14px;
-          }
-          .proof-image {
-            width: 100%;
-            height: 240px;
-            object-fit: cover;
-            border-radius: 12px;
-            border: 1px solid var(--line);
-          }
-          .empty-block {
-            border: 1px dashed var(--line);
-            border-radius: 14px;
-            padding: 18px;
-            color: var(--muted);
-            text-align: center;
-            font-size: 13px;
-          }
-          .footer-note {
-            margin-top: 10mm;
-            padding-top: 4mm;
-            border-top: 1px solid var(--line);
-            color: var(--muted);
-            font-size: 11px;
-            line-height: 1.6;
-          }
-          @page {
-            size: A4;
-            margin: 12mm;
-          }
-          @media print {
-            body {
-              background: white;
-            }
-            .page {
-              width: auto;
-              margin: 0;
-              padding: 0;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <main class="page">
-          <header class="header">
-            <div class="eyebrow">Intelligent Aegis Report</div>
-            <h1 class="title">${escapeHtml(meta.reportTitle)}</h1>
-            <div class="subtitle">
-              ${escapeHtml(meta.businessName)}${meta.businessAddress ? ` • ${escapeHtml(meta.businessAddress)}` : ''}<br />
-              Dokumen ini dirangkum otomatis dari pola transaksi, pembayaran, dan bukti pembayaran yang tercatat pada sistem.
-            </div>
-            <div class="hero-band">
-              <div class="period-card">
-                <div class="period-label">Periode Laporan</div>
-                <div class="period-value">${escapeHtml(periodText)}</div>
-                <div class="period-footnote">
-                  Filter aktif: ${escapeHtml(meta.filterLabel)}<br />
-                  Generated: ${escapeHtml(formatDateTime(meta.generatedAt))}
-                </div>
-              </div>
-              <div class="meta-grid">
-                <div class="meta-card">
-                  <div class="meta-label">Tanggal Mulai</div>
-                  <div class="meta-value">${escapeHtml(meta.startDate ? formatShortDate(meta.startDate) : (derivedPeriod.start ? formatShortDate(derivedPeriod.start) : 'Semua data'))}</div>
-                </div>
-                <div class="meta-card">
-                  <div class="meta-label">Tanggal Akhir</div>
-                  <div class="meta-value">${escapeHtml(meta.endDate ? formatShortDate(meta.endDate) : (derivedPeriod.end ? formatShortDate(derivedPeriod.end) : 'Sampai terbaru'))}</div>
-                </div>
-                <div class="meta-card">
-                  <div class="meta-label">Jenis Filter</div>
-                  <div class="meta-value">${escapeHtml(meta.filterLabel)}</div>
-                </div>
-                <div class="meta-card">
-                  <div class="meta-label">Search Query</div>
-                  <div class="meta-value">${escapeHtml(meta.searchQuery || 'Tanpa pencarian')}</div>
-                </div>
-              </div>
-            </div>
-          </header>
+    :root {
+      --ink: #111827;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --soft: #f9fafb;
+      --accent: #1e3a5f;
+      --accent-light: #dbeafe;
+      --success: #065f46;
+    }
 
-          <section class="section">
-            <h2 class="section-title">Executive Metrics</h2>
-            <div class="metrics-grid">${renderMetricCards(metrics)}</div>
-          </section>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
-          <section class="section summary-layout">
-            <div class="summary-card">
-              <h2 class="section-title">Executive Summary</h2>
-              ${narrative.summaryParagraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join('')}
-            </div>
-            <div class="summary-card">
-              <h2 class="section-title">Recommended Actions</h2>
-              <ol class="bullet-list">
-                ${narrative.recommendedActions.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}
-              </ol>
-            </div>
-          </section>
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      color: var(--ink);
+      background: #f3f4f6;
+      font-size: 12px;
+      line-height: 1.5;
+    }
 
-          <section class="section breakdown-grid">
-            <div class="panel">
-              <h3>Payment Method Breakdown</h3>
-              ${renderBreakdownRows(metrics.paymentMethodBreakdown)}
-            </div>
-            <div class="panel">
-              <h3>QRIS Provider Breakdown</h3>
-              ${renderBreakdownRows(metrics.paymentProviderBreakdown)}
-            </div>
-          </section>
+    .page {
+      width: 210mm;
+      margin: 0 auto;
+      background: #fff;
+      padding: 10mm 12mm 12mm;
+    }
 
-          <section class="section summary-layout">
-            <div class="summary-card">
-              <h2 class="section-title">Operational Highlights</h2>
-              <ul class="bullet-list">
-                ${narrative.highlights.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}
-              </ul>
-            </div>
-            <div class="summary-card">
-              <h2 class="section-title">Top Transactions</h2>
-              <ul class="bullet-list">
-                ${metrics.topTransactions.length > 0
-                  ? metrics.topTransactions.map((order) => `<li>#${escapeHtml(order.id.slice(0, 8).toUpperCase())} • ${escapeHtml(formatIDR(order.total))} • ${escapeHtml(formatPaymentDisplay(order.payment_method, order.payment_provider))}</li>`).join('')
-                  : '<li>Belum ada transaksi pada periode ini.</li>'}
-              </ul>
-            </div>
-          </section>
+    /* ── Header ── */
+    .report-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 6mm;
+      border-bottom: 2px solid var(--ink);
+      margin-bottom: 5mm;
+      gap: 16px;
+    }
+    .report-header-left { flex: 1; }
+    .report-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .report-title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+    }
+    .report-biz {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+    .report-header-right {
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .period-badge {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .report-meta-line {
+      font-size: 9px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
 
-          <section class="section">
-            <h2 class="section-title">Detailed Transaction Register</h2>
-            ${renderTransactionTable(orders)}
-          </section>
+    /* ── Metric Cards ── */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 5mm;
+    }
+    .metric-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: var(--soft);
+    }
+    .metric-label {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .metric-value {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
 
-          <section class="section">
-            <h2 class="section-title">Payment Proof Appendix</h2>
-            <div class="proof-grid">
-              ${renderProofAppendix(orders)}
-            </div>
-          </section>
+    /* ── Two-col summary ── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 5mm;
+    }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .panel-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .panel p, .panel li {
+      font-size: 11px;
+      line-height: 1.55;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+    .panel ul, .panel ol {
+      padding-left: 14px;
+    }
 
-          <footer class="footer-note">
-            Report ini disusun otomatis dari data transaksi pada sistem POS. Untuk arsip resmi, gunakan fitur Print atau Save as PDF dari browser setelah dokumen ini terbuka.
-            <br />
-            Powered by SocialBrand1980
-          </footer>
-        </main>
-        ${autoPrintScript}
-      </body>
-    </html>
-  `
+    /* ── Breakdown bars ── */
+    .breakdown-row { margin-bottom: 8px; }
+    .breakdown-head {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      margin-bottom: 3px;
+    }
+    .breakdown-track {
+      height: 6px;
+      background: var(--line);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .breakdown-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 999px;
+    }
+
+    /* ── Section label ── */
+    .section-header {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      margin-bottom: 5px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--line);
+    }
+    .section { margin-bottom: 5mm; }
+
+    /* ── Transaction table ── */
+    .report-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      margin-bottom: 4mm;
+    }
+    .report-table th {
+      background: var(--soft);
+      padding: 6px 8px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+    }
+    .report-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: middle;
+    }
+    .report-table tr:last-child td { border-bottom: none; }
+    .mono { font-family: monospace; font-size: 10px; color: var(--muted); }
+    .proof-yes { color: var(--success); font-weight: 700; text-align: center; }
+    .proof-no { color: #9ca3af; text-align: center; }
+    .page-break-before { page-break-before: always; }
+
+    /* ── Proof appendix ── */
+    .proof-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .proof-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      page-break-inside: avoid;
+    }
+    .proof-image {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      display: block;
+      background: var(--soft);
+    }
+    .proof-meta {
+      padding: 7px 8px;
+      background: var(--soft);
+    }
+    .proof-id { font-weight: 700; font-size: 11px; margin-bottom: 2px; font-family: monospace; }
+    .proof-total { font-weight: 600; font-size: 11px; margin-top: 2px; }
+
+    /* ── Utilities ── */
+    .muted { color: var(--muted); }
+    .small { font-size: 10px; }
+    .empty-block {
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 11px;
+    }
+    .footer-note {
+      margin-top: 6mm;
+      padding-top: 3mm;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 9px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    @page { size: A4; margin: 8mm; }
+    @media print {
+      body { background: white; }
+      .page { width: auto; margin: 0; padding: 0; box-shadow: none; }
+      .section { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+
+    <!-- Header -->
+    <header class="report-header">
+      <div class="report-header-left">
+        <div class="report-label">AEGIS POS · Sales Report</div>
+        <div class="report-title">${escapeHtml(meta.reportTitle)}</div>
+        <div class="report-biz">${escapeHtml(meta.businessName)}${meta.businessAddress ? ` · ${escapeHtml(meta.businessAddress)}` : ''}${meta.businessPhone ? ` · ${escapeHtml(meta.businessPhone)}` : ''}</div>
+      </div>
+      <div class="report-header-right">
+        <div class="period-badge">${escapeHtml(periodText)}</div>
+        <div class="report-meta-line">
+          Filter: ${escapeHtml(meta.filterLabel)}<br/>
+          Generated: ${escapeHtml(formatDateTime(meta.generatedAt))}${meta.searchQuery ? `<br/>Query: ${escapeHtml(meta.searchQuery)}` : ''}
+        </div>
+      </div>
+    </header>
+
+    <!-- Metrics -->
+    <div class="metrics-grid">${renderMetricCards(metrics)}</div>
+
+    <!-- Summary + Actions -->
+    <div class="two-col section">
+      <div class="panel">
+        <div class="panel-title">Ringkasan</div>
+        ${narrative.summaryParagraphs.map((p) => `<p>${escapeHtml(p)}</p>`).join('')}
+        <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--line)">
+          ${narrative.highlights.map((h) => `<p>· ${escapeHtml(h)}</p>`).join('')}
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Rekomendasi</div>
+        <ol style="padding-left:14px">
+          ${narrative.recommendedActions.map((a) => `<li>${escapeHtml(a)}</li>`).join('')}
+        </ol>
+        <div style="margin-top:8px">
+          <div class="panel-title" style="margin-bottom:4px">Top Transaksi</div>
+          ${metrics.topTransactions.length > 0
+            ? metrics.topTransactions.map((o) => `<p class="small">· #${escapeHtml(o.id.slice(0, 8).toUpperCase())} &nbsp;${escapeHtml(formatIDR(o.total))} &nbsp;<span class="muted">${escapeHtml(formatPaymentDisplay(o.payment_method, o.payment_provider))}</span></p>`).join('')
+            : '<p class="small muted">Belum ada transaksi.</p>'}
+        </div>
+      </div>
+    </div>
+
+    <!-- Payment Breakdown -->
+    <div class="two-col section">
+      <div class="panel">
+        <div class="panel-title">Metode Pembayaran</div>
+        ${renderBreakdownRows(metrics.paymentMethodBreakdown)}
+      </div>
+      <div class="panel">
+        <div class="panel-title">QRIS Provider</div>
+        ${renderBreakdownRows(metrics.paymentProviderBreakdown)}
+      </div>
+    </div>
+
+    <!-- Transaction Table -->
+    <div class="section">
+      <div class="section-header">Daftar Transaksi (${orders.length})</div>
+      ${renderTransactionTable(orders)}
+    </div>
+
+    <!-- Proof Appendix -->
+    <div class="section">
+      <div class="section-header">Lampiran Bukti Pembayaran</div>
+      ${renderProofAppendix(orders)}
+    </div>
+
+    <footer class="footer-note">
+      <span>Dicetak otomatis dari AEGIS POS · Powered by SocialBrand1980</span>
+      <span>${escapeHtml(formatDateTime(meta.generatedAt))}</span>
+    </footer>
+
+  </main>
+  ${autoPrintScript}
+</body>
+</html>`
 }
