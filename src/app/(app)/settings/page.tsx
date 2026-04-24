@@ -69,39 +69,40 @@ function MemberPointsCard({ settings, setSettings }: { settings: any; setSetting
             </div>
 
             {enabled && (
-              <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                {[
-                  { key: 'points_earn_rate', label: 'Earn Rate', desc: 'belanja per 1 poin', prefix: 'Rp', step: 1000, min: 1000, defaultVal: 10000 },
-                  { key: 'points_redeem_rate', label: 'Nilai Poin', desc: 'diskon per 1 poin', prefix: 'Rp', step: 50, min: 50, defaultVal: 100 },
-                  { key: 'points_min_redeem', label: 'Min. Redeem', desc: 'poin minimum untuk redeem', prefix: '', step: 5, min: 1, defaultVal: 20 },
-                ].map(({ key, label, desc, prefix, step, min, defaultVal }) => {
-                  const val = Number(settings?.[key] ?? defaultVal)
-                  return (
-                    <div key={key} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{label}</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">{desc}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setSettings({ ...settings, [key]: Math.max(min, val - step) })}
-                          className="w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 font-black text-base flex items-center justify-center transition-colors"
-                        >−</button>
-                        <div className="w-24 text-center">
-                          <span className="text-sm font-black text-slate-900">
-                            {prefix}{val.toLocaleString('id-ID')}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setSettings({ ...settings, [key]: val + step })}
-                          className="w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 font-black text-base flex items-center justify-center transition-colors"
-                        >+</button>
-                      </div>
-                    </div>
-                  )
-                })}
+              <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Earn Rate</Label>
+                  <p className="text-[10px] text-slate-400">Setiap belanja Rp berapa = 1 poin</p>
+                  <Input
+                    type="number"
+                    value={settings?.points_earn_rate ?? 10000}
+                    onChange={(e) => setSettings({ ...settings, points_earn_rate: Number(e.target.value) })}
+                    className="h-10 text-sm font-bold rounded-xl border-slate-200"
+                    min={1}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Nilai Poin (Redeem Rate)</Label>
+                  <p className="text-[10px] text-slate-400">1 poin = Rp berapa diskon</p>
+                  <Input
+                    type="number"
+                    value={settings?.points_redeem_rate ?? 100}
+                    onChange={(e) => setSettings({ ...settings, points_redeem_rate: Number(e.target.value) })}
+                    className="h-10 text-sm font-bold rounded-xl border-slate-200"
+                    min={1}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Minimum Redeem</Label>
+                  <p className="text-[10px] text-slate-400">Poin minimum untuk bisa redeem</p>
+                  <Input
+                    type="number"
+                    value={settings?.points_min_redeem ?? 20}
+                    onChange={(e) => setSettings({ ...settings, points_min_redeem: Number(e.target.value) })}
+                    className="h-10 text-sm font-bold rounded-xl border-slate-200"
+                    min={1}
+                  />
+                </div>
               </div>
             )}
           </div>
