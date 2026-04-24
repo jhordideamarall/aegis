@@ -6,11 +6,13 @@
 
 ## Overview
 
-Tiga inisiatif besar yang akan dikerjakan secara bertahap:
+Inisiatif yang akan dikerjakan secara bertahap:
 
 1. **AI Chat Page** — Halaman chat AI full-featured dengan kemampuan render visual
-2. **Mobile App** (Android & iOS) — AI dispatcher + user management untuk owner
-3. **Desktop App** (Mac & Windows) — Full POS experience di native desktop
+2. **Dark Mode** — Toggle light/dark seluruh web app
+3. **Multi-Store** — Satu dashboard untuk semua cabang
+4. **Mobile App** (Android & iOS) — AI dispatcher + user management untuk owner, menggunakan React Native
+5. **Desktop** — Cukup gunakan web browser (tidak ada native desktop app)
 
 ---
 
@@ -44,7 +46,10 @@ AI bisa menghasilkan berbagai format — frontend harus bisa menampilkan semua:
 | **HTML interaktif** | Sandboxed iframe | `<iframe srcdoc>` dengan sandbox |
 | **Tabel data** | Styled table component | Custom component |
 | **Code block** | Syntax highlighting | `react-syntax-highlighter` |
+| **shadcn/ui components** | Render JSX langsung | `shadcn` sudah terinstall (v4.4.0) |
 | **Laporan PDF** | Export on demand | `jspdf` + `html2canvas` |
+
+> **shadcn advantage:** AI bisa generate Card, Badge, Table, Chart, Alert, Progress, dll langsung pakai shadcn components yang sudah ada — output lebih polished dan konsisten dengan design system AEGIS tanpa library tambahan.
 
 ### Cara AI Tahu Harus Render Apa
 AI diberi instruksi di system prompt untuk membungkus output khusus dalam tag:
@@ -55,6 +60,7 @@ AI diberi instruksi di system prompt untuk membungkus output khusus dalam tag:
 [SVG]<svg>...</svg>[/SVG]
 [HTML]<div>...</div>[/HTML]
 [TABLE]{"headers":["Produk","Stok"],"rows":[["Kopi",10]]}[/TABLE]
+[SHADCN]<Card><CardContent>...</CardContent></Card>[/SHADCN]
 ```
 
 Frontend parser mendeteksi tag ini dan merender komponen yang sesuai.
@@ -101,10 +107,11 @@ src/app/api/ai/
 ### Tujuan
 Aplikasi native untuk **owner** sebagai alat kontrol bisnis dari genggaman. Fokus pada: monitoring real-time, AI dispatcher, dan manajemen user/staff.
 
-### Tech Stack: Flutter
+### Tech Stack: React Native (Expo)
 - Satu codebase untuk Android & iOS
-- Performa native
-- UI yang konsisten dengan design AEGIS
+- Developer experience familiar — pakai React & TypeScript (sama dengan web)
+- Expo managed workflow untuk build & deploy yang mudah
+- Bisa share logic (types, utils, API calls) dengan web app
 
 ### Target User
 **Owner only** — bukan kasir, bukan staff biasa.
@@ -153,29 +160,30 @@ Fitur:
 - Approve/reject aksi CRUD yang dipending AI
 - Lihat dan cetak laporan (PDF via share sheet)
 
-### Route Structure (Flutter)
+### Route Structure (React Native / Expo Router)
 ```
-lib/
-├── main.dart
+mobile/
 ├── app/
-│   ├── router.dart              ← GoRouter
-│   └── theme.dart               ← Design tokens (sama dengan web)
+│   ├── (auth)/
+│   │   └── login.tsx            ← Login dengan Supabase Auth
+│   ├── (app)/
+│   │   ├── _layout.tsx          ← Tab navigator
+│   │   ├── index.tsx            ← Dashboard overview
+│   │   ├── ai.tsx               ← AI Dispatcher chat
+│   │   ├── users/
+│   │   │   ├── index.tsx        ← Daftar staff & role
+│   │   │   ├── invite.tsx       ← Kirim invite
+│   │   │   └── [id].tsx         ← Detail & edit role
+│   │   ├── notifications.tsx    ← Push notification center
+│   │   └── settings.tsx         ← App settings
+│   └── _layout.tsx              ← Root layout
 │
-├── features/
-│   ├── auth/                    ← Login dengan Supabase Auth
-│   ├── dashboard/               ← Overview metrics
-│   ├── ai/                      ← AI Dispatcher chat interface
-│   ├── users/                   ← Staff management
-│   │   ├── list/                ← Daftar user & role
-│   │   ├── invite/              ← Kirim invite
-│   │   └── detail/              ← Detail & edit role
-│   ├── notifications/           ← Push notification center
-│   └── settings/                ← App settings (push prefs, dll)
-│
-├── core/
-│   ├── api/                     ← HTTP client (Dio)
-│   ├── supabase/                ← Supabase Flutter SDK
-│   └── models/                  ← Data models (shared)
+├── components/                  ← Shared UI components
+├── lib/
+│   ├── supabase.ts              ← Supabase client (reuse config dari web)
+│   ├── api.ts                   ← API calls ke AEGIS backend
+│   └── types.ts                 ← Shared types (bisa sync dengan web)
+└── app.json                     ← Expo config
 ```
 
 ### Backend yang Perlu Ditambah (untuk Mobile)
@@ -222,50 +230,6 @@ CREATE TABLE push_tokens (
 ```
 
 ---
-
-## Phase 3 — Desktop App (Mac & Windows)
-
-### Tujuan
-Memberikan pengalaman POS yang native di desktop — lebih cepat, bisa offline, dan support hardware kasir (printer, barcode scanner, cash drawer).
-
-### Tech Stack: Tauri (Rust + Next.js)
-- Wrapper native untuk web app yang sudah ada
-- Ukuran bundle jauh lebih kecil dibanding Electron
-- Akses ke native API (printer, filesystem, serial port)
-- Satu codebase untuk Mac & Windows
-
-### Keunggulan vs Web Browser
-| Fitur | Web | Desktop |
-|---|---|---|
-| Offline mode | Tidak | Ya (SQLite local cache) |
-| Thermal printer direct | Via browser print | Via native serial/USB |
-| Barcode scanner | Via input hijack | Via native HID |
-| Cash drawer | Tidak | Via serial port |
-| Auto-start saat boot | Tidak | Ya |
-| Keyboard shortcut global | Terbatas | Full control |
-| Update otomatis | Ya (web) | Via Tauri updater |
-
-### Fitur Tambahan Desktop
-- [ ] Offline mode dengan sync saat online
-- [ ] Direct print ke thermal printer (bypass browser print dialog)
-- [ ] Barcode scanner integration
-- [ ] Cash drawer trigger
-- [ ] Multi-monitor support (POS di monitor 1, dashboard di monitor 2)
-- [ ] Auto-start on login (mode kiosk untuk kasir)
-- [ ] Global shortcut Cmd+K / Ctrl+K untuk AI (bahkan dari luar window)
-
-### Structure
-```
-src-tauri/
-├── Cargo.toml
-├── tauri.conf.json
-└── src/
-    ├── main.rs                  ← App entry
-    ├── printer.rs               ← Direct thermal printer
-    ├── scanner.rs               ← Barcode scanner HID
-    ├── drawer.rs                ← Cash drawer serial
-    └── updater.rs               ← Auto-update handler
-```
 
 ---
 
@@ -446,15 +410,12 @@ Phase 5: Multi-Store
   └── Prerequisite: schema migration ke organizations
   └── Output: store switcher di sidebar, aggregate dashboard
 
-Phase 2: Mobile App
-  └── 6–8 minggu
+Phase 2: Mobile App (React Native / Expo)
+  └── 5–7 minggu
   └── Prerequisite: Phase 5 (multi-store) + User management API
-  └── Output: Flutter app di App Store & Play Store
+  └── Output: App di App Store & Play Store
 
-Phase 3: Desktop App
-  └── 3–4 minggu
-  └── Prerequisite: Web app stabil (Phase 1, 4, 5 selesai)
-  └── Output: .dmg (Mac) + .exe installer (Windows)
+Desktop: Gunakan web browser — tidak ada native desktop app
 ```
 
 ---
@@ -475,24 +436,56 @@ npm install dompurify @types/dompurify
 npm install next-themes
 ```
 
-### Phase 2 (Flutter)
-```yaml
-# pubspec.yaml
-dependencies:
-  flutter_riverpod: ^2.x
-  go_router: ^13.x
-  supabase_flutter: ^2.x
-  dio: ^5.x
-  firebase_messaging: ^15.x  # Push notifications
-  flutter_local_notifications: ^17.x
-  speech_to_text: ^6.x       # Voice input untuk AI dispatcher
-  fl_chart: ^0.68.x           # Charts
+### Phase 2 (React Native / Expo)
+```bash
+npx create-expo-app@latest mobile --template blank-typescript
+npx expo install expo-router @supabase/supabase-js
+npx expo install expo-notifications expo-speech
+npx expo install react-native-gifted-charts
 ```
 
-### Phase 3 (Tauri)
-```bash
-npm install @tauri-apps/cli @tauri-apps/api
-cargo install tauri-cli
+---
+
+## PWA Polish — Install Experience (Quick Win)
+
+Web app sudah bisa diinstall via tombol "Install" di browser (PWA sudah aktif). Yang perlu dipoles agar pengalaman install terasa premium dan bersih:
+
+### Yang Perlu Diperbaiki
+
+#### 1. Web App Manifest (`public/manifest.json`)
+- [ ] `name` & `short_name` yang tepat: "AEGIS POS"
+- [ ] `description` yang jelas
+- [ ] Icons resolusi lengkap: 192x192, 512x512, maskable icon
+- [ ] `theme_color` sesuai brand (slate-900 / `#0f172a`)
+- [ ] `background_color` untuk splash screen
+- [ ] `display: "standalone"` — hide browser UI saat diinstall
+- [ ] `start_url`: `/dashboard`
+- [ ] `screenshots` untuk install prompt yang lebih rich (mobile)
+
+#### 2. Custom Install Prompt
+Browser default install prompt terlalu generic. Ganti dengan custom banner yang on-brand:
+- Deteksi `beforeinstallprompt` event
+- Sembunyikan prompt browser, tampilkan banner custom AEGIS
+- Banner: "Install AEGIS POS untuk akses lebih cepat" + tombol Install
+- Muncul di landing page atau setelah login pertama
+
+#### 3. Splash Screen & App Icon
+- Icon AEGIS yang benar (bukan browser favicon generic)
+- Splash screen dengan background gelap + logo centered
+- Status bar color di Android sesuai theme
+
+#### 4. Files yang Terdampak
+```
+public/
+├── manifest.json          ← UPDATE: lengkapi semua field
+├── icon-192.png           ← BUAT: icon app 192px
+├── icon-512.png           ← BUAT: icon app 512px
+└── icon-maskable.png      ← BUAT: icon dengan safe zone untuk Android
+
+src/components/
+└── InstallBanner.tsx      ← BUAT: custom install prompt component
+
+src/app/layout.tsx         ← Tambah link rel manifest + theme-color meta
 ```
 
 ---
