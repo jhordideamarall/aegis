@@ -93,7 +93,9 @@ function PaymentModal({
 
   const redemptionPoints = minRedeem
   const redeemable = pointsEnabled && points >= redemptionPoints
-  const maxRedeemable = redeemable ? Math.floor(points / redemptionPoints) * redemptionPoints : 0
+  const maxRedeemable = redeemable ? points : 0
+  // Poin optimal: cukup untuk menutup total transaksi, tidak lebih dari yang tersedia
+  const optimalRedeem = Math.min(Math.floor(total / redeemRate), maxRedeemable)
 
   const pointsUsed = Math.min(Math.max(redeemPoints, 0), maxRedeemable)
   const pointsDiscount = pointsUsed > 0 ? Math.min(pointsUsed * redeemRate, total) : 0
@@ -125,38 +127,32 @@ function PaymentModal({
               <MemberCombobox businessId={businessId} selectedMember={member} onSelect={(m) => onAddMember(m)} onCreateNew={() => setShowAddMember(true)} />
               
               {member && pointsEnabled && (
-                <div className="mt-4 p-4 bg-white rounded-2xl border border-slate-100 animate-in fade-in slide-in-from-top-2">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <Gift size={16} className="text-blue-500" />
-                      <span className="text-[11px] font-black uppercase text-slate-600">Points Available</span>
-                    </div>
-                    <span className="text-sm font-black text-blue-600">{points.toLocaleString()} PTS</span>
-                  </div>
-                  
+                <div className="mt-3 animate-in fade-in slide-in-from-top-2">
                   {redeemable ? (
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                        <span>Use Points</span>
-                        <span>Max {maxRedeemable.toLocaleString()}</span>
+                    <button
+                      type="button"
+                      onClick={() => setRedeemPoints(redeemPoints > 0 ? 0 : optimalRedeem)}
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border transition-all ${redeemPoints > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-100 hover:border-slate-200'}`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Gift size={15} className={redeemPoints > 0 ? 'text-emerald-500' : 'text-slate-300'} />
+                        <div className="text-left">
+                          <p className={`text-[11px] font-black uppercase tracking-widest ${redeemPoints > 0 ? 'text-emerald-700' : 'text-slate-500'}`}>
+                            {redeemPoints > 0 ? `Pakai ${pointsUsed.toLocaleString()} poin` : 'Gunakan Poin'}
+                          </p>
+                          <p className={`text-[10px] mt-0.5 ${redeemPoints > 0 ? 'text-emerald-500' : 'text-slate-300'}`}>
+                            {redeemPoints > 0 ? `-${formatIDR(pointsDiscount)}` : `${points.toLocaleString()} poin tersedia`}
+                          </p>
+                        </div>
                       </div>
-                      <Input 
-                        type="number" 
-                        value={redeemPoints || ''} 
-                        onChange={(e) => {
-                          const val = e.target.value === '' ? 0 : parseInt(e.target.value)
-                          setRedeemPoints(Math.min(val, maxRedeemable))
-                        }}
-                        placeholder="Points to use..."
-                        className="h-10 text-sm font-black rounded-xl border-slate-200"
-                      />
-                      <div className="p-2 bg-emerald-50 rounded-lg text-center">
-                        <p className="text-[10px] font-black text-emerald-600 uppercase">Discount: -{formatIDR(pointsUsed * redeemRate)}</p>
+                      <div className={`w-10 h-6 rounded-full transition-all flex items-center px-0.5 ${redeemPoints > 0 ? 'bg-emerald-500 justify-end' : 'bg-slate-200 justify-start'}`}>
+                        <div className="w-5 h-5 rounded-full bg-white shadow-sm" />
                       </div>
-                    </div>
+                    </button>
                   ) : (
-                    <div className="p-3 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                      <p className="text-[10px] text-slate-400 font-medium text-center">Min. {redemptionPoints} pts required to redeem</p>
+                    <div className="flex items-center gap-2.5 px-4 py-3 bg-white rounded-2xl border border-slate-100">
+                      <Gift size={15} className="text-slate-200" />
+                      <p className="text-[10px] text-slate-300 font-medium">Min. {redemptionPoints} poin untuk redeem · Saat ini {points.toLocaleString()} poin</p>
                     </div>
                   )}
                 </div>

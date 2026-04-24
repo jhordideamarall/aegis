@@ -69,51 +69,39 @@ function MemberPointsCard({ settings, setSettings }: { settings: any; setSetting
             </div>
 
             {enabled && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Earn Rate</Label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-slate-400 shrink-0">Setiap Rp</span>
-                    <Input
-                      type="number"
-                      value={settings?.points_earn_rate ?? 10000}
-                      onChange={(e) => setSettings({ ...settings, points_earn_rate: Number(e.target.value) })}
-                      className="h-10 text-xs font-black w-28 rounded-xl border-slate-200"
-                      min={1}
-                    />
-                    <span className="text-[10px] font-bold text-slate-400 shrink-0">belanja = 1 poin</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Redeem Rate</Label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-slate-400 shrink-0">1 poin =</span>
-                    <span className="text-[10px] font-bold text-slate-400 shrink-0">Rp</span>
-                    <Input
-                      type="number"
-                      value={settings?.points_redeem_rate ?? 100}
-                      onChange={(e) => setSettings({ ...settings, points_redeem_rate: Number(e.target.value) })}
-                      className="h-10 text-xs font-black w-24 rounded-xl border-slate-200"
-                      min={1}
-                    />
-                    <span className="text-[10px] font-bold text-slate-400 shrink-0">diskon</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Minimum Redeem</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      value={settings?.points_min_redeem ?? 20}
-                      onChange={(e) => setSettings({ ...settings, points_min_redeem: Number(e.target.value) })}
-                      className="h-10 text-xs font-black w-24 rounded-xl border-slate-200"
-                      min={1}
-                    />
-                    <span className="text-[10px] font-bold text-slate-400">poin minimum untuk mulai redeem</span>
-                  </div>
-                </div>
+              <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                {[
+                  { key: 'points_earn_rate', label: 'Earn Rate', desc: 'belanja per 1 poin', prefix: 'Rp', step: 1000, min: 1000, defaultVal: 10000 },
+                  { key: 'points_redeem_rate', label: 'Nilai Poin', desc: 'diskon per 1 poin', prefix: 'Rp', step: 50, min: 50, defaultVal: 100 },
+                  { key: 'points_min_redeem', label: 'Min. Redeem', desc: 'poin minimum untuk redeem', prefix: '', step: 5, min: 1, defaultVal: 20 },
+                ].map(({ key, label, desc, prefix, step, min, defaultVal }) => {
+                  const val = Number(settings?.[key] ?? defaultVal)
+                  return (
+                    <div key={key} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{label}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{desc}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSettings({ ...settings, [key]: Math.max(min, val - step) })}
+                          className="w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 font-black text-base flex items-center justify-center transition-colors"
+                        >−</button>
+                        <div className="w-24 text-center">
+                          <span className="text-sm font-black text-slate-900">
+                            {prefix}{val.toLocaleString('id-ID')}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSettings({ ...settings, [key]: val + step })}
+                          className="w-8 h-8 rounded-xl bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 font-black text-base flex items-center justify-center transition-colors"
+                        >+</button>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
