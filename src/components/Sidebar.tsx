@@ -17,7 +17,6 @@ import {
   MessageSquare,
   Cpu
 } from 'lucide-react'
-import { InstagramIcon, ShopeeIcon, TikTokIcon } from '@/components/ui/brand-icons'
 import { useState } from 'react'
 
 interface Business {
@@ -60,7 +59,7 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
   ]
 
   const aiNavItems = [
-    { href: '/ai/chat', label: 'ChatAegis', icon: MessageSquare },
+    { href: '/ai/chat', label: 'ChatAegis', icon: MessageSquare, badge: 'Beta' },
     { href: '/ai/mcp', label: 'MCP Server', icon: Cpu },
   ]
 
@@ -191,6 +190,9 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
                       }`}
                     >
                       <span className="text-sm font-medium">{item.label}</span>
+                      {'badge' in item && item.badge && (
+                        <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600">{item.badge}</span>
+                      )}
                     </Link>
                   </li>
                 )
