@@ -1,28 +1,16 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, useRef, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { getClientCache, setClientCache } from '@/lib/clientCache'
 import {
   PAYMENT_METHOD_OPTIONS,
   formatPaymentDisplay,
-  getPaymentMethodBadgeColor
 } from '@/lib/payments'
 import { supabase } from '@/lib/supabase'
 import { formatIDR, toLocalISODate } from '@/lib/utils'
 import ReceiptPrinter from '@/components/ReceiptPrinter'
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Search, 
-  ShoppingCart, 
-  TrendingUp, 
-  DollarSign, 
-  Calendar as CalendarIcon, 
-  Loader2, 
-  Clock 
-} from 'lucide-react'
+import { Search, ShoppingCart, TrendingUp, DollarSign, Loader2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -86,6 +74,7 @@ function OrdersContent() {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [summaryTotalRevenue, setSummaryTotalRevenue] = useState(0)
   const [summaryTotalOrders, setSummaryTotalOrders] = useState(0)
   const [paymentMethod, setPaymentMethod] = useState<string>('all')
@@ -93,9 +82,28 @@ function OrdersContent() {
     from: new Date(),
     to: new Date()
   })
-  
+  const tokenRef = useRef<string>('')
+  const fetchIdRef = useRef(0)
+
   const limit = 20
   const isLoading = loading || fetching
+
+  // Debounce search — 350ms
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(searchQuery); setPage(1) }, 350)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
+  // Cache session token — refresh only when stale
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      tokenRef.current = session?.access_token || ''
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      tokenRef.current = session?.access_token || ''
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   useEffect(() => {
     if (!loading && business) {
@@ -104,10 +112,12 @@ function OrdersContent() {
       const orderId = searchParams.get('id')
       if (printParam === 'true' && orderId) fetchOrderDetail(orderId)
     }
-  }, [loading, business, filter, page, searchQuery, customDate, paymentMethod, searchParams])
+  }, [loading, business, filter, page, debouncedSearch, customDate, paymentMethod])
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     if (!business) return
+    const fetchId = ++fetchIdRef.current
+    setFetching(true)
     try {
       const today = toLocalISODate()
       let startDate = ''
@@ -118,29 +128,29 @@ function OrdersContent() {
         endDate = customDate.to ? toLocalISODate(customDate.to) : startDate
       }
 
-      const url = buildOrdersApiUrl({ businessId: business.id, page, limit, today, filter, startDate, endDate, paymentMethod, searchQuery })
-      const { data: { session } } = await supabase.auth.getSession()
-      const res = await fetch(url, { headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} })
-      if (res.ok) {
+      const url = buildOrdersApiUrl({ businessId: business.id, page, limit, today, filter, startDate, endDate, paymentMethod, searchQuery: debouncedSearch })
+      const res = await fetch(url, { headers: tokenRef.current ? { Authorization: `Bearer ${tokenRef.current}` } : {} })
+      if (res.ok && fetchId === fetchIdRef.current) {
         const result = await res.json()
         setOrders(result.data || [])
         setTotal(result.total || 0)
         setSummaryTotalRevenue(result.summary?.totalRevenue || 0)
         setSummaryTotalOrders(result.summary?.totalOrders || 0)
       }
-    } catch (error) {} finally { setFetching(false) }
-  }
+    } catch { } finally {
+      if (fetchId === fetchIdRef.current) setFetching(false)
+    }
+  }, [business, filter, page, debouncedSearch, customDate, paymentMethod])
 
   const fetchOrderDetail = async (orderId: string) => {
     if (!business) return
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const res = await fetch(`/api/orders/${orderId}?business_id=${business.id}`, { headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} })
+      const res = await fetch(`/api/orders/${orderId}?business_id=${business.id}`, { headers: tokenRef.current ? { Authorization: `Bearer ${tokenRef.current}` } : {} })
       if (res.ok) {
         setSelectedOrder(await res.json())
         setShowReceipt(true)
       }
-    } catch (error) {}
+    } catch { }
   }
 
   const totalPages = Math.max(1, Math.ceil(total / limit))
@@ -200,7 +210,7 @@ function OrdersContent() {
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              <Input placeholder="Search ID..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }} className="pl-9 h-10 text-xs bg-white rounded-xl border-slate-200 shadow-sm" />
+              <Input placeholder="Search ID..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-10 text-xs bg-white rounded-xl border-slate-200 shadow-sm" />
             </div>
             
             <div className="flex items-center gap-2 bg-slate-200/50 p-1 rounded-xl">
@@ -246,7 +256,12 @@ function OrdersContent() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto relative">
+          {fetching && orders.length > 0 && (
+            <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center pointer-events-none">
+              <Loader2 className="animate-spin text-slate-300 h-5 w-5" />
+            </div>
+          )}
           <Table>
             <TableHeader className="bg-slate-50/30">
               <TableRow className="border-none">

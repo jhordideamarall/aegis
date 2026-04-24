@@ -58,6 +58,9 @@ interface PaymentModalProps {
   taxRate: number
   serviceEnabled: boolean
   serviceRate: number
+  pointsEnabled: boolean
+  redeemRate: number
+  minRedeem: number
   onClose: () => void
   onConfirm: (payment: PaymentSubmission, redeemPoints: number) => void
   onAddMember: (member: Member | null) => void
@@ -72,6 +75,9 @@ function PaymentModal({
   taxRate,
   serviceEnabled,
   serviceRate,
+  pointsEnabled,
+  redeemRate,
+  minRedeem,
   onClose,
   onConfirm,
   onAddMember,
@@ -85,12 +91,12 @@ function PaymentModal({
   const [processing, setProcessing] = useState(false)
   const [showAddMember, setShowAddMember] = useState(false)
 
-  const redemptionPoints = 20
-  const redeemable = points >= redemptionPoints
+  const redemptionPoints = minRedeem
+  const redeemable = pointsEnabled && points >= redemptionPoints
   const maxRedeemable = redeemable ? Math.floor(points / redemptionPoints) * redemptionPoints : 0
-  
+
   const pointsUsed = Math.min(Math.max(redeemPoints, 0), maxRedeemable)
-  const pointsDiscount = pointsUsed > 0 ? Math.min(pointsUsed * 100, total) : 0
+  const pointsDiscount = pointsUsed > 0 ? Math.min(pointsUsed * redeemRate, total) : 0
   const taxableBase = Math.max(total - pointsDiscount, 0)
   const taxAmount = taxEnabled ? Math.round((taxableBase * taxRate) / 100) : 0
   const serviceAmount = serviceEnabled ? Math.round((taxableBase * serviceRate) / 100) : 0
@@ -118,7 +124,7 @@ function PaymentModal({
               <Label className="text-[10px] font-bold uppercase text-slate-400 mb-2 block">Customer Member</Label>
               <MemberCombobox businessId={businessId} selectedMember={member} onSelect={(m) => onAddMember(m)} onCreateNew={() => setShowAddMember(true)} />
               
-              {member && (
+              {member && pointsEnabled && (
                 <div className="mt-4 p-4 bg-white rounded-2xl border border-slate-100 animate-in fade-in slide-in-from-top-2">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
@@ -145,7 +151,7 @@ function PaymentModal({
                         className="h-10 text-sm font-black rounded-xl border-slate-200"
                       />
                       <div className="p-2 bg-emerald-50 rounded-lg text-center">
-                        <p className="text-[10px] font-black text-emerald-600 uppercase">Discount: -{formatIDR(pointsUsed * 100)}</p>
+                        <p className="text-[10px] font-black text-emerald-600 uppercase">Discount: -{formatIDR(pointsUsed * redeemRate)}</p>
                       </div>
                     </div>
                   ) : (
@@ -159,7 +165,7 @@ function PaymentModal({
 
             <div className="bg-slate-900 text-white p-6 rounded-2xl space-y-3 shadow-xl">
               <div className="flex justify-between text-[11px] font-black uppercase text-slate-400 tracking-widest"><span>Subtotal</span><span>{formatIDR(total)}</span></div>
-              {pointsUsed > 0 && <div className="flex justify-between text-[11px] font-black uppercase text-emerald-400 tracking-widest"><span>Points Discount</span><span>-{formatIDR(pointsUsed * 100)}</span></div>}
+              {pointsUsed > 0 && <div className="flex justify-between text-[11px] font-black uppercase text-emerald-400 tracking-widest"><span>Points Discount</span><span>-{formatIDR(pointsUsed * redeemRate)}</span></div>}
               {taxEnabled && <div className="flex justify-between text-[11px] font-black uppercase text-slate-400 tracking-widest"><span>Tax ({taxRate}%)</span><span>{formatIDR(taxAmount)}</span></div>}
               {serviceEnabled && <div className="flex justify-between text-[11px] font-black uppercase text-slate-400 tracking-widest"><span>Service ({serviceRate}%)</span><span>{formatIDR(serviceAmount)}</span></div>}
               <div className="border-t border-slate-800 pt-4 flex justify-between text-2xl font-black tracking-tighter"><span>TOTAL</span><span>{formatIDR(finalTotal)}</span></div>
@@ -295,7 +301,7 @@ export default function POSPage() {
   const [renderMobileCheckout, setRenderMobileCheckout] = useState(false)
   const [animateMobileCheckout, setAnimateMobileCheckout] = useState(false)
   const previousCartCountRef = useRef(0)
-  const [charges, setCharges] = useState({ tax_enabled: false, tax_rate: 0, service_enabled: false, service_rate: 0 })
+  const [charges, setCharges] = useState({ tax_enabled: false, tax_rate: 0, service_enabled: false, service_rate: 0, points_enabled: true, points_earn_rate: 10000, points_redeem_rate: 100, points_min_redeem: 20 })
 
   useEffect(() => {
     if (loading) {
@@ -328,7 +334,16 @@ export default function POSPage() {
       const res = await fetch(`/api/settings?business_id=${business.id}`, { headers: await getClientAuthHeaders() })
       if (res.ok) {
         const data = await res.json()
-        setCharges({ tax_enabled: data.tax_enabled === true, tax_rate: Number(data.tax_rate) || 0, service_enabled: data.service_enabled === true, service_rate: Number(data.service_rate) || 0 })
+        setCharges({
+          tax_enabled: data.tax_enabled === true,
+          tax_rate: Number(data.tax_rate) || 0,
+          service_enabled: data.service_enabled === true,
+          service_rate: Number(data.service_rate) || 0,
+          points_enabled: data.points_enabled !== 'false',
+          points_earn_rate: Number(data.points_earn_rate) || 10000,
+          points_redeem_rate: Number(data.points_redeem_rate) || 100,
+          points_min_redeem: Number(data.points_min_redeem) || 20,
+        })
       }
     } catch (error) {}
   }
@@ -383,12 +398,13 @@ export default function POSPage() {
     if (!business || cart.length === 0) return
     setProcessing(true)
     try {
-      const discount = redeemPoints * 100
+      const discount = redeemPoints * charges.points_redeem_rate
       const taxableBase = Math.max(cartTotal - discount, 0)
       const finalTotal = taxableBase + (charges.tax_enabled ? Math.round((taxableBase * charges.tax_rate) / 100) : 0) + (charges.service_enabled ? Math.round((taxableBase * charges.service_rate) / 100) : 0)
       const { data: { session } } = await supabase.auth.getSession()
-      
-      const orderRes = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) }, body: JSON.stringify({ business_id: business.id, total: finalTotal, payment_method: payment.method, payment_provider: payment.provider, payment_notes: payment.notes, member_id: selectedMember?.id || null, points_earned: Math.floor(cartTotal/10000), points_used: redeemPoints, discount, items: cart.map(i => ({ product_id: i.product.id, qty: i.qty, price: i.product.price })) }) })
+      const pointsEarned = charges.points_enabled ? Math.floor(cartTotal / charges.points_earn_rate) : 0
+
+      const orderRes = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) }, body: JSON.stringify({ business_id: business.id, total: finalTotal, payment_method: payment.method, payment_provider: payment.provider, payment_notes: payment.notes, member_id: selectedMember?.id || null, points_earned: pointsEarned, points_used: redeemPoints, discount, items: cart.map(i => ({ product_id: i.product.id, qty: i.qty, price: i.product.price })) }) })
       
       if (orderRes.ok) { 
         const order = await orderRes.json()
@@ -578,7 +594,7 @@ export default function POSPage() {
         </div>
       </div>
 
-      {showPaymentModal && <PaymentModal total={cartTotal} points={memberPoints} member={selectedMember} taxEnabled={charges.tax_enabled} taxRate={charges.tax_rate} serviceEnabled={charges.service_enabled} serviceRate={charges.service_rate} onClose={() => setShowPaymentModal(false)} onConfirm={handleCheckout} onAddMember={setSelectedMember} businessId={business?.id || ''} />}
+      {showPaymentModal && <PaymentModal total={cartTotal} points={memberPoints} member={selectedMember} taxEnabled={charges.tax_enabled} taxRate={charges.tax_rate} serviceEnabled={charges.service_enabled} serviceRate={charges.service_rate} pointsEnabled={charges.points_enabled} redeemRate={charges.points_redeem_rate} minRedeem={charges.points_min_redeem} onClose={() => setShowPaymentModal(false)} onConfirm={handleCheckout} onAddMember={setSelectedMember} businessId={business?.id || ''} />}
       
       {showMemberModal && (
         <MemberSearch

@@ -4,16 +4,17 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { getClientAuthHeaders } from '@/lib/clientAuth'
 import { supabase } from '@/lib/supabase'
-import { 
-  Building2, 
-  Receipt, 
-  Save, 
-  Loader2, 
+import {
+  Building2,
+  Receipt,
+  Save,
+  Loader2,
   Percent,
   Smartphone,
   Mail,
   MapPin,
-  Printer
+  Printer,
+  Star
 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,6 +30,169 @@ import {
 } from "@/components/ui/select"
 import { formatIDR } from '@/lib/utils'
 import ReceiptPrinter from '@/components/ReceiptPrinter'
+
+function MemberPointsCard({ settings, setSettings }: { settings: any; setSettings: (s: any) => void }) {
+  const [calcTab, setCalcTab] = useState<'earn' | 'redeem'>('earn')
+  const [calcInput, setCalcInput] = useState('')
+
+  const earnRate = Number(settings?.points_earn_rate) || 10000
+  const redeemRate = Number(settings?.points_redeem_rate) || 100
+  const minRedeem = Number(settings?.points_min_redeem) || 20
+  const enabled = settings?.points_enabled !== false && settings?.points_enabled !== 'false'
+
+  const calcNum = Number(calcInput.replace(/\D/g, '')) || 0
+  const earnResult = calcTab === 'earn' ? Math.floor(calcNum / earnRate) : null
+  const redeemResult = calcTab === 'redeem' ? calcNum * redeemRate : null
+  const belowMin = calcTab === 'redeem' && calcNum > 0 && calcNum < minRedeem
+
+  return (
+    <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden bg-white">
+      <CardHeader className="bg-slate-50/50 border-b py-4 px-6 flex flex-row items-center gap-3">
+        <div className="p-2 bg-white rounded-lg shadow-sm"><Star className="h-4 w-4 text-slate-400" /></div>
+        <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600">Program Poin Member</CardTitle>
+      </CardHeader>
+      <CardContent className="p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Controls */}
+          <div className="space-y-5">
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <div className="space-y-1">
+                <p className="text-xs font-black text-slate-700 uppercase tracking-tight">Aktifkan Program Poin</p>
+                <p className="text-[10px] text-slate-500 font-bold">Member dapat poin dari setiap transaksi</p>
+              </div>
+              <input
+                type="checkbox"
+                className="h-5 w-5 rounded-lg border-slate-300 accent-slate-900 cursor-pointer"
+                checked={enabled}
+                onChange={(e) => setSettings({ ...settings, points_enabled: e.target.checked })}
+              />
+            </div>
+
+            {enabled && (
+              <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Earn Rate</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-400 shrink-0">Setiap Rp</span>
+                    <Input
+                      type="number"
+                      value={settings?.points_earn_rate ?? 10000}
+                      onChange={(e) => setSettings({ ...settings, points_earn_rate: Number(e.target.value) })}
+                      className="h-10 text-xs font-black w-28 rounded-xl border-slate-200"
+                      min={1}
+                    />
+                    <span className="text-[10px] font-bold text-slate-400 shrink-0">belanja = 1 poin</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Redeem Rate</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-400 shrink-0">1 poin =</span>
+                    <span className="text-[10px] font-bold text-slate-400 shrink-0">Rp</span>
+                    <Input
+                      type="number"
+                      value={settings?.points_redeem_rate ?? 100}
+                      onChange={(e) => setSettings({ ...settings, points_redeem_rate: Number(e.target.value) })}
+                      className="h-10 text-xs font-black w-24 rounded-xl border-slate-200"
+                      min={1}
+                    />
+                    <span className="text-[10px] font-bold text-slate-400 shrink-0">diskon</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Minimum Redeem</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      value={settings?.points_min_redeem ?? 20}
+                      onChange={(e) => setSettings({ ...settings, points_min_redeem: Number(e.target.value) })}
+                      className="h-10 text-xs font-black w-24 rounded-xl border-slate-200"
+                      min={1}
+                    />
+                    <span className="text-[10px] font-bold text-slate-400">poin minimum untuk mulai redeem</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Calculator Widget */}
+          <div className={`rounded-2xl border border-slate-100 bg-slate-50 p-5 flex flex-col gap-4 ${!enabled ? 'opacity-40 pointer-events-none' : ''}`}>
+            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Kalkulator Simulasi</p>
+
+            {/* Tab */}
+            <div className="flex gap-1 bg-slate-200/60 p-1 rounded-xl self-start">
+              {(['earn', 'redeem'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => { setCalcTab(t); setCalcInput('') }}
+                  className={`px-4 h-7 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${calcTab === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}
+                >
+                  {t === 'earn' ? 'Earn' : 'Redeem'}
+                </button>
+              ))}
+            </div>
+
+            {calcTab === 'earn' ? (
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-bold text-slate-400">Nominal belanja (Rp)</Label>
+                  <Input
+                    type="number"
+                    placeholder="contoh: 100000"
+                    value={calcInput}
+                    onChange={(e) => setCalcInput(e.target.value)}
+                    className="h-10 text-sm font-bold rounded-xl border-slate-200 bg-white"
+                  />
+                </div>
+                <div className="bg-white rounded-xl border border-slate-100 p-4 text-center">
+                  <p className="text-[10px] text-slate-400 font-bold mb-1">Poin didapat</p>
+                  <p className="text-3xl font-black text-slate-900 tracking-tight">
+                    {calcInput ? earnResult : '—'}
+                  </p>
+                  {calcInput && earnResult === 0 && (
+                    <p className="text-[10px] text-slate-400 mt-1">Belanja minimal Rp {earnRate.toLocaleString('id-ID')} untuk dapat 1 poin</p>
+                  )}
+                  {calcInput && earnResult !== null && earnResult > 0 && (
+                    <p className="text-[10px] text-slate-400 mt-1">= Rp {(earnResult * redeemRate).toLocaleString('id-ID')} nilai diskon potensial</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-bold text-slate-400">Jumlah poin</Label>
+                  <Input
+                    type="number"
+                    placeholder={`min. ${minRedeem} poin`}
+                    value={calcInput}
+                    onChange={(e) => setCalcInput(e.target.value)}
+                    className="h-10 text-sm font-bold rounded-xl border-slate-200 bg-white"
+                  />
+                </div>
+                <div className={`rounded-xl border p-4 text-center ${belowMin ? 'bg-rose-50 border-rose-100' : 'bg-white border-slate-100'}`}>
+                  <p className="text-[10px] text-slate-400 font-bold mb-1">Nilai diskon</p>
+                  <p className={`text-3xl font-black tracking-tight ${belowMin ? 'text-rose-400' : 'text-slate-900'}`}>
+                    {calcInput ? (belowMin ? '✗' : `Rp ${redeemResult?.toLocaleString('id-ID')}`) : '—'}
+                  </p>
+                  {belowMin && (
+                    <p className="text-[10px] text-rose-400 mt-1">Butuh minimal {minRedeem} poin untuk redeem</p>
+                  )}
+                  {!belowMin && calcInput && redeemResult !== null && redeemResult > 0 && (
+                    <p className="text-[10px] text-slate-400 mt-1">= {calcNum} poin × Rp {redeemRate.toLocaleString('id-ID')}</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
 export default function SettingsPage() {
   const { business, loading: authLoading, refresh: refreshAuth } = useAuth()
@@ -189,6 +353,8 @@ export default function SettingsPage() {
               )}
             </CardContent>
           </Card>
+          {/* Member Points */}
+          <MemberPointsCard settings={settings} setSettings={setSettings} />
         </div>
 
         <div className="space-y-8">
