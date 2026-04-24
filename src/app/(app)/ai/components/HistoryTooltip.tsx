@@ -73,10 +73,13 @@ export function HistoryTooltip({ activeId, onSelect, onNew, refreshTrigger }: Pr
             <div className="px-4 py-6 text-center text-[11px] text-slate-300 font-medium">Belum ada percakapan</div>
           ) : (
             conversations.map(c => (
-              <button
+              <div
                 key={c.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => { onSelect(c.id); setOpen(false) }}
-                className={`w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-50 transition-colors group border-b border-slate-50 last:border-0 ${activeId === c.id ? 'bg-slate-50' : ''}`}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { onSelect(c.id); setOpen(false) } }}
+                className={`w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-50 transition-colors group border-b border-slate-50 last:border-0 cursor-pointer ${activeId === c.id ? 'bg-slate-50' : ''}`}
               >
                 <div className="flex-1 min-w-0">
                   <p className={`text-[13px] font-medium truncate ${activeId === c.id ? 'text-slate-900' : 'text-slate-600'}`}>{c.title}</p>
@@ -88,7 +91,7 @@ export function HistoryTooltip({ activeId, onSelect, onNew, refreshTrigger }: Pr
                 >
                   <Trash2 size={12} />
                 </button>
-              </button>
+              </div>
             ))
           )}
         </div>
