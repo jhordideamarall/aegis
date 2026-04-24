@@ -78,9 +78,12 @@ const SUGGESTIONS = [
 
 function getGreeting(name: string) {
   const h = new Date().getHours()
-  const time = h < 12 ? 'Selamat pagi' : h < 15 ? 'Selamat siang' : h < 19 ? 'Selamat sore' : 'Selamat malam'
   const firstName = name?.split(' ')[0] || 'kamu'
-  return `${time}, ${firstName} 👋`
+  if (h < 6) return `Masih begadang, ${firstName}? 🌙`
+  if (h < 11) return `Pagi, ${firstName} ☀️`
+  if (h < 15) return `Siang, ${firstName} 👋`
+  if (h < 19) return `Sore, ${firstName} 🌤`
+  return `Malam, ${firstName} 🌙`
 }
 
 function RotatingSuggestion() {
