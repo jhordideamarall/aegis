@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { getClientCache, setClientCache } from '@/lib/clientCache'
+import {
+  getClientCache,
+  getPersistentClientCache,
+  setClientCache,
+  setPersistentClientCache
+} from '@/lib/clientCache'
 import { getClientAuthHeaders } from '@/lib/clientAuth'
 import { supabase } from '@/lib/supabase'
 import {
@@ -43,6 +48,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 
 const POS_PRODUCTS_CACHE_TTL_MS = 30 * 1000
+const POS_SETTINGS_CACHE_TTL_MS = 5 * 60 * 1000
 
 interface PaymentSubmission {
   method: PaymentMethod
@@ -311,8 +317,7 @@ export default function POSPage() {
       return
     }
 
-    fetchProducts()
-    fetchCharges()
+    bootstrapPOSData()
   }, [loading, business])
   useEffect(() => { setPortalReady(true) }, [])
 
@@ -325,13 +330,32 @@ export default function POSPage() {
     previousCartCountRef.current = cart.length
   }, [cart.length])
 
-  const fetchCharges = async () => {
+  const bootstrapPOSData = async () => {
     if (!business) return
+
+    const headers = await getClientAuthHeaders()
+    await Promise.all([
+      fetchProducts(headers),
+      fetchCharges(headers)
+    ])
+  }
+
+  const fetchCharges = async (headers?: HeadersInit) => {
+    if (!business) return
+    const cacheKey = `pos-settings:${business.id}`
+    const cached = getPersistentClientCache<typeof charges>(cacheKey)
+
+    if (cached) {
+      setCharges(cached)
+    }
+
     try {
-      const res = await fetch(`/api/settings?business_id=${business.id}`, { headers: await getClientAuthHeaders() })
+      const res = await fetch(`/api/settings?business_id=${business.id}`, {
+        headers: headers || await getClientAuthHeaders()
+      })
       if (res.ok) {
         const data = await res.json()
-        setCharges({
+        const nextCharges = {
           tax_enabled: data.tax_enabled === true,
           tax_rate: Number(data.tax_rate) || 0,
           service_enabled: data.service_enabled === true,
@@ -340,18 +364,24 @@ export default function POSPage() {
           points_earn_rate: Number(data.points_earn_rate) || 10000,
           points_redeem_rate: Number(data.points_redeem_rate) || 100,
           points_min_redeem: Number(data.points_min_redeem) || 20,
-        })
+        }
+        setCharges(nextCharges)
+        setPersistentClientCache(cacheKey, nextCharges, POS_SETTINGS_CACHE_TTL_MS)
       }
     } catch (error) {}
   }
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (headers?: HeadersInit) => {
     if (!business) return
     const cacheKey = `pos-products:${business.id}`
     const cached = getClientCache<Product[]>(cacheKey)
+    const persistentCached = getPersistentClientCache<Product[]>(cacheKey)
 
     if (cached) {
       setProducts(cached)
+      setProductsLoading(false)
+    } else if (persistentCached) {
+      setProducts(persistentCached)
       setProductsLoading(false)
     } else {
       setProducts([])
@@ -359,12 +389,15 @@ export default function POSPage() {
     }
 
     try {
-      const res = await fetch(`/api/products?business_id=${business.id}&limit=1000`, { headers: await getClientAuthHeaders() })
+      const res = await fetch(`/api/products?business_id=${business.id}&limit=1000`, {
+        headers: headers || await getClientAuthHeaders()
+      })
       if (res.ok) {
         const data = await res.json()
         const nextProducts = data.data || []
         setProducts(nextProducts)
         setClientCache(cacheKey, nextProducts, POS_PRODUCTS_CACHE_TTL_MS)
+        setPersistentClientCache(cacheKey, nextProducts, POS_PRODUCTS_CACHE_TTL_MS)
       }
     } catch (error) {} finally { setProductsLoading(false) }
   }

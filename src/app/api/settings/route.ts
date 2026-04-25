@@ -22,19 +22,23 @@ export async function GET(request: Request) {
       return forbiddenResponse('You do not have access to this business')
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('settings')
-      .select('*')
-      .eq('business_id', businessContext.businessId)
+    const [
+      { data, error },
+      { data: business, error: bizError }
+    ] = await Promise.all([
+      supabaseAdmin
+        .from('settings')
+        .select('*')
+        .eq('business_id', businessContext.businessId),
+      supabaseAdmin
+        .from('businesses')
+        .select('business_name, address, phone')
+        .eq('id', businessContext.businessId)
+        .single()
+    ])
 
     if (error) throw error
-
-    // Fetch business profile for branding
-    const { data: business, error: bizError } = await supabaseAdmin
-      .from('businesses')
-      .select('business_name, address, phone')
-      .eq('id', businessContext.businessId)
-      .single()
+    if (bizError) throw bizError
 
     // Convert to key-value object
     const settings: Record<string, any> = {}
