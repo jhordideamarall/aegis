@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { getSiteUrl } from "@/lib/site";
 import { validateEnvironment } from "@/lib/env";
+import { PwaRegistration } from "@/components/PwaRegistration";
 import "./globals.css";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
@@ -21,12 +22,13 @@ if (process.env.NODE_ENV === 'development') {
 const siteUrl = getSiteUrl();
 
 export const metadata: Metadata = {
+  applicationName: "AEGIS POS",
   // Basic Metadata
   title: {
-    default: "AEGIS POS – Smart POS System for Modern Businesses",
+    default: "AEGIS POS - Your AGENTIC AI Bussines",
     template: "%s | AEGIS POS"
   },
-  description: "AEGIS POS is a modern cloud POS system that helps businesses manage sales, inventory, and customers from one powerful platform. Free for Indonesian businesses.",
+  description: "AEGIS POS helps modern businesses run sales, inventory, customers, and operations in one agentic AI-powered workspace.",
   
   // Metadata Base
   metadataBase: new URL(siteUrl),
@@ -55,8 +57,8 @@ export const metadata: Metadata = {
   
   // Open Graph
   openGraph: {
-    title: "AEGIS POS – Smart POS Platform for Modern Businesses",
-    description: "Modern POS system for managing sales, inventory, and customers. Free for Indonesian businesses.",
+    title: "AEGIS POS - Your AGENTIC AI Bussines",
+    description: "Agentic AI business workspace for sales, inventory, customers, and daily operations.",
     url: siteUrl,
     siteName: "AEGIS POS",
     images: [
@@ -75,8 +77,8 @@ export const metadata: Metadata = {
   // Twitter Card
   twitter: {
     card: "summary_large_image",
-    title: "AEGIS POS – Smart POS Platform",
-    description: "Modern POS system for managing sales, inventory, and customers.",
+    title: "AEGIS POS - Your AGENTIC AI Bussines",
+    description: "Agentic AI business workspace for sales, inventory, customers, and daily operations.",
     images: ["/img/og-image.png"],
     creator: "@socialbrand1980"
   },
@@ -117,6 +119,7 @@ export const metadata: Metadata = {
   
   // Manifest
   manifest: "/site.webmanifest",
+  themeColor: "#0f172a",
   
   // App Links
   appleWebApp: {
@@ -201,7 +204,8 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://www.google-analytics.com" />
         <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
       </head>
-      <body className="antialiased font-sans">
+      <body className="antialiased font-sans bg-slate-50 text-slate-950">
+        <PwaRegistration />
         {children}
         
         {/* Google Analytics - Replace with your ID */}

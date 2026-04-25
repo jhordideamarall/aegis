@@ -91,6 +91,6 @@ export const config = {
   matcher: [
     '/',
     '/api/:path*',
-    '/((?!_next/static|_next/image|favicon.ico|img|site.webmanifest).*)'
+    '/((?!_next/static|_next/image|favicon.ico|favicon.svg|img|site.webmanifest|pwa|sw.js).*)'
   ]
 }

@@ -11,6 +11,7 @@
   --landing-nav-offset: calc(var(--landing-nav-height) + 1rem);
   --landing-nav-offset-lg: calc(var(--landing-nav-height) + 3rem);
   --app-mobile-nav-height: 4.5rem;
+  --desktop-safe-top: 0px;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -94,6 +95,40 @@ body {
   overflow-x: hidden;
   width: 100%;
   max-width: 100vw;
+}
+
+@media (display-mode: standalone) {
+  :root {
+    --desktop-safe-top: 0.75rem;
+  }
+}
+
+@supports (padding-top: env(titlebar-area-height, 0px)) {
+  :root {
+    --desktop-safe-top: max(0.75rem, env(titlebar-area-height, 0px));
+  }
+}
+
+.desktop-app-shell {
+  min-height: 100vh;
+}
+
+.desktop-app-shell-standalone {
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.08), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 1) 18%);
+}
+
+.desktop-sidebar-top {
+  padding-top: calc(1.5rem + var(--desktop-safe-top));
+}
+
+.desktop-sidebar-scroll {
+  padding-top: 1.25rem;
+}
+
+.desktop-sidebar-bottom {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 }
 
 .page-transition {

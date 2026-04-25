@@ -87,7 +87,7 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
         transition-transform duration-300 ease-in-out z-50
         ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
-        <div className="p-6 border-b border-gray-50">
+        <div className="p-6 border-b border-gray-50 desktop-sidebar-top">
           <div className="flex items-center gap-3">
             {business?.logo_url ? (
               <img
@@ -113,7 +113,7 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
           </div>
         </div>
 
-        <nav className="flex-1 p-4 overflow-y-auto space-y-8 no-scrollbar pb-10">
+        <nav className="flex-1 p-4 overflow-y-auto space-y-8 no-scrollbar pb-10 desktop-sidebar-scroll">
           {/* Core POS Section */}
           <div className="space-y-1">
             {coreNavItems.map((item) => {
@@ -201,7 +201,7 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
           </div>
         </nav>
 
-        <div className="p-4 border-t border-gray-50 space-y-1">
+        <div className="p-4 border-t border-gray-50 space-y-1 desktop-sidebar-bottom">
           <Link
             href="/settings"
             onClick={() => setIsOpen(false)}

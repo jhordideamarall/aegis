@@ -6,6 +6,9 @@ import Sidebar from '@/components/Sidebar'
 import MobileNav from '@/components/MobileNav'
 import PageTransition from '@/components/PageTransition'
 import { GlobalCommand } from '@/components/GlobalCommand'
+import { DesktopPwaInstallBanner } from '@/components/DesktopPwaInstallBanner'
+import { usePwaInstall } from '@/hooks/usePwaInstall'
+import { cn } from '@/lib/utils'
 
 export default function AppLayout({
   children,
@@ -14,6 +17,7 @@ export default function AppLayout({
 }) {
   const { business, loading, logout } = useAuth()
   const [isLoaded, setIsLoaded] = useState(false)
+  const { isStandalone } = usePwaInstall()
 
   useEffect(() => {
     if (!loading) {
@@ -33,7 +37,7 @@ export default function AppLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={cn("desktop-app-shell min-h-screen bg-slate-50", isStandalone && "desktop-app-shell-standalone")}>
       {/* Desktop Sidebar */}
       <aside className="hidden lg:block">
         <Sidebar business={business} onLogout={logout} />
@@ -47,8 +51,13 @@ export default function AppLayout({
 
       {/* Main Content */}
       <PageTransition>
-        <main className="app-mobile-nav-offset lg:ml-64 min-h-screen">
-          {children}
+        <main className="app-mobile-nav-offset min-h-screen lg:ml-64">
+          <div className="mx-auto flex min-h-screen w-full max-w-[1680px] flex-col gap-5 px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pb-8 lg:pt-5">
+            <DesktopPwaInstallBanner />
+            <div className="flex-1">
+              {children}
+            </div>
+          </div>
         </main>
       </PageTransition>
     </div>
