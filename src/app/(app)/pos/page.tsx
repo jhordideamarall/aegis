@@ -168,7 +168,7 @@ function PaymentModal({
 
             <div className="bg-slate-900 text-white p-6 rounded-2xl space-y-3 shadow-xl">
               <div className="flex justify-between text-[11px] font-black uppercase text-slate-400 tracking-widest"><span>Subtotal</span><span>{formatIDR(total)}</span></div>
-              {pointsUsed > 0 && <div className="flex justify-between text-[11px] font-black uppercase text-emerald-400 tracking-widest"><span>Points Discount</span><span>-{formatIDR(pointsUsed * redeemRate)}</span></div>}
+              {pointsUsed > 0 && <div className="flex justify-between text-[11px] font-black uppercase text-emerald-400 tracking-widest"><span>Points Discount</span><span>-{formatIDR(pointsDiscount)}</span></div>}
               {taxEnabled && <div className="flex justify-between text-[11px] font-black uppercase text-slate-400 tracking-widest"><span>Tax ({taxRate}%)</span><span>{formatIDR(taxAmount)}</span></div>}
               {serviceEnabled && <div className="flex justify-between text-[11px] font-black uppercase text-slate-400 tracking-widest"><span>Service ({serviceRate}%)</span><span>{formatIDR(serviceAmount)}</span></div>}
               <div className="border-t border-slate-800 pt-4 flex justify-between text-2xl font-black tracking-tighter"><span>TOTAL</span><span>{formatIDR(finalTotal)}</span></div>
@@ -304,7 +304,8 @@ export default function POSPage() {
   const [renderMobileCheckout, setRenderMobileCheckout] = useState(false)
   const [animateMobileCheckout, setAnimateMobileCheckout] = useState(false)
   const previousCartCountRef = useRef(0)
-  const [charges, setCharges] = useState({ tax_enabled: false, tax_rate: 0, service_enabled: false, service_rate: 0, points_enabled: true, points_earn_rate: 10000, points_redeem_rate: 100, points_min_redeem: 20 })
+  const chargesRef = useRef({ tax_enabled: false, tax_rate: 0, service_enabled: false, service_rate: 0, points_enabled: true, points_earn_rate: 10000, points_redeem_rate: 100, points_min_redeem: 20 })
+  const [charges, setCharges] = useState(chargesRef.current)
 
   useEffect(() => {
     if (loading) {
@@ -365,6 +366,7 @@ export default function POSPage() {
           points_redeem_rate: Number(data.points_redeem_rate) || 100,
           points_min_redeem: Number(data.points_min_redeem) || 20,
         }
+        chargesRef.current = nextCharges
         setCharges(nextCharges)
         setPersistentClientCache(cacheKey, nextCharges, POS_SETTINGS_CACHE_TTL_MS)
       }
@@ -428,11 +430,19 @@ export default function POSPage() {
     if (!business || cart.length === 0) return
     setProcessing(true)
     try {
-      const discount = redeemPoints * charges.points_redeem_rate
-      const taxableBase = Math.max(cartTotal - discount, 0)
-      const finalTotal = taxableBase + (charges.tax_enabled ? Math.round((taxableBase * charges.tax_rate) / 100) : 0) + (charges.service_enabled ? Math.round((taxableBase * charges.service_rate) / 100) : 0)
+      // Fetch settings fresh at checkout time — never trust potentially stale cache/state
       const { data: { session } } = await supabase.auth.getSession()
-      const pointsEarned = charges.points_enabled ? Math.floor(cartTotal / charges.points_earn_rate) : 0
+      const settingsRes = await fetch(`/api/settings?business_id=${business.id}`, {
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+      })
+      const liveCharges = settingsRes.ok ? { ...chargesRef.current, ...await settingsRes.json() } : chargesRef.current
+
+      const discount = redeemPoints * (liveCharges.points_redeem_rate || chargesRef.current.points_redeem_rate)
+      const taxableBase = Math.max(cartTotal - discount, 0)
+      const finalTotal = taxableBase
+        + (liveCharges.tax_enabled ? Math.round(taxableBase * (Number(liveCharges.tax_rate) || 0) / 100) : 0)
+        + (liveCharges.service_enabled ? Math.round(taxableBase * (Number(liveCharges.service_rate) || 0) / 100) : 0)
+      const pointsEarned = liveCharges.points_enabled !== false ? Math.floor(cartTotal / (Number(liveCharges.points_earn_rate) || 10000)) : 0
 
       const orderRes = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) }, body: JSON.stringify({ business_id: business.id, total: finalTotal, payment_method: payment.method, payment_provider: payment.provider, payment_notes: payment.notes, member_id: selectedMember?.id || null, points_earned: pointsEarned, points_used: redeemPoints, discount, items: cart.map(i => ({ product_id: i.product.id, qty: i.qty, price: i.product.price })) }) })
       

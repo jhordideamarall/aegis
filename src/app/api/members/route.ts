@@ -107,12 +107,12 @@ export async function POST(request: Request) {
       )
     }
 
-    // Check for duplicate phone within same business
+    // Check for duplicate phone within same business (use normalized phone)
     const { data: existing } = await supabaseAdmin
       .from('members')
       .select('id')
       .eq('business_id', resolvedBusinessId)
-      .eq('phone', phone)
+      .eq('phone', cleanedPhone)
       .single()
 
     if (existing) {
@@ -124,7 +124,7 @@ export async function POST(request: Request) {
 
     const { data, error } = await supabaseAdmin
       .from('members')
-      .insert([{ name, phone, email: email || null, business_id: resolvedBusinessId, points }])
+      .insert([{ name, phone: cleanedPhone, email: email || null, business_id: resolvedBusinessId, points }])
       .select()
       .single()
 

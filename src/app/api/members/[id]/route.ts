@@ -47,13 +47,23 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       )
     }
 
-    // Check for duplicate phone (excluding current member)
+    // Normalize and validate phone if provided
+    let normalizedPhone = phone
     if (phone) {
+      normalizedPhone = phone.replace(/[\s\-\(\)]/g, '')
+      const phoneRegex = /^(\+62|62|0)8[0-9]{8,11}$/
+      if (!phoneRegex.test(normalizedPhone)) {
+        return NextResponse.json(
+          { error: 'Invalid phone format. Use 08xxxxxxxxxx, 62xxxxxxxxxx, or +62xxxxxxxxxx' },
+          { status: 400 }
+        )
+      }
+
       const { data: duplicate } = await supabaseAdmin
         .from('members')
         .select('id')
         .eq('business_id', resolvedBusinessId)
-        .eq('phone', phone)
+        .eq('phone', normalizedPhone)
         .neq('id', id)
         .single()
 
@@ -69,7 +79,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       .from('members')
       .update({
         name,
-        phone,
+        phone: normalizedPhone,
         email,
         points,
         updated_at: new Date().toISOString()

@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import Sidebar from '@/components/Sidebar'
 import MobileNav from '@/components/MobileNav'
@@ -16,14 +15,7 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   const { business, loading, logout } = useAuth()
-  const [isLoaded, setIsLoaded] = useState(false)
   const { isStandalone } = usePwaInstall()
-
-  useEffect(() => {
-    if (!loading) {
-      setIsLoaded(true)
-    }
-  }, [loading])
 
   if (loading) {
     return (
@@ -49,15 +41,13 @@ export default function AppLayout({
       {/* Global AI Command Center */}
       <GlobalCommand />
 
+      {/* Fixed floating PWA install prompt — renders outside main so it doesn't affect any page layout */}
+      <DesktopPwaInstallBanner />
+
       {/* Main Content */}
       <PageTransition>
         <main className="app-mobile-nav-offset min-h-screen lg:ml-64">
-          <div className="mx-auto flex min-h-screen w-full max-w-[1680px] flex-col gap-5 px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pb-8 lg:pt-5">
-            <DesktopPwaInstallBanner />
-            <div className="flex-1">
-              {children}
-            </div>
-          </div>
+          {children}
         </main>
       </PageTransition>
     </div>

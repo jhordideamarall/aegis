@@ -33,6 +33,19 @@ import { Badge } from "@/components/ui/badge"
 import { DateRangePicker } from '@/components/DateRangePicker'
 import { DateRange } from 'react-day-picker'
 
+interface ReceiptSettings {
+  receipt_header: string
+  receipt_footer: string
+  receipt_paper_size: '58mm' | '80mm'
+  tax_enabled: boolean
+  tax_rate: number
+  service_enabled: boolean
+  service_rate: number
+  business_name?: string
+  business_address?: string
+  business_phone?: string
+}
+
 interface Order {
   id: string
   business_id: string
@@ -70,6 +83,7 @@ function OrdersContent() {
   const [fetching, setFetching] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [showReceipt, setShowReceipt] = useState(false)
+  const [receiptSettings, setReceiptSettings] = useState<ReceiptSettings | null>(null)
   const [filter, setFilter] = useState<'all' | 'today' | 'week' | 'custom'>('all')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
@@ -84,6 +98,7 @@ function OrdersContent() {
   })
   const tokenRef = useRef<string>('')
   const fetchIdRef = useRef(0)
+  const [tokenReady, setTokenReady] = useState(false)
 
   const limit = 20
   const isLoading = loading || fetching
@@ -94,10 +109,11 @@ function OrdersContent() {
     return () => clearTimeout(t)
   }, [searchQuery])
 
-  // Cache session token — refresh only when stale
+  // Cache session token — gate data fetches until token is ready to avoid auth races
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       tokenRef.current = session?.access_token || ''
+      setTokenReady(true)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       tokenRef.current = session?.access_token || ''
@@ -106,13 +122,24 @@ function OrdersContent() {
   }, [])
 
   useEffect(() => {
-    if (!loading && business) {
+    if (!loading && business && tokenReady) {
       fetchOrders()
+      fetchReceiptSettings()
       const printParam = searchParams.get('print')
       const orderId = searchParams.get('id')
       if (printParam === 'true' && orderId) fetchOrderDetail(orderId)
     }
-  }, [loading, business, filter, page, debouncedSearch, customDate, paymentMethod])
+  }, [loading, business, tokenReady, filter, page, debouncedSearch, customDate, paymentMethod])
+
+  const fetchReceiptSettings = async () => {
+    if (!business) return
+    try {
+      const res = await fetch(`/api/settings?business_id=${business.id}`, {
+        headers: tokenRef.current ? { Authorization: `Bearer ${tokenRef.current}` } : {}
+      })
+      if (res.ok) setReceiptSettings(await res.json())
+    } catch { }
+  }
 
   const fetchOrders = useCallback(async () => {
     if (!business) return
@@ -316,7 +343,7 @@ function OrdersContent() {
       </Card>
       
       {showReceipt && selectedOrder && (
-        <ReceiptPrinter order={selectedOrder} businessId={business?.id} onClose={() => { setShowReceipt(false); setSelectedOrder(null); router.push('/orders'); }} />
+        <ReceiptPrinter order={selectedOrder} businessId={business?.id} customSettings={receiptSettings ?? undefined} onClose={() => { setShowReceipt(false); setSelectedOrder(null); router.push('/orders'); }} />
       )}
     </div>
   )

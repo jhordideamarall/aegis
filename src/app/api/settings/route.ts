@@ -41,10 +41,18 @@ export async function GET(request: Request) {
     if (bizError) throw bizError
 
     // Convert to key-value object
-    const settings: Record<string, any> = {}
+    const raw: Record<string, string> = {}
     data?.forEach(item => {
-      settings[item.key] = item.value
+      raw[item.key] = item.value
     })
+
+    // Parse known types so consumers get proper booleans/numbers, not strings
+    const BOOLEAN_KEYS = ['tax_enabled', 'service_enabled', 'points_enabled']
+    const NUMBER_KEYS = ['tax_rate', 'service_rate', 'points_earn_rate', 'points_redeem_rate', 'points_min_redeem']
+
+    const settings: Record<string, any> = { ...raw }
+    BOOLEAN_KEYS.forEach(k => { if (k in raw) settings[k] = raw[k] === 'true' })
+    NUMBER_KEYS.forEach(k => { if (k in raw) settings[k] = Number(raw[k]) || 0 })
 
     // Inject business info into settings for component convenience
     if (business) {
@@ -94,13 +102,13 @@ export async function PUT(request: Request) {
       )
     }
 
-    // Update each setting
+    // Update each setting — store all values as strings for consistent text column storage
     const updates = Object.entries(settings).map(([key, value]) => {
       return supabaseAdmin
         .from('settings')
         .upsert({
           key,
-          value: value as string,
+          value: String(value),
           business_id: resolvedBusinessId,
           updated_at: new Date().toISOString()
         }, {
@@ -118,10 +126,13 @@ export async function PUT(request: Request) {
 
     if (error) throw error
 
-    const result: Record<string, string> = {}
-    data?.forEach(item => {
-      result[item.key] = item.value
-    })
+    const BOOLEAN_KEYS = ['tax_enabled', 'service_enabled', 'points_enabled']
+    const NUMBER_KEYS = ['tax_rate', 'service_rate', 'points_earn_rate', 'points_redeem_rate', 'points_min_redeem']
+
+    const result: Record<string, any> = {}
+    data?.forEach(item => { result[item.key] = item.value })
+    BOOLEAN_KEYS.forEach(k => { if (k in result) result[k] = result[k] === 'true' })
+    NUMBER_KEYS.forEach(k => { if (k in result) result[k] = Number(result[k]) || 0 })
 
     return NextResponse.json(result)
   } catch (error) {

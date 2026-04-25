@@ -8,7 +8,6 @@ import {
   getBusinessContextFromRequest,
   unauthorizedResponse
 } from '@/lib/requestAuth'
-import { toDate, formatInTimeZone } from 'date-fns-tz'
 import { escapeILikePattern } from '@/lib/utils'
 
 interface OrdersListRow {
@@ -23,11 +22,6 @@ interface OrdersListRow {
   created_at: string
   order_items?: Array<{ id: string }>
   member?: { name: string; phone: string } | Array<{ name: string; phone: string }> | null
-}
-
-// Helper to format date as local YYYY-MM-DD in UTC timezone
-function toLocalISODate(date: Date): string {
-  return date.toISOString().split('T')[0]
 }
 
 // Helper to parse YYYY-MM-DD to UTC Date
@@ -393,6 +387,33 @@ export async function POST(request: Request) {
       )
     }
 
+    // Pre-validate member BEFORE creating order to avoid stock rollback complexity
+    let memberData: { id: string; points: number; total_purchases: number } | null = null
+    if (member_id) {
+      const { data: member, error: memberFetchError } = await supabaseAdmin
+        .from('members')
+        .select('id, points, total_purchases')
+        .eq('id', member_id)
+        .eq('business_id', resolvedBusinessId)
+        .single()
+
+      if (memberFetchError || !member) {
+        return NextResponse.json(
+          { error: 'Member not found in your business' },
+          { status: 404 }
+        )
+      }
+
+      if (points_used > 0 && member.points < points_used) {
+        return NextResponse.json(
+          { error: `Insufficient points. Available: ${member.points}, Requested: ${points_used}` },
+          { status: 400 }
+        )
+      }
+
+      memberData = member
+    }
+
     const orderPayload: Record<string, unknown> = {
       total,
       payment_method,
@@ -420,6 +441,20 @@ export async function POST(request: Request) {
 
     if (orderError) throw orderError
 
+    // Track stock decrements so we can fully restore them if any later step fails
+    const stockDecrements: Array<{ product_id: string; prev_stock: number }> = []
+
+    const rollback = async () => {
+      await supabaseAdmin.from('orders').delete().eq('id', order.id)
+      for (const d of stockDecrements) {
+        await supabaseAdmin
+          .from('products')
+          .update({ stock: d.prev_stock, updated_at: new Date().toISOString() })
+          .eq('id', d.product_id)
+          .eq('business_id', resolvedBusinessId)
+      }
+    }
+
     // Create order items with product validation and atomic stock update
     const orderItems = []
     for (const item of items) {
@@ -432,19 +467,67 @@ export async function POST(request: Request) {
         .single()
 
       if (productFetchError || !product) {
+        await rollback()
         return NextResponse.json(
           { error: `Product ${item.product_id} not found in your business` },
           { status: 404 }
         )
       }
 
-      // Check stock availability
+      // Quick fail-fast check before recheck query
       if (product.stock < item.qty) {
+        await rollback()
         return NextResponse.json(
           { error: `Insufficient stock for product ${product.name}` },
           { status: 400 }
         )
       }
+
+      // Re-check stock to get latest value for optimistic locking
+      const { data: latestProduct, error: recheckError } = await supabaseAdmin
+        .from('products')
+        .select('stock')
+        .eq('id', item.product_id)
+        .eq('business_id', resolvedBusinessId)
+        .single()
+
+      if (recheckError || !latestProduct) {
+        await rollback()
+        return NextResponse.json(
+          { error: `Product ${product.name} is no longer available` },
+          { status: 409 }
+        )
+      }
+
+      if (latestProduct.stock < item.qty) {
+        await rollback()
+        return NextResponse.json(
+          { error: `Insufficient stock for product ${product.name}. Available: ${latestProduct.stock}` },
+          { status: 409 }
+        )
+      }
+
+      // Update with exact stock we expect — only succeeds if stock hasn't changed (optimistic lock)
+      const { error: stockUpdateError } = await supabaseAdmin
+        .from('products')
+        .update({
+          stock: latestProduct.stock - item.qty,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', item.product_id)
+        .eq('business_id', resolvedBusinessId)
+        .eq('stock', latestProduct.stock)
+
+      if (stockUpdateError) {
+        await rollback()
+        return NextResponse.json(
+          { error: `Stock update failed for product ${product.name}. Please try again.` },
+          { status: 409 }
+        )
+      }
+
+      // Record decrement AFTER successful update so rollback restores to pre-decrement value
+      stockDecrements.push({ product_id: item.product_id, prev_stock: latestProduct.stock })
 
       orderItems.push({
         order_id: order.id,
@@ -454,53 +537,6 @@ export async function POST(request: Request) {
         cost_price: product.hpp || 0,
         business_id: resolvedBusinessId
       })
-
-      // Atomic stock update with optimistic locking
-      // Re-check stock to get latest value, then update with exact match
-      const { data: latestProduct, error: recheckError } = await supabaseAdmin
-        .from('products')
-        .select('stock')
-        .eq('id', item.product_id)
-        .eq('business_id', resolvedBusinessId)
-        .single()
-
-      if (recheckError || !latestProduct) {
-        await supabaseAdmin.from('orders').delete().eq('id', order.id)
-        return NextResponse.json(
-          { error: `Product ${product.name} is no longer available` },
-          { status: 409 }
-        )
-      }
-
-      if (latestProduct.stock < item.qty) {
-        // Stock changed since we checked - rollback and return error
-        await supabaseAdmin.from('orders').delete().eq('id', order.id)
-        return NextResponse.json(
-          { error: `Insufficient stock for product ${product.name}. Available: ${latestProduct.stock}` },
-          { status: 409 }
-        )
-      }
-
-      // Now update with the exact stock we expect (optimistic locking)
-      const { error: stockUpdateError } = await supabaseAdmin
-        .from('products')
-        .update({
-          stock: latestProduct.stock - item.qty,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', item.product_id)
-        .eq('business_id', resolvedBusinessId)
-        .eq('stock', latestProduct.stock) // Only update if stock hasn't changed
-
-      if (stockUpdateError) {
-        // Rollback order
-        await supabaseAdmin.from('orders').delete().eq('id', order.id)
-        
-        return NextResponse.json(
-          { error: `Stock update failed for product ${product.name}. Please try again.` },
-          { status: 409 }
-        )
-      }
     }
 
     const { error: itemsError } = await supabaseAdmin
@@ -508,37 +544,13 @@ export async function POST(request: Request) {
       .insert(orderItems)
 
     if (itemsError) {
-      // Cleanup order before throwing — stock was already decremented, order must not remain without items
-      await supabaseAdmin.from('orders').delete().eq('id', order.id)
+      await rollback()
       throw itemsError
     }
 
-    // Validate member_id if provided
-    if (member_id) {
-      const { data: member, error: memberFetchError } = await supabaseAdmin
-        .from('members')
-        .select('id, points, total_purchases, business_id')
-        .eq('id', member_id)
-        .eq('business_id', resolvedBusinessId)
-        .single()
-
-      if (memberFetchError || !member) {
-        return NextResponse.json(
-          { error: 'Member not found in your business' },
-          { status: 404 }
-        )
-      }
-
-      // Validate points used - prevent negative points
+    // Apply member points (already pre-validated above)
+    if (memberData) {
       if (points_used > 0) {
-        if (member.points < points_used) {
-          return NextResponse.json(
-            { error: `Insufficient points. Available: ${member.points}, Requested: ${points_used}` },
-            { status: 400 }
-          )
-        }
-
-        // Create member transaction for points used
         await supabaseAdmin
           .from('member_transactions')
           .insert([{
@@ -550,7 +562,6 @@ export async function POST(request: Request) {
           }])
       }
 
-      // Create member transaction for points earned
       if (points_earned > 0) {
         await supabaseAdmin
           .from('member_transactions')
@@ -563,54 +574,31 @@ export async function POST(request: Request) {
           }])
       }
 
-      // Atomic update member points - prevent race condition
-      const newPoints = member.points + points_earned - points_used
+      const newPoints = memberData.points + points_earned - points_used
       const { error: memberUpdateError } = await supabaseAdmin
         .from('members')
         .update({
           points: newPoints,
-          total_purchases: member.total_purchases + total,
+          total_purchases: memberData.total_purchases + total,
           updated_at: new Date().toISOString()
         })
         .eq('id', member_id)
         .eq('business_id', resolvedBusinessId)
-        // Ensure points don't go negative (atomic check)
-        .gte('points', points_used - points_earned)
+        .gte('points', points_used)
 
       if (memberUpdateError) {
-        // Rollback order and ALL member transactions for any error type.
-        // Silently ignoring member update errors causes points to disappear permanently.
-        await supabaseAdmin.from('orders').delete().eq('id', order.id)
-        await supabaseAdmin
-          .from('member_transactions')
-          .delete()
-          .eq('order_id', order.id)
-
-        const isInsufficientPoints = memberUpdateError.code === 'PGRST116'
+        await rollback()
+        await supabaseAdmin.from('member_transactions').delete().eq('order_id', order.id)
         return NextResponse.json(
-          { error: isInsufficientPoints ? 'Insufficient points. Please try again.' : 'Failed to update member points. Please try again.' },
-          { status: isInsufficientPoints ? 409 : 500 }
+          { error: 'Failed to update member points. Please try again.' },
+          { status: 500 }
         )
       }
     }
 
     return NextResponse.json(order, { status: 201 })
   } catch (error: unknown) {
-    // Log full error internally for debugging (in production, use logging service)
-    // Don't expose error details to client (security)
-
     const err = error as Record<string, unknown>
-    
-    // If we created an order but failed later, clean it up
-    // This is a last resort - should have been cleaned up earlier
-    const order = err?.context as string | undefined
-    if (order) {
-      try {
-        await supabaseAdmin.from('orders').delete().eq('id', order)
-      } catch (cleanupError) {
-        // Ignore cleanup errors - order will be cleaned up by maintenance script
-      }
-    }
 
     // Check if it's a database constraint error
     const errorCode = err?.code as string | undefined

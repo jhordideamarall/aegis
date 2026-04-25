@@ -95,6 +95,30 @@ body {
   overflow-x: hidden;
   width: 100%;
   max-width: 100vw;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* PWA native feel — remove tap highlight and text selection on interactive elements */
+button, a, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Prevent overscroll bounce on PWA — keeps the app contained */
+@media (display-mode: standalone) {
+  body {
+    overscroll-behavior: none;
+  }
+
+  /* Safe area padding for phones with notch/home bar */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
 }
 
 @media (display-mode: standalone) {

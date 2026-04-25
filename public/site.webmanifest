@@ -1,15 +1,16 @@
 {
   "id": "/dashboard",
-  "name": "AEGIS POS - Your AGENTIC AI Bussines",
+  "name": "AEGIS POS",
   "short_name": "AEGIS POS",
-  "description": "Desktop POS workspace for sales, inventory, customers, and cashier operations.",
+  "description": "Workspace kasir agentic AI untuk penjualan, inventori, dan operasional bisnis.",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone"],
-  "background_color": "#ffffff",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "background_color": "#f8fafc",
   "theme_color": "#0f172a",
   "orientation": "any",
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/pwa/icon-192.png",
@@ -32,16 +33,22 @@
   ],
   "shortcuts": [
     {
-      "name": "Open POS",
+      "name": "Buka POS",
       "short_name": "POS",
       "url": "/pos",
-      "description": "Jump straight into the cashier workspace"
+      "description": "Langsung ke halaman kasir"
     },
     {
-      "name": "View Dashboard",
+      "name": "Dashboard",
       "short_name": "Dashboard",
       "url": "/dashboard",
-      "description": "Open analytics and daily business metrics"
+      "description": "Analitik dan metrik bisnis harian"
+    },
+    {
+      "name": "Transaksi",
+      "short_name": "Transaksi",
+      "url": "/orders",
+      "description": "Riwayat dan laporan transaksi"
     }
   ],
   "categories": ["business", "productivity", "finance"],

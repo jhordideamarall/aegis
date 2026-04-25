@@ -4,19 +4,16 @@ import { useEffect, useState } from 'react'
 import { getClientAuthHeaders } from '@/lib/clientAuth'
 import { formatPaymentDisplay } from '@/lib/payments'
 import { formatIDR } from '@/lib/utils'
-import { 
-  Printer, 
+import {
+  Printer,
   CheckCircle2,
   CreditCard,
   User,
   Smartphone,
-  Package
 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -131,12 +128,12 @@ export default function ReceiptPrinter({ order: providedOrder, onClose, business
   const discount = order.discount || 0
   const subtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0)
   const taxableBase = Math.max(subtotal - discount, 0)
-  
-  const activeTaxRate = Number(settings?.tax_rate) || 0
-  const activeServiceRate = Number(settings?.service_rate) || 0
-  const calcTax = settings?.tax_enabled ? Math.round((taxableBase * activeTaxRate) / 100) : 0
-  const calcService = settings?.service_enabled ? Math.round((taxableBase * activeServiceRate) / 100) : 0
-  const grandTotal = taxableBase + calcTax + calcService
+
+  const taxRate = Number(settings?.tax_rate) || 0
+  const serviceRate = Number(settings?.service_rate) || 0
+  const taxAmount = settings?.tax_enabled ? Math.round(taxableBase * taxRate / 100) : 0
+  const serviceAmount = settings?.service_enabled ? Math.round(taxableBase * serviceRate / 100) : 0
+  const grandTotal = taxableBase + taxAmount + serviceAmount
   const paymentDisplay = formatPaymentDisplay(order.payment_method, order.payment_provider)
 
   // Explicit width values for smooth interpolation
@@ -205,16 +202,16 @@ export default function ReceiptPrinter({ order: providedOrder, onClose, business
             <span>-{formatIDR(discount)}</span>
           </div>
         )}
-        {settings?.tax_enabled && (
+        {taxAmount > 0 && (
           <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase">
-            <span>Tax ({activeTaxRate}%)</span>
-            <span>{formatIDR(calcTax)}</span>
+            <span>Tax ({taxRate}%)</span>
+            <span>{formatIDR(taxAmount)}</span>
           </div>
         )}
-        {settings?.service_enabled && (
+        {serviceAmount > 0 && (
           <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase">
-            <span>Service ({activeServiceRate}%)</span>
-            <span>{formatIDR(calcService)}</span>
+            <span>Service ({serviceRate}%)</span>
+            <span>{formatIDR(serviceAmount)}</span>
           </div>
         )}
         <div className="flex justify-between text-2xl font-black text-slate-900 pt-4 tracking-tighter">
