@@ -19,15 +19,16 @@ type Segment =
 
 function parseSegments(text: string): Segment[] {
   const segments: Segment[] = []
-  const re = /\[(CHART[^\]]*|MERMAID|TABLE|HTML)\]([\s\S]*?)\[\/(?:CHART|MERMAID|TABLE|HTML)\]/g
+  const re = /\[(CHART|MERMAID|TABLE|HTML)([^\]]*)\]([\s\S]*?)\[\/\1\]/g
   let last = 0
   let m: RegExpExecArray | null
 
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) segments.push({ type: 'text', content: text.slice(last, m.index) })
     const tag = m[1]
-    const content = m[2].trim()
-    if (tag.startsWith('CHART')) segments.push({ type: 'chart', attrs: tag, content })
+    const attrs = m[2]
+    const content = m[3].trim()
+    if (tag === 'CHART') segments.push({ type: 'chart', attrs: tag + attrs, content })
     else if (tag === 'MERMAID') segments.push({ type: 'mermaid', content })
     else if (tag === 'TABLE') segments.push({ type: 'table', content })
     else if (tag === 'HTML') segments.push({ type: 'html', content })

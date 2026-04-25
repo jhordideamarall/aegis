@@ -305,9 +305,13 @@ Chart:
 Tabel:
 [TABLE]{"headers":["Kolom A","Kolom B"],"rows":[["nilai1","nilai2"]]}[/TABLE]
 
-Aksi perubahan data:
-[ACTION]{"type":"nama_aksi","payload":{...}}[/ACTION]
-Tipe: update_product, update_stock, delete_product, update_member, delete_member, update_settings
+Aksi perubahan data — gunakan format CMD (bukan ACTION):
+[CMD]update stok Kopi Americano jadi 110[/CMD]
+[CMD]update harga Teh Botol jadi 5000[/CMD]
+[CMD]hapus produk Pocari Sweat[/CMD]
+[CMD]update poin Andi jadi 200[/CMD]
+[CMD]hapus member Budi[/CMD]
+Jangan sebut ID/UUID. Jangan bilang "sudah diupdate" — user masih harus konfirmasi. Gunakan "Siap, konfirmasi dulu ya~" sebelum [CMD].
 
 ## Contoh Gaya Jawaban
 

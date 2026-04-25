@@ -14,7 +14,8 @@ import {
   Mail,
   MapPin,
   Printer,
-  Star
+  Star,
+  Bot
 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -360,6 +361,36 @@ export default function SettingsPage() {
           </Card>
           {/* Member Points */}
           <MemberPointsCard settings={settings} setSettings={setSettings} />
+
+          {/* AI Assistant Personalization */}
+          <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden bg-white">
+            <CardHeader className="bg-slate-50/50 border-b py-4 px-6 flex flex-row items-center gap-3">
+              <div className="p-2 bg-white rounded-lg shadow-sm"><Bot className="h-4 w-4 text-slate-400" /></div>
+              <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600">Personalisasi Asisten</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-5">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Nama Asisten</Label>
+                <p className="text-[10px] text-slate-400">Nama yang dipakai AI saat memperkenalkan diri</p>
+                <Input
+                  value={settings?.assistant_name ?? ''}
+                  onChange={(e) => setSettings({ ...settings, assistant_name: e.target.value })}
+                  placeholder="contoh: Aegis, Jarvis..."
+                  className="h-10 text-sm font-bold rounded-xl border-slate-200"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Custom Instruction <span className="normal-case font-medium">(opsional)</span></Label>
+                <p className="text-[10px] text-slate-400">Instruksi tambahan untuk AI — fokus, kepribadian, atau konteks spesifik bisnis kamu</p>
+                <Textarea
+                  value={settings?.assistant_instruction ?? ''}
+                  onChange={(e) => setSettings({ ...settings, assistant_instruction: e.target.value })}
+                  placeholder="contoh: Selalu sebut nama toko kami &quot;Warung Kopi Senja&quot;. Fokus ke menu kopi dan dessert."
+                  className="text-sm font-medium min-h-[90px] rounded-xl border-slate-200 resize-none"
+                />
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="space-y-8">

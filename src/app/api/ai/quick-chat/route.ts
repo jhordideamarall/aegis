@@ -3,6 +3,8 @@ import { getBusinessContextFromRequest, unauthorizedResponse } from '@/lib/reque
 import { supabaseAdmin } from '@/lib/supabase'
 
 const HISTORY_LIMIT = 20
+const CTX_TTL = 60_000
+const ctxCache = new Map<string, { data: string; ts: number }>()
 
 // GET — load conversation history for UI
 export async function GET(request: Request) {
@@ -43,25 +45,29 @@ export async function POST(request: Request) {
     const businessContext = await getBusinessContextFromRequest(request)
     if (!businessContext) return unauthorizedResponse()
 
-    const { prompt } = await request.json()
-    if (!prompt?.trim()) {
+    const body = await request.json()
+    const prompt = body?.prompt?.trim()
+    const withContext: boolean = body?.withContext === true
+
+    if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 })
     }
 
     const { businessId, user } = businessContext
     const userId = user.id
 
-    const [businessData, conversationSetup] = await Promise.all([
-      fetchBusinessContext(businessId),
-      setupConversationAndHistory(businessId, userId, prompt)
-    ])
+    // Always get persona (lightweight — 2 rows only)
+    const persona = await getPersonaSettings(businessId)
 
-    const { conversationId, formattedHistory } = conversationSetup
-    const systemPrompt = buildSystemPrompt(businessData)
+    // Conversation setup runs in background — don't block AI call
+    const convPromise = setupConversationAndHistory(businessId, userId, prompt)
+
+    // Only build full context when needed
+    const businessData = withContext ? await getCachedContext(businessId) : null
+    const systemPrompt = buildSystemPrompt(businessData, persona)
 
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...formattedHistory,
       { role: 'user', content: prompt }
     ]
 
@@ -107,12 +113,18 @@ export async function POST(request: Request) {
         controller.enqueue(chunk)
       },
       async flush() {
+        // Await conversation setup here — response is already streaming to client
         if (assistantFullContent.trim()) {
-          await supabaseAdmin.from('ai_messages').insert([{
-            conversation_id: conversationId,
-            role: 'assistant',
-            content: assistantFullContent.trim()
-          }])
+          try {
+            const { conversationId } = await convPromise
+            if (conversationId) {
+              await supabaseAdmin.from('ai_messages').insert([{
+                conversation_id: conversationId,
+                role: 'assistant',
+                content: assistantFullContent.trim()
+              }])
+            }
+          } catch { /* DB save failure should not affect user */ }
         }
       }
     })
@@ -129,6 +141,28 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: `Internal Server Error: ${message}` }, { status: 500 })
   }
+}
+
+async function getPersonaSettings(businessId: string): Promise<{ name: string; instruction: string }> {
+  const { data } = await supabaseAdmin
+    .from('settings')
+    .select('key, value')
+    .eq('business_id', businessId)
+    .in('key', ['assistant_name', 'assistant_instruction'])
+
+  const map = Object.fromEntries((data || []).map(s => [s.key, s.value]))
+  return {
+    name: map.assistant_name?.trim() || 'Asisten',
+    instruction: map.assistant_instruction?.trim() || ''
+  }
+}
+
+async function getCachedContext(businessId: string): Promise<string> {
+  const cached = ctxCache.get(businessId)
+  if (cached && Date.now() - cached.ts < CTX_TTL) return cached.data
+  const data = await fetchBusinessContext(businessId)
+  ctxCache.set(businessId, { data, ts: Date.now() })
+  return data
 }
 
 async function setupConversationAndHistory(businessId: string, userId: string, prompt: string) {
@@ -156,25 +190,13 @@ async function setupConversationAndHistory(businessId: string, userId: string, p
       .then()
   }
 
-  const { data: pastMessages } = await supabaseAdmin
-    .from('ai_messages')
-    .select('role, content')
-    .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: false })
-    .limit(HISTORY_LIMIT)
-
   supabaseAdmin.from('ai_messages').insert([{
     conversation_id: conversationId,
     role: 'user',
     content: prompt
   }]).then()
 
-  const formattedHistory = (pastMessages || []).reverse().map(m => ({
-    role: m.role as 'user' | 'assistant',
-    content: m.content
-  }))
-
-  return { conversationId, formattedHistory }
+  return { conversationId }
 }
 
 async function fetchBusinessContext(businessId: string): Promise<string> {
@@ -184,7 +206,6 @@ async function fetchBusinessContext(businessId: string): Promise<string> {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const yearStart = new Date(now.getFullYear(), 0, 1)
 
-  // Efficient parallel queries — no loading all raw orders
   const [
     productsRes,
     membersRes,
@@ -196,32 +217,10 @@ async function fetchBusinessContext(businessId: string): Promise<string> {
     statsYear,
     statsAllTime
   ] = await Promise.all([
-    supabaseAdmin
-      .from('products')
-      .select('id, name, price, stock, category, hpp')
-      .eq('business_id', businessId)
-      .order('name'),
-
-    supabaseAdmin
-      .from('members')
-      .select('id, name, phone, points, total_purchases')
-      .eq('business_id', businessId)
-      .order('total_purchases', { ascending: false })
-      .limit(50),
-
-    supabaseAdmin
-      .from('orders')
-      .select('id, total, created_at, payment_method, payment_provider, member:members(name), order_items(qty, price, product:products(name))')
-      .eq('business_id', businessId)
-      .order('created_at', { ascending: false })
-      .limit(15),
-
-    supabaseAdmin
-      .from('settings')
-      .select('key, value')
-      .eq('business_id', businessId),
-
-    // Financial stats per period — only fetch totals + costs, not full records
+    supabaseAdmin.from('products').select('id, name, price, stock, category, hpp').eq('business_id', businessId).order('name'),
+    supabaseAdmin.from('members').select('id, name, phone, points, total_purchases').eq('business_id', businessId).order('total_purchases', { ascending: false }).limit(50),
+    supabaseAdmin.from('orders').select('id, total, created_at, payment_method, payment_provider, member:members(name), order_items(qty, price, product:products(name))').eq('business_id', businessId).order('created_at', { ascending: false }).limit(15),
+    supabaseAdmin.from('settings').select('key, value').eq('business_id', businessId),
     calcPeriodStats(businessId, todayStart),
     calcPeriodStats(businessId, weekStart),
     calcPeriodStats(businessId, monthStart),
@@ -251,7 +250,7 @@ Catatan: Kalau user tanya soal penjualan tanpa menyebut periode, tanya dulu: har
 
   const lowStock = products.filter(p => p.stock <= 5)
   if (lowStock.length > 0) {
-    lines.push(`[STOK MENIPIS ⚠️]
+    lines.push(`[STOK MENIPIS]
 ${lowStock.map(p => `- ${p.name}: ${p.stock} sisa`).join('\n')}`)
   }
 
@@ -260,7 +259,7 @@ ${products.map(p =>
     `- id:${p.id} | ${p.name} | Harga:${fmt(p.price)} | HPP:${fmt(p.hpp || 0)} | Stok:${p.stock} | Kategori:${p.category}`
   ).join('\n') || 'Kosong'}`)
 
-  lines.push(`[MEMBER (${members.length} ditampilkan, urutkan by pembelian terbesar) — gunakan id untuk aksi CRUD]
+  lines.push(`[MEMBER (${members.length} ditampilkan) — gunakan id untuk aksi CRUD]
 ${members.map(m =>
     `- id:${m.id} | ${m.name} | ${m.phone} | Poin:${m.points} | Total:${fmt(m.total_purchases)}`
   ).join('\n') || 'Belum ada member'}`)
@@ -296,20 +295,14 @@ async function calcPeriodStats(businessId: string, fromDate: Date | null) {
     .eq('business_id', businessId)
 
   if (fromDate) {
-    // Join via orders to filter by date
     const { data: orderIds } = await supabaseAdmin
       .from('orders')
       .select('id')
       .eq('business_id', businessId)
       .gte('created_at', fromDate.toISOString())
 
-    if (fromDate && (!orderIds || orderIds.length === 0)) {
-      return { count: 0, revenue: 0, profit: 0 }
-    }
-
-    if (fromDate && orderIds) {
-      costQuery.in('order_id', orderIds.map(o => o.id))
-    }
+    if (!orderIds || orderIds.length === 0) return { count: 0, revenue: 0, profit: 0 }
+    costQuery.in('order_id', orderIds.map(o => o.id))
   }
 
   const [revenueRes, costRes] = await Promise.all([revenueQuery, costQuery])
@@ -321,30 +314,29 @@ async function calcPeriodStats(businessId: string, fromDate: Date | null) {
   return { count, revenue, profit: revenue - cost }
 }
 
-function buildSystemPrompt(businessContext: string): string {
-  return `Kamu adalah Aegis — AI business advisor di AEGIS POS.
+function buildSystemPrompt(context: string | null, persona: { name: string; instruction: string }): string {
+  const base = `Aku ${persona.name}, asisten bisnis untuk sistem POS (Point of Sale) AEGIS.
+Tugasku: bantu kelola toko — stok produk, harga, member, transaksi, dan laporan keuangan.
+Gaya: smart, to the point, sedikit Gen Z tapi tidak lebay. Bahasa Indonesia.
+Jawab hanya sesuai konteks bisnis POS. Jangan sebut platform luar (Shopee, Tokped, dll) kecuali user yang minta.${persona.instruction ? `\n${persona.instruction}` : ''}`
 
-Kepribadian: Gen Z tapi profesional. Santai, smart, to the point. Boleh pakai "fr", "literally", "no cap" sesekali — jangan lebay. Fokus ke insight actionable.
+  if (!context) return `${base}
 
-Kemampuan: Analisis bisnis, kasih saran strategis, dan bisa execute perubahan data langsung.
+Jika user minta CRUD (update stok/harga/poin, hapus produk/member), jangan eksekusi sendiri — kamu tidak punya data.
+Balas dengan format: [CMD]<perintah>[/CMD]
+Contoh: [CMD]update stok Kopi Americano jadi 50[/CMD]
+Tetap balas natural di luar tag, contoh: "Sip, aku prosesin ya~ [CMD]update stok Kopi Americano jadi 50[/CMD]"`
+
+  return `${base}
 
 Kalau user minta perubahan data, sertakan di akhir response:
 [ACTION]{"type":"nama_aksi","payload":{...}}[/ACTION]
 
-Aksi tersedia:
-- update_product: {"id":"uuid","price":number,"stock":number,"name":"string","hpp":number,"category":"string"}
-- update_stock: {"id":"uuid","stock":number}
-- delete_product: {"id":"uuid","name":"string"}
-- update_member: {"id":"uuid","name":"string","phone":"string","points":number}
-- delete_member: {"id":"uuid","name":"string"}
-- update_settings: {"key":"string","value":"string"}
-
-Rules:
-- Jawab singkat dan langsung (kamu di modal Cmd+K)
-- Kalau ditanya soal penjualan/revenue tanpa periode jelas → tanya dulu: hari ini, minggu ini, bulan ini, tahun ini, atau all-time?
-- Gunakan id dari data di bawah kalau perlu eksekusi aksi — jangan pernah karang UUID
-- Hanya sertakan [ACTION] kalau user eksplisit minta perubahan
+Aksi tersedia: update_product, update_stock, delete_product, update_member, delete_member, update_settings
+Gunakan id dari data di bawah — jangan pernah karang UUID.
+PENTING: Jangan pernah tampilkan id/UUID ke user. Sembunyikan data teknis (id, hpp, cost_price).
+PENTING: Jangan bilang "sudah diupdate/dihapus/diubah" — user masih harus konfirmasi. Gunakan frasa seperti "Siap, konfirmasi dulu:" atau "Mau set ke X?"
 
 DATA BISNIS REAL-TIME:
-${businessContext}`
+${context}`
 }
