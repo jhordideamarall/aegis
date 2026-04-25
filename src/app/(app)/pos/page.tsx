@@ -460,7 +460,7 @@ export default function POSPage() {
           </div>
         </div>
 
-        <div className="flex-1 content-start items-start overflow-y-auto px-4 md:px-8 pb-8 grid auto-rows-max grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5 no-scrollbar">
+        <div className="flex-1 content-start items-start overflow-y-auto px-4 pt-2 md:px-8 md:pt-3 pb-8 grid auto-rows-max grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5 no-scrollbar">
           {productsLoading && filteredProducts.length === 0 ? (
             <ProductGridSkeleton />
           ) : filteredProducts.length === 0 ? (
