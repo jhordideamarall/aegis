@@ -6,6 +6,7 @@ import { PwaRegistration } from "@/components/PwaRegistration";
 import "./globals.css";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
+import { Analytics } from "@vercel/analytics/next";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -221,6 +222,7 @@ export default function RootLayout({
       <body className="antialiased font-sans bg-slate-50 text-slate-950">
         <PwaRegistration />
         {children}
+        <Analytics />
         
         {/* Google Analytics - Replace with your ID */}
         {/* <Script
