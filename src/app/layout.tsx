@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { getSiteUrl } from "@/lib/site";
 import { validateEnvironment } from "@/lib/env";
@@ -104,22 +104,32 @@ export const metadata: Metadata = {
   // Icons
   icons: {
     icon: [
-      { url: "/favicon.svg", type: "image/svg+xml" }
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/pwa/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/pwa/icon-512.png", type: "image/png", sizes: "512x512" }
     ],
-    shortcut: "/favicon.svg",
-    apple: "/favicon.svg",
+    shortcut: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/pwa/icon-192.png", type: "image/png", sizes: "192x192" }
+    ],
+    apple: [
+      { url: "/pwa/apple-touch-icon.png", sizes: "180x180", type: "image/png" }
+    ],
     other: [
       {
         rel: "icon",
         type: "image/svg+xml",
         url: "/favicon.svg"
+      },
+      {
+        rel: "apple-touch-icon",
+        url: "/pwa/apple-touch-icon.png"
       }
     ]
   },
   
   // Manifest
   manifest: "/site.webmanifest",
-  themeColor: "#0f172a",
   
   // App Links
   appleWebApp: {
@@ -135,6 +145,10 @@ export const metadata: Metadata = {
     telephone: false
   }
 };
+
+export const viewport: Viewport = {
+  themeColor: "#0f172a"
+}
 
 // Structured Data for SEO
 const structuredData = {
