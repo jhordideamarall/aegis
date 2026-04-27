@@ -162,10 +162,14 @@ async function fetchBusinessContext(businessId: string): Promise<string> {
     statsToday, statsWeek, statsMonth,
     businessRes, settingsRes
   ] = await Promise.all([
-    supabaseAdmin.from('products').select('id, name, price, stock, category, hpp').eq('business_id', businessId).order('name'),
-    supabaseAdmin.from('members').select('id, name, phone, points, total_purchases').eq('business_id', businessId).order('total_purchases', { ascending: false }).limit(100),
-    supabaseAdmin.from('orders').select('id, total, created_at, payment_method, member:members(name), order_items(qty, product:products(name))').eq('business_id', businessId).order('created_at', { ascending: false }),
-    supabaseAdmin.from('orders').select('total').eq('business_id', businessId),
+    // Limit to top 200 products
+    supabaseAdmin.from('products').select('id, name, price, stock, category, hpp').eq('business_id', businessId).order('name').limit(200),
+    // Limit to top 50 members by purchase volume
+    supabaseAdmin.from('members').select('id, name, phone, points, total_purchases').eq('business_id', businessId).order('total_purchases', { ascending: false }).limit(50),
+  // Limit to last 50 transactions for context
+    supabaseAdmin.from('orders').select('id, total, tax_amount, service_amount, created_at, payment_method, member:members(name), order_items(qty, product:products(name))').eq('business_id', businessId).order('created_at', { ascending: false }).limit(50),
+    // Use head=false but select only total (still better than selecting all columns)
+    supabaseAdmin.from('orders').select('total, tax_amount, service_amount').eq('business_id', businessId),
     supabaseAdmin.from('orders').select('total, created_at').eq('business_id', businessId).gte('created_at', yearAgo.toISOString()),
     calcStats(businessId, todayStart),
     calcStats(businessId, weekStart),
@@ -181,12 +185,15 @@ async function fetchBusinessContext(businessId: string): Promise<string> {
   const settings = (settingsRes.data || []).reduce<Record<string, string>>((acc, s) => { acc[s.key] = s.value; return acc }, {})
   const fmt = (n: number) => `Rp${n.toLocaleString('id-ID')}`
   const nowJkt = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-  const fmtS = (s: { count: number; revenue: number; profit: number }) =>
-    `${s.count} order | ${fmt(s.revenue)} revenue | ${fmt(s.profit)} profit`
+  const fmtS = (s: { count: number; revenue: number; profit: number; tax: number; service: number; net_revenue: number }) =>
+    `${s.count} order | ${fmt(s.revenue)} gross | ${fmt(s.net_revenue)} net | ${fmt(s.tax)} tax | ${fmt(s.service)} service | ${fmt(s.profit)} profit`
 
   // All-time totals
   const allOrders = allOrdersRes.data || []
-  const allTimeRevenue = allOrders.reduce((s, o) => s + Number(o.total), 0)
+  const allTimeGross = allOrders.reduce((s, o) => s + Number(o.total), 0)
+  const allTimeTax = allOrders.reduce((s, o) => s + Number(o.tax_amount || 0), 0)
+  const allTimeService = allOrders.reduce((s, o) => s + Number(o.service_amount || 0), 0)
+  const allTimeNet = allTimeGross - allTimeTax - allTimeService
   const allTimeCount = allOrders.length
 
   // Monthly breakdown last 12 months
@@ -223,7 +230,7 @@ Email: ${biz?.email || '-'}`,
 ${settingsStr}`,
 
     `[FINANSIAL]
-All time: ${allTimeCount} order | ${fmt(allTimeRevenue)} total revenue
+All time: ${allTimeCount} order | ${fmt(allTimeGross)} gross | ${fmt(allTimeNet)} net
 Hari ini: ${fmtS(statsToday)}
 7 hari terakhir: ${fmtS(statsWeek)}
 Bulan ini: ${fmtS(statsMonth)}
@@ -243,7 +250,9 @@ ${orders.map(o => {
   const buyer = (o.member as unknown as { name: string } | null)?.name || 'Umum'
   type OI = { qty: number; product: unknown }
   const items = (o.order_items as OI[] | null)?.map(i => `${i.qty}x ${(i.product as { name: string } | null)?.name}`).join(', ') || '-'
-  return `[${d}] ${buyer} | ${items} | ${fmt(Number(o.total))} | ${o.payment_method}`
+  const taxInfo = o.tax_amount ? ` | Pajak:${fmt(o.tax_amount)}` : ''
+  const serviceInfo = o.service_amount ? ` | Service:${fmt(o.service_amount)}` : ''
+  return `[${d}] ${buyer} | ${items} | ${fmt(Number(o.total))}${taxInfo}${serviceInfo} | ${o.payment_method}`
 }).join('\n') || 'Belum ada'}`
   ].join('\n\n')
 
@@ -252,12 +261,16 @@ ${orders.map(o => {
 }
 
 async function calcStats(businessId: string, from: Date) {
-  const { data: orderIds } = await supabaseAdmin.from('orders').select('id, total').eq('business_id', businessId).gte('created_at', from.toISOString())
-  if (!orderIds?.length) return { count: 0, revenue: 0, profit: 0 }
-  const revenue = orderIds.reduce((s, o) => s + Number(o.total), 0)
-  const { data: items } = await supabaseAdmin.from('order_items').select('cost_price, qty').in('order_id', orderIds.map(o => o.id))
+  const { data: orderData } = await supabaseAdmin.from('orders').select('id, total, tax_amount, service_amount').eq('business_id', businessId).gte('created_at', from.toISOString())
+  if (!orderData?.length) return { count: 0, revenue: 0, profit: 0, tax: 0, service: 0, net_revenue: 0 }
+  const revenue = orderData.reduce((s, o) => s + Number(o.total), 0)
+  const tax = orderData.reduce((s, o) => s + Number(o.tax_amount || 0), 0)
+  const service = orderData.reduce((s, o) => s + Number(o.service_amount || 0), 0)
+  const net_revenue = revenue - tax - service
+  
+  const { data: items } = await supabaseAdmin.from('order_items').select('cost_price, qty').in('order_id', orderData.map(o => o.id))
   const cost = (items || []).reduce((s, i) => s + Number(i.cost_price || 0) * i.qty, 0)
-  return { count: orderIds.length, revenue, profit: revenue - cost }
+  return { count: orderData.length, revenue, profit: net_revenue - cost, tax, service, net_revenue }
 }
 
 function buildSystemPrompt(context: string, userName: string | null): string {

@@ -1,5 +1,5 @@
 export type FieldDef =
-  | { name: string; label: string; placeholder: string; type?: 'text' | 'number' }
+  | { name: string; label: string; placeholder: string; type?: 'text' | 'number' | 'date' }
   | { name: string; label: string; options: string[] }
 
 export interface CommandDef {
@@ -83,10 +83,12 @@ export const COMMANDS: CommandDef[] = [
     ]
   },
   {
-    key: 'export', icon: '', label: 'Export Laporan', description: 'Download rekap penjualan CSV',
+    key: 'export', icon: '', label: 'Export Report', description: 'Generate sales report (PDF)',
     intent: 'export_report',
     fields: [
-      { name: 'period', label: 'Periode', options: ['today', 'week', 'month', 'year'] },
+      { name: 'period', label: 'Time Range', options: ['Today', 'This Week', 'This Month', 'Last Month', 'This Year', 'Custom'] },
+      { name: 'startDate', label: 'Start Date', placeholder: 'YYYY-MM-DD', type: 'date' },
+      { name: 'endDate', label: 'End Date', placeholder: 'YYYY-MM-DD', type: 'date' },
     ]
   },
   {
@@ -159,11 +161,11 @@ export function detectLocalIntent(input: string): { intent: string; params: Reco
   const s = parseIDNumber(input.trim())
 
   // ── Verbs & separators ─────────────────────────────────────────────────────
-  const updateVerb = /(?:update|ubah|ganti|set|jadiin?|tambahin?|kurangi?|coba(?:in)?|bikin?|kasih|pasang|pake|naikin?|turunin?|rubah|ubah|revisi|edit|atur|setel)/i
-  const valueSep   = /(?:jadi(?:in)?|ke|=|menjadi|:\s*|adi|jd|jadi|sebesar|senilai)/i
-  const stockWord  = /(?:stok|stock|persediaan|inventory|sisa)/i
-  const priceWord  = /(?:harga|price|hrg|bandrol|banderol)/i
-  const pointWord  = /(?:poin|point|points?|reward|kredit)/i
+  const updateVerb = /(?:update|updat|ubah|rubah|ganti|gnt|set|jadiin?|tambahin?|tmbh|tmbah|kurangi?|coba(?:in)?|bikin?|bkn|kasih|pasang|pake|naikin?|turunin?|revisi|edit|atur|setel)/i
+  const valueSep   = /(?:jadi(?:in)?|ke|k|=|menjadi|mnjd|mjd|:\s*|adi|jd|jdi|sebesar|senilai)/i
+  const stockWord  = /(?:stok|stock|stc|stk|persediaan|inventory|sisa|barangnya?|brg|jml|jumlah)/i
+  const priceWord  = /(?:harga|price|haga|hrg|hrga|bandrol|banderol|rp)/i
+  const pointWord  = /(?:poin|point|points?|pn|pnt|reward|rwd|kredit)/i
 
   let m: RegExpMatchArray | null
 
@@ -192,7 +194,7 @@ export function detectLocalIntent(input: string): { intent: string; params: Reco
   }
 
   // ── Revenue check ───────────────────────────────────────────────────────────
-  m = s.match(/(?:cek|lihat|tampilkan?|berapa|gimana|bagaimana|check)\s+(?:revenue|pendapatan|omset|omzet|penghasilan|penjualan)(?:\s+(.+))?/i)
+  m = s.match(/(?:cek|lihat|liat|lht|tampilkan?|berapa|gimana|bagaimana|check)\s+(?:revenue|rvn|pendapatan|dapetnya|omset|omzet|penghasilan|penjualan|jual|sales)(?:\s+(.+))?/i)
   if (m) {
     const periodRaw = (m[1] || 'today').trim().toLowerCase()
     const periodMap: Record<string, string> = { 'hari ini': 'today', 'today': 'today', 'minggu ini': 'week', 'minggu': 'week', 'bulan ini': 'month', 'bulan': 'month', 'tahun ini': 'year', 'tahun': 'year', 'all': 'all', 'semua': 'all' }
@@ -201,29 +203,29 @@ export function detectLocalIntent(input: string): { intent: string; params: Reco
   }
 
   // ── Low stock alert ─────────────────────────────────────────────────────────
-  if (/(?:stok\s+(?:menipis|hampir\s+habis|kritis|dikit|sedikit|rendah)|produk\s+(?:mau\s+habis|abis|hampir\s+abis))/i.test(s)) {
+  if (/(?:stok\s+(?:menipis|nipis|hampir\s+habis|hbis|kritis|krts|dikit|dkt|sedikit|rendah)|produk\s+(?:mau\s+habis|abis|hampir\s+abis))/i.test(s)) {
     return { intent: 'low_stock_alert', params: {} }
   }
 
   // ── Delete member ───────────────────────────────────────────────────────────
-  m = s.match(/(?:hapus|delete|remove|buang|ilangin?|keluarin?|kick)\s+(?:data\s+)?member\s+(.+)/i)
+  m = s.match(/(?:hapus|hps|apus|delete|dlt|remove|rmv|buang|ilangin?|ilng|keluarin?|kick)\s+(?:data\s+)?(?:member|pelanggan|customer|cust|user)\s+(.+)/i)
   if (m) return { intent: 'delete_member', params: { member_name: m[1].trim() } }
 
   // ── Delete product ──────────────────────────────────────────────────────────
-  m = s.match(/(?:hapus|delete|remove|buang|ilangin?|nonaktifkan?)\s+(?:produk|product|item|barang\s+)?(.+)/i)
-  if (m && !s.match(/\bmember\b/i)) return { intent: 'delete_product', params: { product_name: m[1].trim() } }
+  m = s.match(/(?:hapus|hps|apus|delete|dlt|remove|rmv|buang|ilangin?|ilng|nonaktifkan?)\s+(?:produk|product|item|barang|brg\s+)?(.+)/i)
+  if (m && !s.match(/\b(?:member|pelanggan|customer|cust|user)\b/i)) return { intent: 'delete_product', params: { product_name: m[1].trim() } }
 
   // ── Find product ────────────────────────────────────────────────────────────
-  m = s.match(/(?:cari|search|cek|lihat|info|detail)\s+(?:produk|product|barang|item)\s+(.+)/i)
+  m = s.match(/(?:cari|search|cek|lihat|liat|lht|info|detail)\s+(?:produk|product|barang|brg|item)\s+(.+)/i)
   if (m) return { intent: 'find_product', params: { query: m[1].trim() } }
 
   // ── Find member ─────────────────────────────────────────────────────────────
-  m = s.match(/(?:cari|search|cek|lihat|info|detail)\s+(?:member|pelanggan|customer)\s+(.+)/i)
+  m = s.match(/(?:cari|search|cek|lihat|liat|lht|info|detail)\s+(?:member|pelanggan|customer|cust|user)\s+(.+)/i)
   if (m) return { intent: 'find_member', params: { query: m[1].trim() } }
 
   // ── Create product ──────────────────────────────────────────────────────────
   // "tambah/buat/daftar produk NAME harga PRICE stok STOCK kategori CAT"
-  m = s.match(/(?:tambah|buat|daftarkan?|input|add|masukin?|masukkan?|register)\s+(?:produk|product|barang|item\s+)?(.+?)\s+(?:harga|price|hrg)\s+(\d+)(?:\s+(?:stok|stock)\s+(\d+))?(?:\s+(?:kategori|category|cat)\s+(.+))?$/i)
+  m = s.match(/(?:tambah|tmbh|tmbah|buat|bikin|bkn|daftarkan?|dftr|input|add|masukin?|masukkan?|register)\s+(?:produk|product|barang|brg|item\s+)?(.+?)\s+(?:harga|price|haga|hrg|hrga)\s+(\d+)(?:\s+(?:stok|stock|stk|stc|jml)\s+(\d+))?(?:\s+(?:kategori|category|cat)\s+(.+))?$/i)
   if (m) return {
     intent: 'create_product',
     params: { name: m[1].trim(), price: Number(m[2]), stock: Number(m[3] || 0), category: (m[4] || '').trim() }
@@ -231,7 +233,7 @@ export function detectLocalIntent(input: string): { intent: string; params: Reco
 
   // ── Create order ─────────────────────────────────────────────────────────────
   // "catat/buat order QTY PRODUCT ... bayar METHOD"
-  m = s.match(/(?:catat|buat|create|input|pesan|order)\s+(?:order|transaksi|pembelian\s+)?(.+?)\s+(?:bayar|payment|dibayar|via|pakai|dengan)\s+(\S+)/i)
+  m = s.match(/(?:catat|ctt|buat|bikin|bkn|create|input|pesan|psn|psan|order|ordr)\s+(?:order|transaksi|trans|pembelian\s+)?(.+?)\s+(?:bayar|byr|byrn|payment|dibayar|via|pakai|pakek|dengan|dgn|pembayaran)\s+(\S+)/i)
   if (m) {
     const itemsStr = m[1].trim()
     const paymentMethod = m[2].toLowerCase()

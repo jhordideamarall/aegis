@@ -423,12 +423,39 @@ export default function POSPage() {
 
       const discount = redeemPoints * (liveCharges.points_redeem_rate || chargesRef.current.points_redeem_rate)
       const taxableBase = Math.max(cartTotal - discount, 0)
-      const finalTotal = taxableBase
-        + (liveCharges.tax_enabled ? Math.round(taxableBase * (Number(liveCharges.tax_rate) || 0) / 100) : 0)
-        + (liveCharges.service_enabled ? Math.round(taxableBase * (Number(liveCharges.service_rate) || 0) / 100) : 0)
+      
+      const taxRate = liveCharges.tax_enabled ? (Number(liveCharges.tax_rate) || 0) : 0
+      const taxAmount = taxRate > 0 ? Math.round(taxableBase * taxRate / 100) : 0
+      
+      const serviceRate = liveCharges.service_enabled ? (Number(liveCharges.service_rate) || 0) : 0
+      const serviceAmount = serviceRate > 0 ? Math.round(taxableBase * serviceRate / 100) : 0
+      
+      const finalTotal = taxableBase + taxAmount + serviceAmount
       const pointsEarned = liveCharges.points_enabled !== false ? Math.floor(cartTotal / (Number(liveCharges.points_earn_rate) || 10000)) : 0
 
-      const orderRes = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) }, body: JSON.stringify({ business_id: business.id, total: finalTotal, payment_method: payment.method, payment_provider: payment.provider, payment_notes: payment.notes, member_id: selectedMember?.id || null, points_earned: pointsEarned, points_used: redeemPoints, discount, items: cart.map(i => ({ product_id: i.product.id, qty: i.qty, price: i.product.price })) }) })
+      const orderRes = await fetch('/api/orders', { 
+        method: 'POST', 
+        headers: { 
+          'Content-Type': 'application/json', 
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) 
+        }, 
+        body: JSON.stringify({ 
+          business_id: business.id, 
+          total: finalTotal, 
+          tax_amount: taxAmount,
+          tax_rate: taxRate,
+          service_amount: serviceAmount,
+          service_rate: serviceRate,
+          payment_method: payment.method, 
+          payment_provider: payment.provider, 
+          payment_notes: payment.notes, 
+          member_id: selectedMember?.id || null, 
+          points_earned: pointsEarned, 
+          points_used: redeemPoints, 
+          discount, 
+          items: cart.map(i => ({ product_id: i.product.id, qty: i.qty, price: i.product.price })) 
+        }) 
+      })
       
       if (orderRes.ok) { 
         const order = await orderRes.json()

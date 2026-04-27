@@ -4,5 +4,8 @@
   "private": true,
   "description": "AEGIS POS — server-side API layer (supabase, auth, rate limiting)",
   "types": "src/index.ts",
-  "main": "src/index.ts"
+  "main": "src/index.ts",
+  "devDependencies": {
+    "@types/node": "^20.19.37"
+  }
 }

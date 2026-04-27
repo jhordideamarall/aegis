@@ -12,6 +12,10 @@ export interface ReportOrderItem {
 export interface ReportOrder {
   id: string
   total: number
+  tax_amount?: number
+  tax_rate?: number
+  service_amount?: number
+  service_rate?: number
   payment_method: string
   payment_provider?: string | null
   payment_proof_url?: string | null
@@ -38,6 +42,9 @@ export interface ReportMeta {
 
 export interface ReportMetrics {
   totalRevenue: number
+  totalTax: number
+  totalService: number
+  netRevenue: number
   totalOrders: number
   averageOrderValue: number
   totalItemsSold: number
@@ -110,6 +117,10 @@ function getDailyBreakdown(orders: ReportOrder[]) {
 
 export function buildReportMetrics(orders: ReportOrder[]): ReportMetrics {
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0)
+  const totalTax = orders.reduce((s, o) => s + (Number(o.tax_amount) || 0), 0)
+  const totalService = orders.reduce((s, o) => s + (Number(o.service_amount) || 0), 0)
+  const netRevenue = totalRevenue - totalTax - totalService
+
   const totalOrders = orders.length
   const totalItemsSold = orders.reduce((s, o) => s + (o.order_items?.reduce((is, i) => is + i.qty, 0) || 0), 0)
   const withProofCount = orders.filter((o) => !!o.payment_proof_url).length
@@ -117,6 +128,9 @@ export function buildReportMetrics(orders: ReportOrder[]): ReportMetrics {
   const proofCoverageRate = totalOrders > 0 ? (withProofCount / totalOrders) * 100 : 0
   return {
     totalRevenue,
+    totalTax,
+    totalService,
+    netRevenue,
     totalOrders,
     averageOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
     totalItemsSold,

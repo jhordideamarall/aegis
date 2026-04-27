@@ -67,15 +67,17 @@ function escapeHtml(value: string): string {
 
 function renderMetricCards(metrics: ReportMetrics): string {
   const cards = [
-    { label: 'Total Omzet', value: formatIDR(metrics.totalRevenue) },
+    { label: 'Gross Omzet', value: formatIDR(metrics.totalRevenue) },
+    { label: 'Net Revenue', value: formatIDR(metrics.netRevenue) },
+    { label: 'Total Pajak', value: formatIDR(metrics.totalTax) },
+    { label: 'Total Service', value: formatIDR(metrics.totalService) },
     { label: 'Transaksi', value: String(metrics.totalOrders) },
-    { label: 'Rata-rata Order', value: formatIDR(metrics.averageOrderValue) },
     { label: 'Coverage Bukti', value: `${metrics.proofCoverageRate.toFixed(0)}%` }
   ]
   return cards.map((c) => `
     <div class="metric-card">
       <div class="metric-label">${escapeHtml(c.label)}</div>
-      <div class="metric-value">${escapeHtml(c.value)}</div>
+      <div class="metric-value" style="font-size: ${c.label.includes('Omzet') || c.label.includes('Revenue') ? '14px' : '15px'}">${escapeHtml(c.value)}</div>
     </div>`).join('')
 }
 
@@ -101,12 +103,14 @@ function renderTransactionTable(orders: ReportOrder[]): string {
   const header = `
     <thead>
       <tr>
-        <th style="width:80px">#Order</th>
-        <th style="width:110px">Waktu</th>
+        <th style="width:75px">#Order</th>
+        <th style="width:100px">Waktu</th>
         <th>Pelanggan</th>
-        <th>Pembayaran</th>
-        <th style="width:60px">Bukti</th>
-        <th style="width:90px;text-align:right">Total</th>
+        <th>Metode</th>
+        <th style="width:80px;text-align:right">Subtotal</th>
+        <th style="width:70px;text-align:right">Pajak</th>
+        <th style="width:70px;text-align:right">Service</th>
+        <th style="width:85px;text-align:right">Total</th>
       </tr>
     </thead>`
 
@@ -119,18 +123,21 @@ function renderTransactionTable(orders: ReportOrder[]): string {
     <table class="report-table${idx > 0 ? ' page-break-before' : ''}">
       ${header}
       <tbody>
-        ${chunk.map((o) => `
+        ${chunk.map((o) => {
+          const subtotal = o.total - (Number(o.tax_amount) || 0) - (Number(o.service_amount) || 0)
+          return `
           <tr>
             <td class="mono">#${escapeHtml(o.id.slice(0, 8).toUpperCase())}</td>
             <td class="muted small">${escapeHtml(formatDateTime(o.created_at))}</td>
             <td>${escapeHtml(o.member?.name || 'Umum')}</td>
-            <td>
+            <td class="small">
               ${escapeHtml(formatPaymentDisplay(o.payment_method, o.payment_provider))}
-              ${o.payment_notes ? `<div class="muted small">${escapeHtml(o.payment_notes)}</div>` : ''}
             </td>
-            <td class="${o.payment_proof_url ? 'proof-yes' : 'proof-no'}">${o.payment_proof_url ? '✓' : '–'}</td>
+            <td style="text-align:right" class="muted small">${escapeHtml(formatIDR(subtotal))}</td>
+            <td style="text-align:right" class="muted small">${o.tax_amount ? escapeHtml(formatIDR(o.tax_amount)) : '–'}</td>
+            <td style="text-align:right" class="muted small">${o.service_amount ? escapeHtml(formatIDR(o.service_amount)) : '–'}</td>
             <td style="text-align:right;font-weight:600">${escapeHtml(formatIDR(o.total))}</td>
-          </tr>`).join('')}
+          </tr>`}).join('')}
       </tbody>
     </table>`).join('')
 }
@@ -215,7 +222,7 @@ export function generateReportHtml(
     .period-badge { display: inline-block; background: var(--accent); color: #fff; border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 600; margin-bottom: 4px; }
     .report-meta-line { font-size: 9px; color: var(--muted); line-height: 1.6; }
 
-    .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 5mm; }
+    .metrics-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 5mm; }
     .metric-card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--soft); }
     .metric-label { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 4px; }
     .metric-value { font-size: 16px; font-weight: 700; letter-spacing: -0.03em; }

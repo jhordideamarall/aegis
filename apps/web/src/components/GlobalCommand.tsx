@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { getClientAuthHeaders } from '@/lib/clientAuth'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { COMMANDS, CommandDef, FieldDef, detectLocalIntent, resolvePronoun, parseIDNumber } from '@/lib/ai/commands'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -20,87 +21,6 @@ interface AutomationState {
   isBulk?: boolean
   bulkItems?: Array<{ id: string; name: string; [key: string]: unknown }>
 }
-
-// --- Slash command definitions ---
-type FieldDef =
-  | { name: string; label: string; placeholder: string; type?: 'text' | 'number' }
-  | { name: string; label: string; options: string[] }
-
-interface CommandDef {
-  key: string
-  icon: string
-  label: string
-  description: string
-  intent: string
-  fields: FieldDef[]
-}
-
-const COMMANDS: CommandDef[] = [
-  {
-    key: 'stok', icon: '', label: 'Update Stok', description: 'Ubah jumlah stok produk',
-    intent: 'update_stock',
-    fields: [
-      { name: 'product_name', label: 'Nama produk', placeholder: 'Pocari Sweat' },
-      { name: 'stock', label: 'Stok baru', placeholder: '50', type: 'number' },
-    ]
-  },
-  {
-    key: 'harga', icon: '', label: 'Update Harga', description: 'Ubah harga jual produk',
-    intent: 'update_price',
-    fields: [
-      { name: 'product_name', label: 'Nama produk', placeholder: 'Kopi Americano' },
-      { name: 'price', label: 'Harga baru (Rp)', placeholder: '15000', type: 'number' },
-    ]
-  },
-  {
-    key: 'poin', icon: '', label: 'Update Poin Member', description: 'Set poin member',
-    intent: 'update_member_points',
-    fields: [
-      { name: 'member_name', label: 'Nama member', placeholder: 'Andi' },
-      { name: 'points', label: 'Poin baru', placeholder: '100', type: 'number' },
-    ]
-  },
-  {
-    key: 'revenue', icon: '', label: 'Cek Revenue', description: 'Lihat pendapatan per periode',
-    intent: 'check_revenue',
-    fields: [
-      { name: 'period', label: 'Periode', options: ['Hari ini', 'Minggu ini', 'Bulan ini', 'Tahun ini', 'All time'] },
-    ]
-  },
-  {
-    key: 'produk', icon: '', label: 'Cari Produk', description: 'Cari info produk',
-    intent: 'find_product',
-    fields: [
-      { name: 'query', label: 'Nama produk', placeholder: 'Ketik nama...' },
-    ]
-  },
-  {
-    key: 'member', icon: '', label: 'Cari Member', description: 'Cari info member',
-    intent: 'find_member',
-    fields: [
-      { name: 'query', label: 'Nama / no HP', placeholder: 'Ketik nama...' },
-    ]
-  },
-  {
-    key: 'stokmin', icon: '', label: 'Stok Menipis', description: 'Lihat produk stok hampir habis',
-    intent: 'low_stock_alert',
-    fields: []
-  },
-  {
-    key: 'hapus-produk', icon: '', label: 'Hapus Produk', description: 'Hapus produk dari sistem',
-    intent: 'delete_product',
-    fields: [
-      { name: 'product_name', label: 'Nama produk', placeholder: 'Pocari Sweat' },
-    ]
-  },
-  {
-    key: 'hapus-member', icon: '', label: 'Hapus Member', description: 'Hapus member dari sistem',
-    intent: 'delete_member',
-    fields: [
-      { name: 'member_name', label: 'Nama member', placeholder: 'Andi' },
-    ]
-  },
-]
 
 // --- Helpers ---
 function fmt(n: number) { return `Rp${n.toLocaleString('id-ID')}` }
@@ -245,9 +165,9 @@ function ActionCard({ action, status, onConfirm, onCancel }: {
   onConfirm: () => void; onCancel: () => void
 }) {
   const labels: Record<string, string> = {
-    update_product: '📝 Update Produk', update_stock: '📦 Update Stok',
-    delete_product: '🗑️ Hapus Produk', update_member: '👤 Update Member',
-    delete_member: '🗑️ Hapus Member', update_settings: '⚙️ Update Settings'
+    update_product: 'Update Produk', update_stock: 'Update Stok',
+    delete_product: 'Hapus Produk', update_member: 'Update Member',
+    delete_member: 'Hapus Member', update_settings: 'Update Settings'
   }
   const isDestructive = action.type.startsWith('delete_')
   if (status === 'confirmed') return <div className="mt-2 px-3 py-2 bg-green-50 border border-green-100 rounded-xl text-[11px] font-bold text-green-600 uppercase tracking-widest">✓ Berhasil</div>
@@ -720,74 +640,6 @@ export function GlobalCommand() {
     setMessages(prev => [...prev, { role: 'assistant', content: 'Oke, dibatalin.' }])
   }
 
-  const parseIDNumber = (s: string): string =>
-    s.replace(/(\d+(?:[.,]\d+)?)\s*(?:rb|ribu|k)\b/gi, (_, n) => String(Math.round(parseFloat(n.replace(',', '.')) * 1000)))
-     .replace(/(\d+(?:[.,]\d+)?)\s*(?:jt|juta|m)\b/gi, (_, n) => String(Math.round(parseFloat(n.replace(',', '.')) * 1_000_000)))
-
-  // Client-side intent detection for common CRUD patterns — deterministic, no AI needed
-  const detectLocalIntent = (input: string): { intent: string; params: Record<string, unknown> } | null => {
-    const s = parseIDNumber(input.trim())
-
-    // verb anchors
-    const updateVerb = /(?:update|ubah|ganti|set|jadiin?|tambahin?|kurangi?|coba(?:in)?|bikin?|kasih|pasang|pake)/i
-    const valueSep = /(?:jadi(?:in)?|ke|=|menjadi|:\s*|adi|jd)/i
-    const stockWord = /(?:stok|stock)/i
-    const priceWord = /(?:harga|price)/i
-    const pointWord = /(?:poin|points?)/i
-
-    let m: RegExpMatchArray | null
-
-    // stok: "update stok X jadi N" | "stok X jadi N" | "X stoknya N" | "X tinggal N"
-    m = s.match(new RegExp(`(?:${updateVerb.source}\\s+)?${stockWord.source}\\s+(.+?)\\s+${valueSep.source}\\s*(\\d+)`, 'i'))
-      || s.match(new RegExp(`${stockWord.source}\\s+(.+?)\\s+${valueSep.source}\\s*(\\d+)`, 'i'))
-      || s.match(/(.+?)\s+(?:stoknya|stocknya)\s+(?:jadi|ke|=|menjadi)?\s*(\d+)/i)
-      || s.match(/(.+?)\s+tinggal\s+(\d+)\s*(?:pcs|buah|unit|biji)?/i)
-    if (m && stockWord.test(s) || (m && /tinggal/i.test(s))) {
-      const nm = s.match(new RegExp(`(?:${updateVerb.source}\\s+)?${stockWord.source}\\s+(.+?)\\s+${valueSep.source}\\s*(\\d+)`, 'i'))
-        || s.match(/(.+?)\s+(?:stoknya|stocknya)\s+(?:jadi|ke|=|menjadi)?\s*(\d+)/i)
-        || s.match(/(.+?)\s+tinggal\s+(\d+)/i)
-      if (nm) return { intent: 'update_stock', params: { product_name: nm[1].trim(), stock: Number(nm[2]) } }
-    }
-
-    // harga: "update harga X jadi N" | "harga X N" | "X harganya N"
-    m = s.match(new RegExp(`(?:${updateVerb.source}\\s+)?${priceWord.source}\\s+(.+?)\\s+${valueSep.source}\\s*(\\d+)`, 'i'))
-      || s.match(new RegExp(`${priceWord.source}\\s+(.+?)\\s+(?:sekarang|skrg)?\\s*${valueSep.source}?\\s*(\\d+)`, 'i'))
-      || s.match(/(.+?)\s+(?:harganya|pricenya)\s+(?:jadi|ke|=|menjadi)?\s*(\d+)/i)
-    if (m && priceWord.test(s)) return { intent: 'update_price', params: { product_name: m[1].trim(), price: Number(m[2]) } }
-
-    // poin: "update poin X jadi N" | "poin X N"
-    m = s.match(new RegExp(`(?:${updateVerb.source}\\s+)?${pointWord.source}\\s+(.+?)\\s+${valueSep.source}\\s*(\\d+)`, 'i'))
-      || s.match(new RegExp(`${pointWord.source}\\s+(.+?)\\s+${valueSep.source}\\s*(\\d+)`, 'i'))
-    if (m && pointWord.test(s)) return { intent: 'update_member_points', params: { member_name: m[1].trim(), points: Number(m[2]) } }
-
-    // hapus produk
-    m = s.match(/(?:hapus|delete|remove|buang|ilangin?)\s+(?:produk\s+)?(.+)/i)
-    if (m && !s.match(/\bmember\b/i)) return { intent: 'delete_product', params: { product_name: m[1].trim() } }
-
-    // hapus member
-    m = s.match(/(?:hapus|delete|remove|buang|ilangin?)\s+(?:data\s+)?member\s+(.+)/i)
-    if (m) return { intent: 'delete_member', params: { member_name: m[1].trim() } }
-
-    return null
-  }
-
-  // Resolve "ini"/"itu"/"tadi" pronouns using last assistant message — no AI needed
-  const resolvePronoun = (input: string, lastMsg: string): string => {
-    if (!lastMsg || !/\b(ini|itu|tadi|yang tadi)\b/i.test(input)) return input
-    const patterns = [
-      /[-•]\s*([A-Za-z0-9 _\-']+?):\s*\d+\s*sisa/,  // "- Snack Brownie: 0 sisa"
-      /\*\*([A-Za-z0-9 _\-']+?)\*\*/,                  // "**Snack Brownie**"
-      /`([A-Za-z0-9 _\-']+?)`/,                         // "`Snack Brownie`"
-      /id:[a-f0-9-]+\s*\|\s*([^|]+?)\s*\|/,            // "id:xxx | Snack Brownie |"
-    ]
-    for (const pattern of patterns) {
-      const m = lastMsg.match(pattern)
-      const name = m?.[1]?.trim()
-      if (name && name.length > 1) return input.replace(/\b(ini|itu|tadi|yang tadi)\b/gi, name)
-    }
-    return input
-  }
-
   const handleSelectMatch = (match: { id: string; name: string; [key: string]: unknown }) => {
     if (!pendingAutomation) return
     const cv = (pendingAutomation.intent === 'update_price' ? match.price : pendingAutomation.intent === 'update_member_points' ? match.points : match.stock) as number
@@ -909,7 +761,7 @@ export function GlobalCommand() {
     <div className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-0 transition-opacity duration-300 ease-out ${animating ? 'opacity-100' : 'opacity-0'}`}>
       <div className="absolute inset-0 bg-slate-900/5 backdrop-blur-[2px]" onClick={() => setOpen(false)} />
 
-      <div className={`relative w-full max-w-[600px] bg-white rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-slate-100/50 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+      <div className={`relative w-full max-w-3xl bg-white rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-slate-100/50 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
         animating ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-4 scale-[0.96] opacity-0'
       }`}>
 

@@ -168,69 +168,145 @@ export function useAutomation({ onMessage, onStepStart, onStepDone }: UseAutomat
     }
 
     if (intent === 'export_report') {
-      step('Mengambil data transaksi...')
-      const period = String(params.period || 'week')
+      step('Fetching transaction data...')
       const now = new Date()
       const toStr = (d: Date) => d.toISOString().split('T')[0]
-      const end = toStr(now)
-      let start = end
-      const periodLabels: Record<string, string> = { today: 'Hari Ini', week: '7 Hari Terakhir', month: 'Bulan Ini', year: 'Tahun Ini' }
-      if (period === 'week') { const d = new Date(now); d.setDate(now.getDate() - 7); start = toStr(d) }
-      else if (period === 'month') start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-      else if (period === 'year') start = `${now.getFullYear()}-01-01`
+      
+      let start = String(params.startDate || '')
+      let end = String(params.endDate || toStr(now))
+      let periodLabel = 'Custom Range'
+
+      if (!start) {
+        const period = String(params.period || 'This Week')
+        const labelMap: Record<string, string> = { 'Today': 'today', 'This Week': 'week', 'This Month': 'month', 'Last Month': 'last_month', 'This Year': 'year' }
+        const p = labelMap[period] || 'week'
+        periodLabel = period
+        
+        end = toStr(now)
+        if (p === 'today') start = end
+        else if (p === 'week') { const d = new Date(now); d.setDate(now.getDate() - 7); start = toStr(d) }
+        else if (p === 'month') start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+        else if (p === 'last_month') {
+          const lastMonthFirstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+          const lastMonthLastDay = new Date(now.getFullYear(), now.getMonth(), 0)
+          start = toStr(lastMonthFirstDay)
+          end = toStr(lastMonthLastDay)
+        }
+        else if (p === 'year') start = `${now.getFullYear()}-01-01`
+      } else {
+        periodLabel = `${start} to ${end}`
+      }
+      
       const res = await fetch(`/api/orders?limit=1000&startDate=${start}&endDate=${end}`, { headers })
       const data = await res.json()
-      const orders: Array<{ id: string; created_at: string; total_amount: number; payment_method: string; items?: Array<{ product_name: string; quantity: number; unit_price: number }> }> = data.data || []
-      if (orders.length === 0) { done('Tidak ada data'); return 'Tidak ada transaksi untuk periode ini.' }
-      done(`${orders.length} transaksi ditemukan`)
-      step('Membuat laporan PDF...')
+      const orders: Array<{ 
+        id: string; 
+        created_at: string; 
+        total: number; 
+        tax_amount?: number;
+        service_amount?: number;
+        payment_method: string; 
+        order_items?: Array<{ product?: { name: string }; qty: number; price: number }> 
+      }> = data.data || []
+      
+      if (orders.length === 0) { done('No data found'); return `No transactions found from ${start} to ${end}.` }
+      done(`${orders.length} transactions found`)
+      step('Generating PDF Report...')
+      
       if (typeof window !== 'undefined') {
-        // Build table rows
-        type Row = { no: number; date: string; product: string; qty: number | string; unitPrice: number | string; subtotal: number | string; payment: string }
+        type Row = { no: number; date: string; product: string; qty: number | string; unitPrice: number | string; tax: number | string; service: number | string; subtotal: number | string; payment: string }
         const tableRows: Row[] = []
         let no = 1
         let grandTotal = 0
+        let totalTax = 0
+        let totalService = 0
+
         for (const o of orders) {
-          const date = new Date(o.created_at).toLocaleDateString('id-ID')
-          if (o.items?.length) {
-            for (const item of o.items) {
-              const sub = item.quantity * item.unit_price
-              tableRows.push({ no, date, product: item.product_name, qty: item.quantity, unitPrice: item.unit_price, subtotal: sub, payment: o.payment_method })
-              grandTotal += sub; no++
+          const date = new Date(o.created_at).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+          const tax = Number(o.tax_amount) || 0
+          const service = Number(o.service_amount) || 0
+          grandTotal += o.total
+          totalTax += tax
+          totalService += service
+          
+          if (o.order_items?.length) {
+            for (let i = 0; i < o.order_items.length; i++) {
+              const item = o.order_items[i]
+              const sub = item.qty * item.price
+              tableRows.push({ 
+                no, date, 
+                product: item.product?.name || 'Product', 
+                qty: item.qty, unitPrice: item.price, 
+                tax: i === 0 ? (tax || '-') : '-',
+                service: i === 0 ? (service || '-') : '-',
+                subtotal: i === 0 ? (sub + tax + service) : sub, 
+                payment: i === 0 ? o.payment_method : '' 
+              })
+              no++
             }
           } else {
-            tableRows.push({ no, date, product: '-', qty: '-', unitPrice: '-', subtotal: o.total_amount, payment: o.payment_method })
-            grandTotal += o.total_amount; no++
+            tableRows.push({ no, date, product: 'Direct Transaction', qty: '-', unitPrice: '-', tax: tax || '-', service: service || '-', subtotal: o.total, payment: o.payment_method })
+            no++
           }
         }
+
         const fmtRp = (n: number | string) => typeof n === 'number' ? `Rp${n.toLocaleString('id-ID')}` : n
-        const trHtml = tableRows.map(r => `<tr><td>${r.no}</td><td>${r.date}</td><td>${r.product}</td><td style="text-align:center">${r.qty}</td><td style="text-align:right">${fmtRp(r.unitPrice)}</td><td style="text-align:right">${fmtRp(r.subtotal)}</td><td style="text-align:center">${r.payment}</td></tr>`).join('')
-        const html = `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>Laporan Penjualan</title><style>
-          *{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,sans-serif;font-size:11px;color:#111;padding:24px}
-          h1{font-size:16px;font-weight:700;margin-bottom:2px}p.sub{font-size:11px;color:#6b7280;margin-bottom:16px}
-          table{width:100%;border-collapse:collapse;margin-bottom:16px}
-          th{background:#1e293b;color:#fff;padding:6px 8px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em}
-          td{padding:5px 8px;border-bottom:1px solid #e5e7eb;font-size:11px}
-          tr:nth-child(even) td{background:#f8fafc}
-          .total{text-align:right;font-size:13px;font-weight:700;color:#1e293b;margin-top:8px}
-          .footer{margin-top:20px;font-size:10px;color:#9ca3af;text-align:center}
-          @media print{body{padding:0}@page{margin:16mm}}
+        const fileName = `Sales_Report_${start}_to_${end}.pdf`
+        const trHtml = tableRows.map(r => `
+          <tr>
+            <td>${r.no}</td>
+            <td>${r.date}</td>
+            <td style="font-weight:500">${r.product}</td>
+            <td style="text-align:center">${r.qty}</td>
+            <td style="text-align:right">${fmtRp(r.unitPrice)}</td>
+            <td style="text-align:right;color:#666">${fmtRp(r.tax)}</td>
+            <td style="text-align:right;color:#666">${fmtRp(r.service)}</td>
+            <td style="text-align:right;font-weight:600">${fmtRp(r.subtotal)}</td>
+            <td style="text-align:center;text-transform:uppercase;font-size:8px;color:#999">${r.payment}</td>
+          </tr>`).join('')
+
+        const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${fileName}</title><style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+          *{box-sizing:border-box;margin:0;padding:0}
+          body{font-family:'Inter',sans-serif;font-size:9px;color:#1a1a1a;padding:40px;line-height:1.4}
+          .header{margin-bottom:30px;border-bottom:2px solid #000;padding-bottom:15px;display:flex;justify-content:space-between;align-items:flex-end}
+          h1{font-size:20px;font-weight:700;text-transform:uppercase;letter-spacing:-0.02em}
+          .sub{font-size:10px;color:#666;text-transform:uppercase;letter-spacing:0.05em}
+          table{width:100%;border-collapse:collapse;margin-top:10px}
+          th{background:#f8f9fa;color:#000;padding:10px 8px;text-align:left;font-size:8px;text-transform:uppercase;letter-spacing:.1em;border-bottom:1px solid #000}
+          td{padding:8px;border-bottom:1px solid #eee}
+          .summary{margin-top:30px;border-top:2px solid #000;padding-top:20px;display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+          .summary-label{font-size:8px;color:#666;text-transform:uppercase;margin-bottom:4px}
+          .summary-value{font-size:14px;font-weight:700}
+          .footer{margin-top:50px;font-size:8px;color:#999;text-align:center;border-top:1px solid #eee;padding-top:15px}
+          @media print{body{padding:0}@page{margin:15mm}}
         </style></head><body>
-        <h1>Laporan Penjualan — ${periodLabels[period] || period}</h1>
-        <p class="sub">Periode: ${start === end ? end : `${start} s/d ${end}`} · Digenerate: ${new Date().toLocaleString('id-ID')}</p>
-        <table><thead><tr><th>#</th><th>Tanggal</th><th>Produk</th><th style="text-align:center">Qty</th><th style="text-align:right">Harga Satuan</th><th style="text-align:right">Subtotal</th><th style="text-align:center">Metode Bayar</th></tr></thead>
+        <div class="header">
+          <div><h1>Sales Report</h1><p class="sub">${periodLabel}</p></div>
+          <div style="text-align:right"><p class="sub">Range: ${start} — ${end}</p></div>
+        </div>
+        <table><thead><tr><th>#</th><th>Date</th><th>Item Description</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th><th style="text-align:right">Tax</th><th style="text-align:right">Service</th><th style="text-align:right">Total</th><th style="text-align:center">Method</th></tr></thead>
         <tbody>${trHtml}</tbody></table>
-        <p class="total">Total: Rp${grandTotal.toLocaleString('id-ID')}</p>
-        <p class="footer">${tableRows.length} baris · AEGIS POS</p>
-        <script>window.addEventListener('load',function(){setTimeout(function(){window.print()},600)})</script>
+        <div class="summary">
+          <div><div class="summary-label">Total Tax</div><div class="summary-value">${fmtRp(totalTax)}</div></div>
+          <div><div class="summary-label">Total Service</div><div class="summary-value">${fmtRp(totalService)}</div></div>
+          <div><div class="summary-label">Gross Revenue</div><div class="summary-value">${fmtRp(grandTotal)}</div></div>
+          <div><div class="summary-label">Net Revenue</div><div class="summary-value">${fmtRp(grandTotal - totalTax - totalService)}</div></div>
+        </div>
+        <p class="footer">This report was automatically generated via AEGIS POS on ${new Date().toLocaleString('en-US')}</p>
+        <script>window.addEventListener('load',function(){setTimeout(function(){window.print()},800)})</script>
         </body></html>`
+        
         const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
         const blobUrl = URL.createObjectURL(blob)
         const win = window.open(blobUrl, '_blank')
-        if (win) setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000)
+        if (win) {
+          win.document.title = fileName
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
+        }
       }
-      done('Laporan siap dicetak / disimpan PDF')
-      return `✓ Laporan **${periodLabels[period] || period}** terbuka di tab baru — pilih **Save as PDF** di dialog print.\n${orders.length} transaksi.`
+      done('Success')
+      return `✓ **Sales Report (${start} to ${end})** has been generated. The PDF is ready for saving/printing in the new tab.`
     }
 
     if (intent === 'check_revenue') {

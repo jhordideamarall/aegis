@@ -9,26 +9,15 @@ import { OutputRenderer } from '../components/OutputRenderer'
 import { COMMANDS, CommandDef, FieldDef, detectLocalIntent, resolvePronoun, parseIDNumber, fmt } from '@/lib/ai/commands'
 import { useAutomation, StepEntry } from '@/hooks/useAutomation'
 
-// ─── Execution Log ────────────────────────────────────────────────────────────
-function ExecutionLog({ steps }: { steps: StepEntry[] }) {
+// ─── Transient Execution Status ─────────────────────────────────────────────────
+function TransientExecutionStatus({ steps }: { steps: StepEntry[] }) {
   if (!steps.length) return null
+  const lastStep = steps[steps.length - 1]
+  if (lastStep.done) return null
   return (
-    <div className="mt-2 space-y-1.5">
-      {steps.map((s, i) => (
-        <div
-          key={i}
-          className="flex items-start gap-2 text-[13px] leading-snug"
-          style={{ animation: 'fadeSlideIn 0.18s ease both', animationDelay: `${i * 40}ms` }}
-        >
-          <span className="mt-[2px] shrink-0">
-            {s.done
-              ? <Check size={12} className="text-emerald-500" strokeWidth={3} />
-              : <Loader2 size={12} className="text-indigo-400 animate-spin" />
-            }
-          </span>
-          <span className={s.done ? 'text-slate-400' : 'text-slate-600 font-medium'}>{s.text}</span>
-        </div>
-      ))}
+    <div className="flex items-center gap-2 text-[13px] text-slate-500 py-1 animate-pulse">
+      <Loader2 size={13} className="animate-spin text-indigo-400" />
+      <span className="font-medium">{lastStep.text}</span>
     </div>
   )
 }
@@ -63,9 +52,9 @@ function ActionCard({
   onCancel: () => void
 }) {
   const labels: Record<string, string> = {
-    create_product: '➕ Tambah Produk', update_product: '📝 Update Produk', update_stock: '📦 Update Stok',
-    delete_product: '🗑️ Hapus Produk', update_member: '👤 Update Member',
-    delete_member: '🗑️ Hapus Member', update_settings: '⚙️ Update Settings'
+    create_product: 'Tambah Produk', update_product: 'Update Produk', update_stock: 'Update Stok',
+    delete_product: 'Hapus Produk', update_member: 'Update Member',
+    delete_member: 'Hapus Member', update_settings: 'Update Settings'
   }
   const isDestructive = action.type.startsWith('delete_')
   if (status === 'confirmed') return (
@@ -75,18 +64,18 @@ function ActionCard({
     <div className="mt-3 px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[11px] font-bold text-slate-400 uppercase tracking-widest">Dibatalin</div>
   )
   return (
-    <div className="mt-3 border border-slate-200 rounded-xl overflow-hidden">
-      <div className="px-3 py-2 bg-slate-50 flex items-center justify-between">
-        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-widest">{labels[action.type] || action.type}</span>
+    <div className="mt-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm flex flex-col">
+      <div className="px-3 py-2.5 flex items-center justify-between border-b border-slate-100">
+        <span className="text-[12px] font-semibold text-slate-800">{labels[action.type] || action.type}</span>
         <div className="flex gap-1.5">
-          <button onClick={onCancel} className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-100 transition-colors">Cancel</button>
-          <button onClick={onConfirm} className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest rounded-lg text-white transition-colors ${isDestructive ? 'bg-red-500 hover:bg-red-600' : 'bg-slate-900 hover:bg-slate-700'}`}>Confirm</button>
+          <button onClick={onCancel} className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest rounded-md bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">Esc</button>
+          <button onClick={onConfirm} className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest rounded-md text-white transition-colors ${isDestructive ? 'bg-red-500 hover:bg-red-600' : 'bg-slate-900 hover:bg-slate-800'}`}>Enter</button>
         </div>
       </div>
-      <div className="px-3 py-2 bg-white">
+      <div className="px-3 py-2 bg-slate-50/50">
         {Object.entries(action.payload).filter(([k]) => k !== 'id').map(([k, v]) => (
-          <div key={k} className="flex gap-2 text-[11px]">
-            <span className="text-slate-400 font-medium w-20 shrink-0">{k}</span>
+          <div key={k} className="flex gap-3 text-[12px] py-0.5">
+            <span className="text-slate-400 w-24 shrink-0">{k}</span>
             <span className="text-slate-700 font-medium truncate">{String(v)}</span>
           </div>
         ))}
@@ -112,29 +101,33 @@ function OrderPreviewCard({ params, onConfirm, onCancel }: {
   const serviceRate = Number(params.service_rate) || 0
 
   return (
-    <div className="mt-3 border border-slate-200 rounded-2xl overflow-hidden">
-      <div className="px-3 py-2 bg-slate-50 flex items-center justify-between">
-        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-widest">🧾 Preview Order</span>
-        <span className="text-[11px] font-medium text-slate-400 capitalize">{paymentMethod}</span>
+    <div className="mt-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm flex flex-col">
+      <div className="px-3 py-2.5 flex items-center justify-between border-b border-slate-100">
+        <span className="text-[12px] font-semibold text-slate-800">Preview Order</span>
+        <div className="flex gap-1.5 items-center">
+          <span className="text-[11px] font-medium text-slate-400 capitalize mr-2">{paymentMethod}</span>
+          <button onClick={onCancel} className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest rounded-md bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">Esc</button>
+          <button onClick={onConfirm} className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest rounded-md text-white bg-slate-900 hover:bg-slate-800 transition-colors">Enter</button>
+        </div>
       </div>
-      <div className="px-3 py-2 bg-white space-y-1.5">
+      <div className="px-3 py-2 bg-slate-50/50 space-y-1.5">
         {items.map((item, i) => (
           <div key={i} className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="text-[13px] text-slate-700 font-medium truncate">{item.product_name}</span>
-              <span className="text-[11px] text-slate-400 shrink-0">×{item.qty}</span>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-[12px] text-slate-400 shrink-0 font-medium w-4">{item.qty}x</span>
+              <span className="text-[12px] text-slate-700 font-medium truncate">{item.product_name}</span>
             </div>
-            <span className="text-[13px] text-slate-700 font-medium shrink-0">{fmtCurrency(item.subtotal)}</span>
+            <span className="text-[12px] text-slate-700 font-medium shrink-0">{fmtCurrency(item.subtotal)}</span>
           </div>
         ))}
         {unmatched.length > 0 && (
-          <div className="pt-1 border-t border-amber-100">
+          <div className="pt-1 border-t border-amber-100 mt-2">
             {unmatched.map((u, i) => (
               <div key={i} className="text-[11px] text-amber-600">⚠ "{u.query}" tidak ditemukan</div>
             ))}
           </div>
         )}
-        <div className="pt-1.5 border-t border-slate-100 space-y-0.5">
+        <div className="pt-2 mt-2 border-t border-slate-200/60 space-y-1">
           <div className="flex justify-between text-[12px] text-slate-500">
             <span>Subtotal</span><span>{fmtCurrency(subtotal)}</span>
           </div>
@@ -148,14 +141,10 @@ function OrderPreviewCard({ params, onConfirm, onCancel }: {
               <span>Tax ({taxRate}%)</span><span>{fmtCurrency(taxAmount)}</span>
             </div>
           )}
-          <div className="flex justify-between text-[14px] font-bold text-slate-900 pt-0.5">
+          <div className="flex justify-between text-[13px] font-bold text-slate-900 pt-1">
             <span>Total</span><span>{fmtCurrency(total)}</span>
           </div>
         </div>
-      </div>
-      <div className="px-3 py-2 bg-slate-50 flex items-center justify-between">
-        <button onClick={onCancel} className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-100 transition-colors">Batal</button>
-        <button onClick={onConfirm} className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-widest rounded-lg text-white bg-slate-900 hover:bg-slate-700 transition-colors">Catat Order</button>
       </div>
     </div>
   )
@@ -223,14 +212,66 @@ function NativeConfirmCard({ automation, onConfirm, onCancel, onSelectMatch }: {
   })()
 
   return (
-    <div className="mt-3 border border-slate-200 rounded-xl overflow-hidden">
-      <div className="px-3 py-2.5 bg-slate-50 flex items-center justify-between gap-3">
-        <span className="text-[13px] font-medium text-slate-700 leading-snug">{description}</span>
+    <div className="mt-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm flex flex-col">
+      <div className="px-3 py-2.5 flex items-center justify-between border-b border-slate-100">
+        <span className="text-[12px] font-semibold text-slate-800 leading-snug">{description}</span>
         <div className="flex gap-1.5 shrink-0">
-          <button onClick={onCancel} className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-100 transition-colors">Batal</button>
-          <button onClick={onConfirm} className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest rounded-lg text-white transition-colors ${isDestructive ? 'bg-red-500 hover:bg-red-600' : 'bg-slate-900 hover:bg-slate-700'}`}>
-            {isDestructive ? 'Hapus' : 'Confirm'}
+          <button onClick={onCancel} className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest rounded-md bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">Esc</button>
+          <button onClick={onConfirm} className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest rounded-md text-white transition-colors ${isDestructive ? 'bg-red-500 hover:bg-red-600' : 'bg-slate-900 hover:bg-slate-800'}`}>
+            {isDestructive ? 'Hapus' : 'Enter'}
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DateScrollPicker({ label, value, onChange }: { label: string, value: string, onChange: (val: string) => void }) {
+  const now = new Date()
+  const defaultVal = value || now.toISOString().split('T')[0]
+  const [y, m, d] = defaultVal.split('-')
+  
+  const days = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0'))
+  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+  const years = Array.from({ length: 11 }, (_, i) => String(now.getFullYear() - 5 + i))
+
+  const currentMonthIdx = parseInt(m, 10) - 1
+
+  return (
+    <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-400">
+      <label className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">{label}</label>
+      <div className="relative flex h-24 bg-white border border-slate-200 rounded-2xl overflow-hidden group hover:border-slate-300 transition-colors">
+        {/* Selection Highlight Bar */}
+        <div className="absolute top-1/2 left-2 right-2 -translate-y-1/2 h-8 bg-slate-50 rounded-lg -z-0" />
+        
+        <div className="flex-1 grid grid-cols-3 relative z-10">
+          {/* Days */}
+          <div className="flex flex-col overflow-y-auto no-scrollbar snap-y snap-mandatory py-8 text-center border-r border-slate-50">
+            {days.map(item => (
+              <button key={item} onClick={() => onChange(`${y}-${m}-${item}`)} 
+                className={`h-8 shrink-0 flex items-center justify-center text-[13px] snap-center transition-all ${d === item ? 'text-slate-900 font-bold' : 'text-slate-300 hover:text-slate-500'}`}>
+                {item}
+              </button>
+            ))}
+          </div>
+          {/* Months */}
+          <div className="flex flex-col overflow-y-auto no-scrollbar snap-y snap-mandatory py-8 text-center border-r border-slate-50">
+            {months.map((item, idx) => (
+              <button key={item} onClick={() => onChange(`${y}-${String(idx + 1).padStart(2, '0')}-${d}`)} 
+                className={`h-8 shrink-0 flex items-center justify-center text-[11px] font-black tracking-wider snap-center transition-all ${currentMonthIdx === idx ? 'text-slate-900' : 'text-slate-300 hover:text-slate-500'}`}>
+                {item}
+              </button>
+            ))}
+          </div>
+          {/* Years */}
+          <div className="flex flex-col overflow-y-auto no-scrollbar snap-y snap-mandatory py-8 text-center">
+            {years.map(item => (
+              <button key={item} onClick={() => onChange(`${item}-${m}-${d}`)} 
+                className={`h-8 shrink-0 flex items-center justify-center text-[13px] snap-center transition-all ${y === item ? 'text-slate-900 font-bold' : 'text-slate-300 hover:text-slate-500'}`}>
+                {item}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -247,15 +288,40 @@ function CommandForm({ command, onSubmit, onClose }: {
 
   useEffect(() => { setTimeout(() => firstInputRef.current?.focus(), 50) }, [])
 
-  const OPTIONAL_FIELDS = new Set(['category'])
-  const handleSubmit = () => {
-    const requiredFilled = command.fields.every(f => OPTIONAL_FIELDS.has(f.name) || values[f.name]?.trim())
-    if (requiredFilled) onSubmit(values)
+  const OPTIONAL_FIELDS = new Set(['category', 'startDate', 'endDate'])
+  const isFieldVisible = (f: FieldDef) => {
+    if (command.intent === 'export_report' && (f.name === 'startDate' || f.name === 'endDate')) {
+      return values['period'] === 'Custom'
+    }
+    return true
   }
+
+  const handleSubmit = () => {
+    const allVisibleFilled = command.fields.every(f => {
+      if (!isFieldVisible(f)) return true
+      if (OPTIONAL_FIELDS.has(f.name) && command.intent !== 'export_report') return true
+      // For export_report Custom, startDate and endDate ARE required
+      if (command.intent === 'export_report' && values['period'] === 'Custom' && (f.name === 'startDate' || f.name === 'endDate')) {
+        return !!values[f.name]?.trim()
+      }
+      return !!values[f.name]?.trim()
+    })
+    if (allVisibleFilled) onSubmit(values)
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') { e.preventDefault(); handleSubmit() }
     if (e.key === 'Escape') onClose()
   }
+
+  const isSubmitDisabled = !command.fields.every(f => {
+    if (!isFieldVisible(f)) return true
+    if (command.intent === 'export_report' && values['period'] === 'Custom' && (f.name === 'startDate' || f.name === 'endDate')) {
+      return !!values[f.name]?.trim()
+    }
+    if (OPTIONAL_FIELDS.has(f.name) && command.intent !== 'export_report') return true
+    return !!values[f.name]?.trim()
+  })
 
   return (
     <div className="border-b border-slate-100 px-4 py-3 bg-slate-50/80">
@@ -263,28 +329,48 @@ function CommandForm({ command, onSubmit, onClose }: {
         <span className="text-[12px] font-bold text-slate-700 uppercase tracking-widest">{command.icon} {command.label}</span>
         <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-[18px] leading-none">×</button>
       </div>
-      <div className="space-y-2">
+      <div className="space-y-3">
         {command.fields.map((field, idx) => {
+          if (!isFieldVisible(field)) return null
+
           if ('options' in field) {
             return (
-              <div key={field.name}>
+              <div key={field.name} className="animate-in fade-in slide-in-from-top-1 duration-200">
                 <label className="text-[11px] font-medium text-slate-500 uppercase tracking-wide block mb-1">{field.label}</label>
-                <select
-                  ref={idx === 0 ? firstInputRef as React.RefObject<HTMLSelectElement> : undefined}
-                  value={values[field.name] || ''}
-                  onChange={e => setValues(v => ({ ...v, [field.name]: e.target.value }))}
-                  onKeyDown={handleKeyDown}
-                  className="w-full text-[14px] font-medium text-slate-900 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-slate-400 transition-colors bg-white"
-                >
-                  <option value="">Pilih...</option>
-                  {(field as { options: string[] }).options.map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
+                <div className="relative">
+                  <select
+                    ref={idx === 0 ? firstInputRef as React.RefObject<HTMLSelectElement> : undefined}
+                    value={values[field.name] || ''}
+                    onChange={e => setValues(v => ({ ...v, [field.name]: e.target.value }))}
+                    onKeyDown={handleKeyDown}
+                    className="w-full text-[14px] font-medium text-slate-900 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-slate-400 transition-colors bg-white appearance-none cursor-pointer"
+                  >
+                    <option value="">Select...</option>
+                    {(field as { options: string[] }).options.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </div>
+                </div>
               </div>
             )
           }
+
           const f = field as { name: string; label: string; placeholder: string; type?: string }
+          
+          if (f.type === 'date') {
+            return (
+              <DateScrollPicker 
+                key={f.name} 
+                label={f.label} 
+                value={values[f.name]} 
+                onChange={(val) => setValues(v => ({ ...v, [f.name]: val }))} 
+              />
+            )
+          }
+
           return (
-            <div key={f.name}>
+            <div key={f.name} className="animate-in fade-in slide-in-from-top-1 duration-200">
               <label className="text-[11px] font-medium text-slate-500 uppercase tracking-wide block mb-1">{f.label}</label>
               <input
                 ref={idx === 0 ? firstInputRef as React.RefObject<HTMLInputElement> : undefined}
@@ -294,17 +380,17 @@ function CommandForm({ command, onSubmit, onClose }: {
                 onChange={e => setValues(v => ({ ...v, [f.name]: e.target.value }))}
                 onKeyDown={handleKeyDown}
                 placeholder={f.placeholder}
-                className="w-full text-[14px] font-medium text-slate-900 placeholder:text-slate-300 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-slate-400 transition-colors bg-white"
+                className="w-full text-[14px] font-medium text-slate-900 placeholder:text-slate-300 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-slate-400 transition-colors bg-white"
               />
             </div>
           )
         })}
         <button
           onClick={handleSubmit}
-          disabled={!command.fields.every(f => OPTIONAL_FIELDS.has(f.name) || values[f.name]?.trim())}
-          className="w-full mt-1 py-2.5 rounded-xl bg-slate-900 text-white text-[13px] font-bold uppercase tracking-widest hover:bg-slate-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          disabled={isSubmitDisabled}
+          className="w-full mt-2 py-3 rounded-xl bg-slate-900 text-white text-[13px] font-bold uppercase tracking-widest hover:bg-slate-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed shadow-xl shadow-slate-200"
         >
-          Jalankan
+          Confirm
         </button>
       </div>
     </div>
@@ -411,6 +497,15 @@ export default function ChatAegisPage() {
             .catch(() => { /* silent — history save is best-effort */ })
             .finally(() => { savingConvRef.current = false })
         }
+      } else if (conversationIdRef.current && content.trim()) {
+        // Append local assistant message to existing conversation
+        getClientAuthHeaders({ 'Content-Type': 'application/json' })
+          .then(headers => fetch(`/api/ai/conversations/${conversationIdRef.current}`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ messages: [{ role: 'assistant', content }] })
+          }))
+          .catch(() => { /* silent */ })
       }
       return newMsgs
     })
@@ -469,17 +564,17 @@ export default function ChatAegisPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [business?.id])
 
-  // Proactive daily insight: shown once per session when no saved conversation
+  const [proactiveInsight, setProactiveInsight] = useState<string | null>(null)
+
+  // Proactive daily insight: shown as a banner when no messages exist
   useEffect(() => {
     if (restoring || insightLoaded || hasMessages) return
     setInsightLoaded(true)
     getClientAuthHeaders().then(headers =>
       fetch('/api/ai/insight', { headers })
     ).then(res => res.json()).then(data => {
-      if (data.insight) {
-        setMessages([{ role: 'assistant', content: `**Insight Hari Ini** ✨\n\n${data.insight}` }])
-      }
-    }).catch(() => { /* silent — insight is optional */ })
+      if (data.insight) setProactiveInsight(data.insight)
+    }).catch(() => {})
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restoring])
 
@@ -554,12 +649,25 @@ export default function ChatAegisPage() {
     }
     if (cmd.fields.length === 0) {
       setMessages(prev => [...prev, { role: 'user', content: cmd.label }])
+      saveLocalUserMessage(cmd.label)
       setLoading(true)
       runAutomation(cmd.intent, {})
     } else {
       setActiveCommand(cmd)
     }
   }, [runAutomation])
+
+  const saveLocalUserMessage = (content: string) => {
+    if (conversationIdRef.current && content.trim()) {
+      getClientAuthHeaders({ 'Content-Type': 'application/json' })
+        .then(headers => fetch(`/api/ai/conversations/${conversationIdRef.current}`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ messages: [{ role: 'user', content }] })
+        }))
+        .catch(() => { /* silent */ })
+    }
+  }
 
   const handleCommandSubmit = useCallback(async (values: Record<string, string>) => {
     if (!activeCommand) return
@@ -577,6 +685,7 @@ export default function ChatAegisPage() {
     // export_report period is already the correct key (today/week/month/year)
     setActiveCommand(null)
     setMessages(prev => [...prev, { role: 'user', content: activeCommand.label }])
+    saveLocalUserMessage(activeCommand.label)
     setLoading(true)
     await runAutomation(intent, params)
   }, [activeCommand, runAutomation])
@@ -613,6 +722,7 @@ export default function ChatAegisPage() {
     const resolvedInput = resolvePronoun(parseIDNumber(userInput), lastAssistantMsg)
     const localIntent = detectLocalIntent(resolvedInput)
     if (localIntent) {
+      saveLocalUserMessage(userInput)
       await runAutomation(localIntent.intent, localIntent.params)
       setLoading(false)
       return
@@ -629,6 +739,7 @@ export default function ChatAegisPage() {
       const automateRes = await fetch('/api/ai/automate', { method: 'POST', headers, body: JSON.stringify({ prompt: promptWithCtx }) })
       const { intent, params = {} } = await automateRes.json()
       if (intent && intent !== 'unknown' && intent !== 'needs_context') {
+        saveLocalUserMessage(userInput)
         await runAutomation(intent, params)
         automateHandled = true
       }
@@ -732,44 +843,54 @@ export default function ChatAegisPage() {
       <div className="flex-1 relative overflow-hidden">
         {/* Messages */}
         <div className="absolute inset-0 overflow-y-auto">
-          <div className="max-w-2xl mx-auto px-5 pt-20 pb-36 space-y-5">
+          <div className="max-w-4xl mx-auto px-5 pt-8 pb-36 space-y-6">
+            {proactiveInsight && (
+              <div className="bg-slate-50/80 border border-slate-100 rounded-2xl p-5 mb-4">
+                <div className="flex items-center gap-2 text-[12px] font-bold text-slate-500 uppercase tracking-widest mb-3">
+                  <span>DAILY BRIEFING</span>
+                </div>
+                <div className="text-[14px] text-slate-700 leading-relaxed">
+                  <OutputRenderer content={proactiveInsight} />
+                </div>
+              </div>
+            )}
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {m.role === 'user' ? (
                   <div className="max-w-[76%] bg-slate-900 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap">{m.content}</div>
                 ) : (
-                  <div className="max-w-[90%] text-slate-900 min-w-0">
-                    {!m.content && loading && i === messages.length - 1 ? (
-                      <div className="flex items-center gap-2 py-2 px-1 text-[13px] text-slate-400">
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '120ms' }} />
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '240ms' }} />
-                        <span className="ml-1">Aegis sedang berpikir...</span>
-                      </div>
-                    ) : m.content && loading && i === messages.length - 1 ? (
-                      <><OutputRenderer content={m.content} /><span className="inline-block w-[2px] h-4 bg-indigo-400 ml-0.5 animate-pulse align-middle" /></>
-                    ) : (
-                      <>
-                        <OutputRenderer content={m.content} />
-                        {m.action && m.actionStatus && (
-                          <ActionCard action={m.action} status={m.actionStatus} onConfirm={() => handleConfirmAction(i)} onCancel={() => handleCancelAction(i)} />
-                        )}
-                      </>
-                    )}
+                  <div className="w-full">
+                    <div className="text-slate-900 min-w-0 pt-2 pb-4">
+                      {!m.content && loading && i === messages.length - 1 ? (
+                        <div className="flex items-center gap-2 py-1 text-[13px] text-slate-400 animate-pulse">
+                          <Loader2 size={14} className="animate-spin text-slate-300" />
+                          <span>Aegis sedang berpikir...</span>
+                        </div>
+                      ) : m.content && loading && i === messages.length - 1 ? (
+                        <OutputRenderer content={m.content + ' ▍'} />
+                      ) : (
+                        <>
+                          <OutputRenderer content={m.content} />
+                          {m.action && m.actionStatus && (
+                            <ActionCard action={m.action} status={m.actionStatus} onConfirm={() => handleConfirmAction(i)} onCancel={() => handleCancelAction(i)} />
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
             ))}
             {automationSteps.length > 0 && (
               <div className="flex justify-start">
-                <div className="max-w-[90%]">
-                  <ExecutionLog steps={automationSteps} />
+                <div className="w-full pl-6">
+                  <TransientExecutionStatus steps={automationSteps} />
                 </div>
               </div>
             )}
             {pendingAutomation && (
-              <div className="flex justify-start">
-                <div className="max-w-[90%] w-full">
+              <div className="flex justify-start mt-4">
+                <div className="w-full pl-6">
                   {pendingAutomation.intent === 'create_order' ? (
                     <OrderPreviewCard
                       params={pendingAutomation.params}
@@ -806,7 +927,7 @@ export default function ChatAegisPage() {
             paddingTop: hasMessages ? '12px' : '0',
           }}
         >
-          <div className="w-full max-w-2xl mx-auto">
+          <div className="w-full max-w-4xl mx-auto">
             <div className="mb-32 pl-4" style={{ opacity: hasMessages ? 0 : 1, transition: 'opacity 0.3s ease', pointerEvents: 'none' }}>
               <h1 className="text-[22px] font-semibold text-slate-800 tracking-tight mb-1">
                 {business?.pic_name ? getGreeting(business.pic_name) : 'Halo 👋'}

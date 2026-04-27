@@ -48,7 +48,7 @@ export function OutputRenderer({ content }: Props) {
       {segments.map((seg, i) => {
         if (seg.type === 'text') {
           return (
-            <div key={i} className="prose prose-slate prose-sm max-w-none">
+            <div key={i} className="prose prose-slate max-w-none text-[15px] leading-relaxed prose-p:my-2 prose-headings:font-semibold prose-headings:text-slate-800 prose-strong:font-semibold prose-strong:text-slate-900 prose-li:my-0.5">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw]}

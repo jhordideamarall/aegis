@@ -217,7 +217,9 @@ async function fetchBusinessContext(businessId: string): Promise<string> {
     statsYear,
     statsAllTime
   ] = await Promise.all([
-    supabaseAdmin.from('products').select('id, name, price, stock, category, hpp').eq('business_id', businessId).order('name'),
+    // Batasi produk maksimal 200 item teratas (cukup untuk konteks umum).
+    // Produk di luar 200 ini bisa dicari menggunakan 'find_product' intent.
+    supabaseAdmin.from('products').select('id, name, price, stock, category, hpp').eq('business_id', businessId).order('name').limit(200),
     supabaseAdmin.from('members').select('id, name, phone, points, total_purchases').eq('business_id', businessId).order('total_purchases', { ascending: false }).limit(50),
     supabaseAdmin.from('orders').select('id, total, created_at, payment_method, payment_provider, member:members(name), order_items(qty, price, product:products(name))').eq('business_id', businessId).order('created_at', { ascending: false }).limit(15),
     supabaseAdmin.from('settings').select('key, value').eq('business_id', businessId),

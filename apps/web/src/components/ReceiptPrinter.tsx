@@ -28,6 +28,10 @@ interface ReceiptPrinterProps {
     payment_proof_url?: string | null
     payment_proof_uploaded_at?: string | null
     payment_notes?: string | null
+    tax_amount?: number
+    tax_rate?: number
+    service_amount?: number
+    service_rate?: number
     created_at: string
     member_id?: string | null
     points_earned?: number
@@ -129,11 +133,19 @@ export default function ReceiptPrinter({ order: providedOrder, onClose, business
   const subtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0)
   const taxableBase = Math.max(subtotal - discount, 0)
 
-  const taxRate = Number(settings?.tax_rate) || 0
-  const serviceRate = Number(settings?.service_rate) || 0
-  const taxAmount = settings?.tax_enabled ? Math.round(taxableBase * taxRate / 100) : 0
-  const serviceAmount = settings?.service_enabled ? Math.round(taxableBase * serviceRate / 100) : 0
-  const grandTotal = taxableBase + taxAmount + serviceAmount
+  // Use historical data if available, fallback to current settings
+  const taxRate = typeof order.tax_rate === 'number' ? order.tax_rate : (Number(settings?.tax_rate) || 0)
+  const serviceRate = typeof order.service_rate === 'number' ? order.service_rate : (Number(settings?.service_rate) || 0)
+  
+  const taxAmount = typeof order.tax_amount === 'number' 
+    ? order.tax_amount 
+    : (settings?.tax_enabled ? Math.round(taxableBase * taxRate / 100) : 0)
+    
+  const serviceAmount = typeof order.service_amount === 'number' 
+    ? order.service_amount 
+    : (settings?.service_enabled ? Math.round(taxableBase * serviceRate / 100) : 0)
+    
+  const grandTotal = order.total || (taxableBase + taxAmount + serviceAmount)
   const paymentDisplay = formatPaymentDisplay(order.payment_method, order.payment_provider)
 
   // Explicit width values for smooth interpolation

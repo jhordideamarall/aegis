@@ -19,6 +19,10 @@ interface OrdersListRow {
   payment_proof_url?: string | null
   payment_proof_uploaded_at?: string | null
   payment_notes?: string | null
+  tax_amount?: number
+  tax_rate?: number
+  service_amount?: number
+  service_rate?: number
   created_at: string
   order_items?: Array<{ id: string }>
   member?: { name: string; phone: string } | Array<{ name: string; phone: string }> | null
@@ -82,6 +86,10 @@ export async function GET(request: Request) {
         .from('orders')
         .select(`
           *,
+          tax_amount,
+          tax_rate,
+          service_amount,
+          service_rate,
           order_items(*, product:products(*)),
           member:members(name, phone)
         `)
@@ -98,13 +106,17 @@ export async function GET(request: Request) {
       'id',
       'member_id',
       'total',
+      'tax_amount',
+      'tax_rate',
+      'service_amount',
+      'service_rate',
       'payment_method',
       paymentColumnSupport.provider ? 'payment_provider' : null,
       paymentColumnSupport.proof ? 'payment_proof_url' : null,
       paymentColumnSupport.proof ? 'payment_proof_uploaded_at' : null,
       paymentColumnSupport.notes ? 'payment_notes' : null,
       'created_at',
-      'order_items(id)',
+      'order_items(id, qty, price, product:products(name))',
       'member:members(name, phone)'
     ]
       .filter(Boolean)
@@ -345,6 +357,10 @@ export async function POST(request: Request) {
       points_earned = 0,
       points_used = 0,
       discount = 0,
+      tax_amount = 0,
+      tax_rate = 0,
+      service_amount = 0,
+      service_rate = 0,
       items,
       business_id
     } = body
@@ -448,6 +464,10 @@ export async function POST(request: Request) {
       points_earned,
       points_used,
       discount,
+      tax_amount,
+      tax_rate,
+      service_amount,
+      service_rate,
       business_id: resolvedBusinessId
     }
 

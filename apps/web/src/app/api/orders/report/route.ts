@@ -12,6 +12,10 @@ interface ReportRow {
   id: string
   member_id: string | null
   total: number
+  tax_amount?: number
+  tax_rate?: number
+  service_amount?: number
+  service_rate?: number
   payment_method: string
   payment_provider?: string | null
   payment_proof_url?: string | null
@@ -56,6 +60,10 @@ export async function GET(request: Request) {
       'id',
       'member_id',
       'total',
+      'tax_amount',
+      'tax_rate',
+      'service_amount',
+      'service_rate',
       'payment_method',
       paymentColumnSupport.provider ? 'payment_provider' : null,
       paymentColumnSupport.proof ? 'payment_proof_url' : null,

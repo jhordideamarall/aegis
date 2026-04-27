@@ -38,6 +38,57 @@ export async function GET(request: Request, context: RouteContext) {
   return NextResponse.json({ messages: messages || [] })
 }
 
+export async function POST(request: Request, context: RouteContext) {
+  try {
+    const businessContext = await getBusinessContextFromRequest(request)
+    if (!businessContext) return unauthorizedResponse()
+
+    const { businessId, user } = businessContext
+    const { id } = await context.params
+    const body = await request.json()
+    const { messages } = body as {
+      messages?: Array<{ role: string; content: string }>
+    }
+
+    if (!messages || messages.length === 0) {
+      return NextResponse.json({ error: 'messages array is required' }, { status: 400 })
+    }
+
+    // Verify ownership
+    const { data: conversation, error: convError } = await supabaseAdmin
+      .from('ai_conversations')
+      .select('id')
+      .eq('id', id)
+      .eq('business_id', businessId)
+      .eq('user_id', user.id)
+      .single()
+
+    if (convError || !conversation) {
+      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
+    }
+
+    const rows = messages
+      .filter(m => m.content?.trim())
+      .map(m => ({ conversation_id: id, role: m.role, content: m.content.trim() }))
+
+    if (rows.length) {
+      const { error } = await supabaseAdmin.from('ai_messages').insert(rows)
+      if (error) throw error
+      
+      // Update conversation updated_at
+      await supabaseAdmin
+        .from('ai_conversations')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', id)
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ error: `Internal Server Error: ${message}` }, { status: 500 })
+  }
+}
+
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const businessContext = await getBusinessContextFromRequest(request)
