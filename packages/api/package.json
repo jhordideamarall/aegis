@@ -1,0 +1,8 @@
+{
+  "name": "@aegis/api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AEGIS POS — server-side API layer (supabase, auth, rate limiting)",
+  "types": "src/index.ts",
+  "main": "src/index.ts"
+}

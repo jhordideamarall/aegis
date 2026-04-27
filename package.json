@@ -4,11 +4,15 @@
   "private": true,
   "description": "AEGIS POS - Smart POS System for Modern Businesses",
   "author": "SocialBrand1980",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "tsc --noEmit"
+    "dev": "npm run dev --workspace=@aegis/web",
+    "build": "npm run build --workspace=@aegis/web",
+    "start": "npm run start --workspace=@aegis/web",
+    "lint": "tsc --noEmit && npm run lint --workspace=@aegis/web"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

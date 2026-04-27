@@ -12,23 +12,15 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
-    "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@aegis/core": ["./packages/core/src/index.ts"],
+      "@aegis/core/*": ["./packages/core/src/*"],
+      "@aegis/api": ["./packages/api/src/index.ts"],
+      "@aegis/api/*": ["./packages/api/src/*"]
     }
   },
   "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "packages/**/*.ts"
   ],
   "exclude": ["node_modules"]
 }
