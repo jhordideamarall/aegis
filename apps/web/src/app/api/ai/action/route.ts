@@ -3,6 +3,7 @@ import { getBusinessContextFromRequest, unauthorizedResponse } from '@/lib/reque
 import { supabaseAdmin } from '@/lib/supabase'
 
 type ActionType =
+  | 'create_product'
   | 'update_product'
   | 'update_stock'
   | 'delete_product'
@@ -37,6 +38,25 @@ export async function POST(request: Request) {
     }
 
     switch (type) {
+      case 'create_product': {
+        if (!payload.name) return NextResponse.json({ error: 'name required' }, { status: 400 })
+        if (payload.price === undefined || payload.price < 0) return NextResponse.json({ error: 'price required' }, { status: 400 })
+        const { data: created, error } = await supabaseAdmin
+          .from('products')
+          .insert([{
+            business_id: businessId,
+            name: payload.name,
+            price: payload.price,
+            stock: payload.stock ?? 0,
+            hpp: 0,
+            category: payload.category || '',
+          }])
+          .select('id, name')
+          .single()
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+        return NextResponse.json({ success: true, message: `Produk "${created.name}" berhasil ditambahkan` })
+      }
+
       case 'update_product': {
         if (!payload.id) return NextResponse.json({ error: 'id required' }, { status: 400 })
         const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }

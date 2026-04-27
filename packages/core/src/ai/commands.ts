@@ -68,6 +68,33 @@ export const COMMANDS: CommandDef[] = [
     fields: []
   },
   {
+    key: 'restock', icon: '', label: 'Prediksi Restock', description: 'Produk yang akan habis berdasarkan penjualan',
+    intent: 'predictive_restock',
+    fields: []
+  },
+  {
+    key: 'tambah-produk', icon: '', label: 'Tambah Produk', description: 'Daftarkan produk baru',
+    intent: 'create_product',
+    fields: [
+      { name: 'name', label: 'Nama produk', placeholder: 'Kopi Susu' },
+      { name: 'price', label: 'Harga jual (Rp)', placeholder: '18000', type: 'number' as const },
+      { name: 'stock', label: 'Stok awal', placeholder: '50', type: 'number' as const },
+      { name: 'category', label: 'Kategori (opsional)', placeholder: 'Minuman' },
+    ]
+  },
+  {
+    key: 'export', icon: '', label: 'Export Laporan', description: 'Download rekap penjualan CSV',
+    intent: 'export_report',
+    fields: [
+      { name: 'period', label: 'Periode', options: ['today', 'week', 'month', 'year'] },
+    ]
+  },
+  {
+    key: 'order', icon: '', label: 'Catat Order', description: 'Buat transaksi langsung dari chat',
+    intent: 'create_order',
+    fields: []
+  },
+  {
     key: 'hapus-produk', icon: '', label: 'Hapus Produk', description: 'Hapus produk dari sistem',
     intent: 'delete_product',
     fields: [{ name: 'product_name', label: 'Nama produk', placeholder: 'Pocari Sweat' }]

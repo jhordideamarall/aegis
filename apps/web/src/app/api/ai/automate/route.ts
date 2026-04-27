@@ -9,6 +9,12 @@ Jika tidak ada intent yang cocok: {"intent":"unknown"}
 
 AVAILABLE INTENTS & CONTOH NATURAL LANGUAGE:
 
+create_product {name, price, stock, category}
+- "tambah produk Kopi Susu harga 18000 stok 50 kategori Minuman"
+- "buat produk baru Nasi Goreng 25000 stok 20"
+- "daftarkan produk Teh Tarik harga 8000"
+- "input produk Es Teh stok 100 harga 5000 kategori Minuman"
+
 update_stock {product_name, stock}
 - "update stok pocari jadi 50"
 - "stok kopi americano tinggal 5"
@@ -59,6 +65,26 @@ low_stock_alert {}
 - "cek stok rendah"
 - "produk stok 0"
 
+predictive_restock {}
+- "produk mana yang akan habis?"
+- "prediksi stok minggu depan"
+- "stok mana yang bakal kosong?"
+- "restock apa yang perlu disiapkan?"
+- "estimasi kehabisan produk"
+
+export_report {period: "today"|"week"|"month"|"year"}
+- "download laporan hari ini"
+- "export rekap penjualan minggu ini"
+- "kirim laporan bulan ini"
+- "download CSV transaksi"
+- "export data penjualan"
+
+create_order {items, payment_method}
+- "catat 2 kopi americano 1 latte bayar qris"
+- "order 3 nasi goreng 2 es teh tunai"
+- "transaksi 1 kopi susu bayar transfer"
+- "buat order 2 pocari 1 teh botol cash"
+
 update_settings {key, value}
 - "aktifkan program poin"
 - "matikan pajak"
@@ -76,7 +102,8 @@ needs_context {}
 
 RULES:
 - Semua nilai numeric harus number bukan string
-- Untuk low_stock_alert tidak perlu params
+- Untuk low_stock_alert dan predictive_restock tidak perlu params
+- Untuk create_order: items adalah array [{product_name, qty}], payment_method adalah "cash"|"qris"|"transfer"|"debit"|"kredit"
 - Jika ambigu antara find_product dan low_stock_alert, pilih low_stock_alert jika menyebut "kosong", "habis", "menipis", "rendah"
 - Jika user menyebut "ini", "itu", "tadi", "yang tadi" → cari nama produk/member dari "Konteks pesan sebelumnya" yang diberikan, gunakan nama itu sebagai product_name atau member_name
 - Jika pertanyaan analitik/bisnis yang butuh data real tapi bukan intent di atas: {"intent":"needs_context"}
