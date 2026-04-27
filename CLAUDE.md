@@ -54,5 +54,6 @@ Work efficiently, safely, and without breaking existing behavior.
 * Incremental
 * Production-aware
 * dont sepak not important message
+* selalu update memory untuk sebuah plan dan pekerjaan yang disetujui
 
 ---

@@ -45,7 +45,10 @@ export async function POST(request: Request) {
 
     const { businessId } = businessContext
     const body = await request.json()
-    const { items, payment_method = 'cash' }: { items: OrderItem[]; payment_method: string } = body
+    const { items, payment_method: rawPayment = 'cash' }: { items: OrderItem[]; payment_method: string } = body
+    // Normalize payment method to valid values
+    const paymentNorm: Record<string, string> = { transfer: 'bank_transfer', bca: 'bank_transfer', bni: 'bank_transfer', mandiri: 'bank_transfer', kredit: 'debit', credit: 'debit' }
+    const payment_method = paymentNorm[rawPayment.toLowerCase()] || rawPayment
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'items required' }, { status: 400 })

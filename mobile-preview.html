@@ -1,0 +1,2112 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AEGIS POS — Mobile Preview</title>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',system-ui,sans-serif;background:#080808;min-height:100vh;display:flex;align-items:center;justify-content:center}
+  #root{width:100%;height:100vh;display:flex;align-items:center;justify-content:center}
+  #phone-wrap{transform-origin:center center}
+  .ns::-webkit-scrollbar{display:none}
+  .ns{-ms-overflow-style:none;scrollbar-width:none}
+  @keyframes up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes pop{from{opacity:0;transform:scale(0.84)}to{opacity:1;transform:scale(1)}}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  @keyframes slideUp{from{opacity:0;transform:translateY(100%)}to{opacity:1;transform:translateY(0)}}
+  @keyframes slashDrop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+  .u{animation:up 0.28s cubic-bezier(0.22,1,0.36,1) both}
+  .p{animation:pop 0.24s cubic-bezier(0.34,1.56,0.64,1) both}
+  .f{animation:fade 0.18s ease both}
+  .su{animation:slideUp 0.28s cubic-bezier(0.22,1,0.36,1) both}
+  .sd{animation:slashDrop 0.18s cubic-bezier(0.22,1,0.36,1) both}
+  .tap:active{opacity:.62;transform:scale(.95);transition:all .07s}
+  .glass-nav{
+    position:absolute;bottom:0;left:0;right:0;z-index:10;
+    background:rgba(13,13,13,0.78)!important;
+    backdrop-filter:blur(28px) saturate(160%)!important;
+    -webkit-backdrop-filter:blur(28px) saturate(160%)!important;
+    border-top:1px solid rgba(255,255,255,0.08)!important;
+  }
+  .glass-header{
+    background:rgba(13,13,13,0)!important;
+    backdrop-filter:blur(0px)!important;
+    -webkit-backdrop-filter:blur(0px)!important;
+    transition:backdrop-filter 0.3s,background 0.3s,-webkit-backdrop-filter 0.3s!important;
+  }
+  .glass-header.scrolled{
+    background:rgba(13,13,13,0.82)!important;
+    backdrop-filter:blur(24px) saturate(150%)!important;
+    -webkit-backdrop-filter:blur(24px) saturate(150%)!important;
+  }
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+  @keyframes shimmer{0%,100%{opacity:0.35}50%{opacity:0.7}}
+  .sk{animation:shimmer 1.4s ease infinite;background:rgba(255,255,255,0.06);border-radius:8px}
+  .dot1,.dot2,.dot3{width:5px;height:5px;border-radius:50%;display:inline-block;background:#555;animation:blink 1.2s infinite}
+  .dot2{animation-delay:.2s}.dot3{animation-delay:.4s}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useMemo,useEffect,useRef,useCallback} = React;
+
+// ── Design Tokens ─────────────────────────────────────────────────────────────
+const T = {
+  bg:'#0d0d0d', surface:'#161616', hi:'#1f1f1f',
+  border:'rgba(255,255,255,0.07)', fg:'#f0f0f0',
+  muted:'#555', dim:'#2a2a2a',
+  green:'#22c55e', red:'#ef4444', indigo:'#818cf8',
+  amber:'#f59e0b', blue:'#60a5fa',
+};
+const fmt = n => 'Rp '+n.toLocaleString('id-ID');
+const fmtK = n => n>=1e6?'Rp '+(n/1e6).toFixed(1)+'jt':n>=1e3?'Rp '+(n/1e3).toFixed(0)+'rb':fmt(n);
+
+// ── Slash Commands (dari GlobalCommand.tsx nyata) ─────────────────────────────
+const SLASH_CMDS = [
+  {key:'stok',     label:'Update Stok',        desc:'Ubah jumlah stok produk'},
+  {key:'harga',    label:'Update Harga',        desc:'Ubah harga jual produk'},
+  {key:'poin',     label:'Update Poin Member',  desc:'Set poin member'},
+  {key:'revenue',  label:'Cek Revenue',         desc:'Lihat pendapatan per periode'},
+  {key:'produk',   label:'Cari Produk',         desc:'Cari info produk'},
+  {key:'member',   label:'Cari Member',         desc:'Cari info member'},
+  {key:'stokmin',  label:'Stok Menipis',        desc:'Lihat produk stok hampir habis'},
+  {key:'hapus-produk', label:'Hapus Produk',    desc:'Hapus produk dari sistem'},
+];
+
+// ── Mock Data (disesuaikan sistem nyata) ──────────────────────────────────────
+const PRODUCTS = [
+  {id:'p1', name:'Beef Burger',       price:125000, hpp:65000,  cat:'Makanan', stock:12, tag:'Populer'},
+  {id:'p2', name:'Caesar Salad',      price:89000,  hpp:42000,  cat:'Makanan', stock:8,  tag:'Fresh'},
+  {id:'p3', name:'Club Sandwich',     price:110000, hpp:55000,  cat:'Makanan', stock:5,  tag:null},
+  {id:'p4', name:'Nasi Ayam Spesial', price:72000,  hpp:35000,  cat:'Makanan', stock:15, tag:'Best Seller'},
+  {id:'p5', name:'Latte',             price:55000,  hpp:18000,  cat:'Minuman', stock:20, tag:'Populer'},
+  {id:'p6', name:'Matcha Latte',      price:65000,  hpp:22000,  cat:'Minuman', stock:15, tag:'Baru'},
+  {id:'p7', name:'Americano',         price:38000,  hpp:12000,  cat:'Minuman', stock:25, tag:null},
+  {id:'p8', name:'Jus Mangga',        price:42000,  hpp:15000,  cat:'Minuman', stock:10, tag:'Fresh'},
+  {id:'p9', name:'Cheesecake',        price:75000,  hpp:32000,  cat:'Snack',   stock:6,  tag:'Populer'},
+  {id:'p10',name:'Tiramisu',          price:85000,  hpp:38000,  cat:'Snack',   stock:0,  tag:null},
+  {id:'p11',name:'Kentang Goreng',    price:45000,  hpp:16000,  cat:'Snack',   stock:18, tag:null},
+  {id:'p12',name:'Nachos',            price:58000,  hpp:23000,  cat:'Snack',   stock:7,  tag:'Baru'},
+];
+
+const MEMBERS = [
+  {id:'m1', name:'Budi Santoso', phone:'081234567890', email:'budi@email.com',   points:420, total_spend:2350000},
+  {id:'m2', name:'Siti Rahayu',  phone:'082345678901', email:'siti@email.com',   points:150, total_spend:890000},
+  {id:'m3', name:'Andi Wijaya',  phone:'083456789012', email:'andi@gmail.com',   points:890, total_spend:4200000},
+  {id:'m4', name:'Maya Putri',   phone:'084567890123', email:'',                 points:60,  total_spend:320000},
+];
+
+const ORDERS = [
+  {id:'ORD-001',time:'09:14',member:'Budi Santoso',method:'cash',           total:235000,items:2},
+  {id:'ORD-002',time:'09:32',member:'Walk-in',      method:'qris',          total:165000,items:2,provider:'GoPay'},
+  {id:'ORD-003',time:'10:05',member:'Siti Rahayu',  method:'debit',         total:320000,items:4},
+  {id:'ORD-004',time:'10:41',member:'Walk-in',       method:'cash',          total:130000,items:2},
+  {id:'ORD-005',time:'11:18',member:'Andi Wijaya',   method:'qris',          total:215000,items:3,provider:'DANA'},
+  {id:'ORD-006',time:'11:55',member:'Walk-in',       method:'bank_transfer',  total:180000,items:3},
+  {id:'ORD-007',time:'12:30',member:'Maya Putri',    method:'debit',         total:270000,items:3},
+  {id:'ORD-008',time:'13:12',member:'Walk-in',       method:'qris',          total:155000,items:2,provider:'OVO'},
+];
+
+// Settings dari sistem nyata
+const CHARGES = {
+  tax_enabled: true, tax_rate: 11,
+  service_enabled: false, service_rate: 5,
+  points_enabled: true, points_earn_rate: 10000, points_redeem_rate: 100, points_min_redeem: 20,
+};
+
+const PAYMENT_METHODS = [
+  {id:'cash',          label:'Cash',          sub:'Tunai'},
+  {id:'debit',         label:'Debit',         sub:'Kartu Debit'},
+  {id:'qris',          label:'QRIS',          sub:'QRIS · GoPay · OVO · DANA'},
+  {id:'bank_transfer', label:'Bank Transfer', sub:'Transfer Bank'},
+];
+const QRIS_PROVIDERS = [
+  {id:'general',  label:'QRIS Umum'},
+  {id:'gopay',    label:'GoPay'},
+  {id:'dana',     label:'DANA'},
+  {id:'ovo',      label:'OVO'},
+  {id:'shopeepay',label:'ShopeePay'},
+  {id:'bank_qris',label:'QRIS Bank'},
+];
+const CATS = ['Semua', ...new Set(PRODUCTS.map(p=>p.cat))];
+const CHART_DATA = [{day:'Sen',v:1850000},{day:'Sel',v:2300000},{day:'Rab',v:1600000},{day:'Kam',v:2750000},{day:'Jum',v:3100000},{day:'Sab',v:3800000},{day:'Min',v:2450000}];
+
+// ── Shared ────────────────────────────────────────────────────────────────────
+function Avatar({label,uid,size=46,radius=10}) {
+  const id='av'+uid;
+  const initials=label.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{borderRadius:radius,flexShrink:0,display:'block'}}>
+      <defs>
+        <pattern id={id} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="6" height="6" fill="#1e1e1e"/><rect width="1.5" height="6" fill="#2b2b2b"/>
+        </pattern>
+      </defs>
+      <rect width={size} height={size} rx={radius} fill={`url(#${id})`}/>
+      <text x={size/2} y={size/2+1} textAnchor="middle" dominantBaseline="middle" fontSize={size*.28} fontWeight="700" fill="#555" fontFamily="Inter,system-ui">{initials}</text>
+    </svg>
+  );
+}
+
+function MethodBadge({method,provider}) {
+  const map={cash:{c:T.green,l:'Cash'},debit:{c:T.blue,l:'Debit'},qris:{c:T.amber,l:provider?`QRIS·${provider}`:'QRIS'},bank_transfer:{c:T.indigo,l:'Transfer'}};
+  const m=map[method]||{c:T.muted,l:method};
+  return <span style={{fontSize:9,fontWeight:900,color:m.c,letterSpacing:'0.08em',textTransform:'uppercase'}}>{m.l}</span>;
+}
+
+function BackBtn({onPress}) {
+  return (
+    <button onClick={onPress} style={{width:36,height:36,borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} className="tap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+    </button>
+  );
+}
+
+function WheelPicker({items,value,onChange,width=54}) {
+  const ref=React.useRef(null);
+  const IH=40,PAD=IH;
+  React.useEffect(()=>{
+    const idx=items.findIndex(i=>i.v==value);
+    if(ref.current&&idx>=0) ref.current.scrollTop=idx*IH;
+  },[]);
+  const onScroll=()=>{
+    if(!ref.current)return;
+    const idx=Math.round(ref.current.scrollTop/IH);
+    const c=Math.max(0,Math.min(items.length-1,idx));
+    if(items[c]&&items[c].v!=value) onChange(items[c].v);
+  };
+  return(
+    <div style={{position:'relative',width,overflow:'hidden',height:IH*3,flexShrink:0}}>
+      <div style={{position:'absolute',top:0,left:0,right:0,height:PAD,background:`linear-gradient(to bottom,${T.surface} 20%,transparent)`,zIndex:2,pointerEvents:'none'}}/>
+      <div style={{position:'absolute',bottom:0,left:0,right:0,height:PAD,background:`linear-gradient(to top,${T.surface} 20%,transparent)`,zIndex:2,pointerEvents:'none'}}/>
+      <div style={{position:'absolute',top:PAD,left:0,right:0,height:IH,borderTop:'1px solid rgba(255,255,255,0.1)',borderBottom:'1px solid rgba(255,255,255,0.1)',pointerEvents:'none',zIndex:1}}/>
+      <div ref={ref} onScroll={onScroll} style={{height:'100%',overflowY:'scroll',scrollSnapType:'y mandatory',paddingTop:PAD,paddingBottom:PAD,WebkitOverflowScrolling:'touch',scrollbarWidth:'none',msOverflowStyle:'none'}} className="ns">
+        {items.map((item,i)=>(
+          <div key={i} style={{height:IH,scrollSnapAlign:'center',display:'flex',alignItems:'center',justifyContent:'center',fontSize:item.v==value?17:14,fontWeight:item.v==value?700:400,color:item.v==value?T.fg:'rgba(240,240,240,0.2)',transition:'all 0.1s'}}>
+            {item.l}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Sk({w='100%',h=14,r=8,mb=0}){
+  return <div className="sk" style={{width:w,height:h,borderRadius:r,marginBottom:mb}}/>;
+}
+function EmptyState({icon,title,sub}){
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'52px 24px',gap:12}}>
+      <div style={{width:56,height:56,borderRadius:18,background:T.surface,border:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'center'}}>{icon}</div>
+      <div style={{fontSize:14,fontWeight:800,color:T.fg,textAlign:'center'}}>{title}</div>
+      {sub&&<div style={{fontSize:11,fontWeight:600,color:T.muted,textAlign:'center',lineHeight:1.5}}>{sub}</div>}
+    </div>
+  );
+}
+
+function BottomNav({active,onTab}) {
+  const ITEMS=[{id:'home',label:'Dashboard'},{id:'pos',label:'POS'},{id:'orders',label:'Transactions'},{id:'ai',label:'ChatAegis'}];
+  const ICONS={
+    home:(c)=><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
+    pos:(c)=><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>,
+    orders:(c)=><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
+    ai:(c)=><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>,
+  };
+  return (
+    <div className="glass-nav" style={{height:100,display:'flex',alignItems:'flex-start',paddingTop:8,paddingBottom:24}}>
+      {ITEMS.map(item=>{
+        const on=item.id===active;
+        return (
+          <div key={item.id} onClick={()=>onTab(item.id)} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:3,color:on?T.fg:T.muted,cursor:'pointer'}}>
+            <div style={{width:34,height:34,borderRadius:9,background:on?T.hi:'transparent',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s'}}>
+              {ICONS[item.id](on?T.fg:T.muted)}
+            </div>
+            <span style={{fontSize:9,fontWeight:on?900:700,letterSpacing:'0.07em',textTransform:'uppercase',transition:'all 0.15s'}}>{item.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── HOME ──────────────────────────────────────────────────────────────────────
+function HomeScreen({onTab}) {
+  const [loading,setLoading]=useState(true);
+  useEffect(()=>{const t=setTimeout(()=>setLoading(false),1300);return()=>clearTimeout(t);},[]);
+  const [showMenu,setShowMenu]=useState(false);
+  const [scrolled,setScrolled]=useState(false);
+  const [dateFilter,setDateFilter]=useState('today');
+  const [showRangePicker,setShowRangePicker]=useState(false);
+  const _now=new Date();
+  const [fromDay,setFromDay]=useState(_now.getDate());
+  const [fromMonth,setFromMonth]=useState(_now.getMonth()+1);
+  const [fromYear,setFromYear]=useState(_now.getFullYear());
+  const [toDay,setToDay]=useState(_now.getDate());
+  const [toMonth,setToMonth]=useState(_now.getMonth()+1);
+  const [toYear,setToYear]=useState(_now.getFullYear());
+  const [chartTab,setChartTab]=useState('revenue');
+  const _MN=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'];
+  const _DAY=Array.from({length:31},(_,i)=>({v:i+1,l:String(i+1).padStart(2,'0')}));
+  const _MON=_MN.map((l,i)=>({v:i+1,l}));
+  const _YR=[2024,2025,2026,2027].map(v=>({v,l:String(v)}));
+  const rangeLabel=dateFilter==='range'?`${fromDay} ${_MN[fromMonth-1]} – ${toDay} ${_MN[toMonth-1]}`:'Range';
+  const PROFIT_DATA=[{day:'Sen',v:680000},{day:'Sel',v:820000},{day:'Rab',v:560000},{day:'Kam',v:990000},{day:'Jum',v:1100000},{day:'Sab',v:1360000},{day:'Min',v:880000}];
+  const activeChart=chartTab==='revenue'?CHART_DATA:PROFIT_DATA;
+  const maxV=Math.max(...activeChart.map(d=>d.v));
+  const onScroll=useCallback(e=>{setScrolled(e.target.scrollTop>16);},[]);
+  const FULL_MENU=[
+    {l:'Inventory',tab:'products',ic:(c)=><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>},
+    {l:'Members',tab:'members',ic:(c)=><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>},
+    {l:"What's New",tab:'updates',ic:(c)=><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>},
+    {l:'Integrations',tab:'integrations',ic:(c)=><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>},
+    {l:'MCP Server',tab:'mcp',ic:(c)=><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>},
+    {l:'Settings',tab:'settings',ic:(c)=><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>},
+  ];
+  return (
+    <div style={{position:'relative',display:'flex',flexDirection:'column',height:'100%',background:T.bg}}>
+      {showMenu&&<div onClick={()=>setShowMenu(false)} style={{position:'absolute',inset:0,zIndex:40,background:'rgba(0,0,0,0.55)'}} className="f"/>}
+      {showMenu&&
+        <div style={{position:'absolute',top:58,right:18,zIndex:50,background:T.surface,border:`1px solid ${T.border}`,borderRadius:14,overflow:'hidden',boxShadow:'0 8px 32px rgba(0,0,0,0.6)',minWidth:170}} className="sd">
+          {FULL_MENU.map((m,i)=>
+            <div key={m.l} onClick={()=>{setShowMenu(false);onTab(m.tab);}} style={{display:'flex',alignItems:'center',gap:12,padding:'13px 16px',borderBottom:i<FULL_MENU.length-1?`1px solid ${T.border}`:'none',cursor:'pointer'}} className="tap">
+              {m.ic(T.muted)}
+              <span style={{fontSize:12,fontWeight:700,color:T.fg}}>{m.l}</span>
+            </div>
+          )}
+        </div>
+      }
+      {/* Glass floating header */}
+      <div className={`glass-header${scrolled?' scrolled':''}`} style={{position:'absolute',top:0,left:0,right:0,zIndex:20,padding:'52px 18px 14px',pointerEvents:'none'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',pointerEvents:'auto'}}>
+          <div>
+            <div style={{fontSize:22,fontWeight:900,color:T.fg,letterSpacing:'-0.03em'}}>Analytics</div>
+            <div style={{fontSize:9,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.14em',marginTop:2}}>Real-time Performance</div>
+          </div>
+          <button onClick={()=>setShowMenu(!showMenu)} style={{width:36,height:36,borderRadius:10,background:T.hi,border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'auto'}} className="tap">
+            <svg width="16" height="4" viewBox="0 0 20 4" fill={T.muted}><circle cx="2" cy="2" r="2"/><circle cx="10" cy="2" r="2"/><circle cx="18" cy="2" r="2"/></svg>
+          </button>
+        </div>
+      </div>
+      <div onScroll={onScroll} style={{flex:1,overflowY:'auto',padding:'104px 18px 108px'}} className="ns">
+        {/* Date Filter */}
+        <div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto'}} className="ns">
+          {[{id:'today',l:'Hari Ini'},{id:'week',l:'Minggu'},{id:'month',l:'Bulan'},{id:'range',l:rangeLabel}].map(f=>
+            <button key={f.id} onClick={()=>{setDateFilter(f.id);if(f.id==='range')setShowRangePicker(true);}} style={{flexShrink:0,height:26,padding:'0 10px',borderRadius:7,border:`1px solid ${dateFilter===f.id?T.fg:T.border}`,background:dateFilter===f.id?T.fg:'transparent',color:dateFilter===f.id?T.bg:T.muted,fontSize:10,fontWeight:800,letterSpacing:'0.07em',textTransform:'uppercase',cursor:'pointer',transition:'all 0.15s'}} className="tap">{f.l}</button>
+          )}
+        </div>
+        {loading?<>
+          <div className="sk" style={{height:96,borderRadius:18,marginBottom:10}}/>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:10}}>{[0,1,2].map(i=><div key={i} className="sk" style={{height:72,borderRadius:14}}/>)}</div>
+          <div className="sk" style={{height:180,borderRadius:18,marginBottom:10}}/>
+          <div className="sk" style={{height:120,borderRadius:18,marginBottom:10}}/>
+        </>:(<>
+        {/* Revenue */}
+        <div style={{background:'#0a0a0a',border:`1px solid ${T.border}`,borderRadius:18,padding:'18px 18px 16px',marginBottom:10}} className="u">
+          <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.18em',textTransform:'uppercase',marginBottom:6}}>Revenue — {[{id:'today',l:'Hari Ini'},{id:'week',l:'Minggu'},{id:'month',l:'Bulan'},{id:'range',l:'Range'}].find(f=>f.id===dateFilter)?.l}</div>
+          <div style={{fontSize:30,fontWeight:900,color:T.fg,letterSpacing:'-0.03em',marginBottom:8}}>{fmt(2450000)}</div>
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
+            <span style={{fontSize:10,fontWeight:900,color:T.green,background:'rgba(34,197,94,0.1)',padding:'3px 8px',borderRadius:6}}>↑ 23%</span>
+            <span style={{fontSize:9,fontWeight:600,color:T.muted}}>vs kemarin</span>
+          </div>
+        </div>
+        {/* Mini Stats */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:10}}>
+          {[{label:'Net Profit',val:fmtK(880000),c:T.green,pct:'↑ 22%'},{label:'Total Orders',val:'12',c:T.fg,pct:'↑ 33%'},{label:'New Members',val:'+3',c:T.indigo,pct:'↑ 50%'}].map((s,i)=>
+            <div key={i} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:14,padding:'12px 10px 10px',animationDelay:`${i*40}ms`}} className="u">
+              <div style={{fontSize:8,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>{s.label}</div>
+              <div style={{fontSize:15,fontWeight:900,color:T.fg,letterSpacing:'-0.02em',marginBottom:4}}>{s.val}</div>
+              <span style={{fontSize:9,fontWeight:900,color:s.c}}>{s.pct}</span>
+            </div>
+          )}
+        </div>
+        {/* Line Chart */}
+        <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:18,padding:'14px 16px',marginBottom:10}} className="u">
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+            <div style={{fontSize:9,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.14em'}}>Sales Performance</div>
+            <div style={{display:'flex',gap:4}}>
+              {[{id:'revenue',l:'Revenue'},{id:'profit',l:'Profit'}].map(t=>
+                <button key={t.id} onClick={()=>setChartTab(t.id)} style={{height:20,padding:'0 8px',borderRadius:5,border:`1px solid ${chartTab===t.id?T.fg:T.border}`,background:chartTab===t.id?T.fg:'transparent',color:chartTab===t.id?T.bg:T.muted,fontSize:8,fontWeight:900,cursor:'pointer',transition:'all 0.12s',letterSpacing:'0.06em',textTransform:'uppercase'}} className="tap">{t.l}</button>
+              )}
+            </div>
+          </div>
+          {(()=>{
+            const W=320,H=72,pad=6;
+            const pts=activeChart.map((d,i)=>[pad+i/(activeChart.length-1)*(W-pad*2), H-pad-(d.v/maxV)*(H-pad*2)]);
+            const path=pts.reduce((acc,pt,i)=>{
+              if(i===0)return `M${pt[0].toFixed(1)},${pt[1].toFixed(1)}`;
+              const prev=pts[i-1];const cpx=(pt[0]+prev[0])/2;
+              return acc+` C${cpx.toFixed(1)},${prev[1].toFixed(1)} ${cpx.toFixed(1)},${pt[1].toFixed(1)} ${pt[0].toFixed(1)},${pt[1].toFixed(1)}`;
+            },'');
+            const areaPath=path+` L${pts[pts.length-1][0].toFixed(1)},${H} L${pts[0][0].toFixed(1)},${H} Z`;
+            const lastPt=pts[pts.length-1];
+            return(
+              <div style={{position:'relative'}}>
+                <svg width="100%" viewBox={`0 0 ${W} ${H+16}`} style={{overflow:'visible',display:'block'}}>
+                  <defs>
+                    <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={T.green} stopOpacity="0.18"/>
+                      <stop offset="100%" stopColor={T.green} stopOpacity="0"/>
+                    </linearGradient>
+                    <style>{`
+                      @keyframes drawLine{from{stroke-dashoffset:700}to{stroke-dashoffset:0}}
+                      @keyframes fadeArea{from{opacity:0}to{opacity:1}}
+                      .chart-line{stroke-dasharray:700;stroke-dashoffset:0;animation:drawLine 1.1s cubic-bezier(0.22,1,0.36,1) both}
+                      .chart-area{animation:fadeArea 1.4s ease both}
+                    `}</style>
+                  </defs>
+                  <path d={areaPath} fill="url(#lineGrad)" className="chart-area"/>
+                  <path d={path} fill="none" stroke={T.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="chart-line"/>
+                  {pts.map((pt,i)=>{
+                    const tod=i===pts.length-1;
+                    return <circle key={i} cx={pt[0]} cy={pt[1]} r={tod?4:2} fill={tod?T.green:T.surface} stroke={T.green} strokeWidth={tod?0:1.5} style={{opacity:tod?1:0.5}}/>;
+                  })}
+                  <circle cx={lastPt[0]} cy={lastPt[1]} r="8" fill={T.green} fillOpacity="0.15" className="chart-area"/>
+                </svg>
+                <div style={{display:'flex',justifyContent:'space-between',marginTop:4}}>
+                  {activeChart.map((d,i)=><span key={d.day} style={{flex:1,textAlign:'center',fontSize:8,fontWeight:700,color:i===activeChart.length-1?T.green:T.muted}}>{d.day}</span>)}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+        {/* Payment dist */}
+        <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:18,padding:'14px 16px',marginBottom:10}} className="u">
+          <div style={{fontSize:9,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.14em',marginBottom:12}}>Distribution</div>
+          {[{l:'Cash',p:35,c:T.green},{l:'QRIS',p:33,c:T.amber},{l:'Debit',p:22,c:T.blue},{l:'Bank Transfer',p:10,c:T.indigo}].map(m=>
+            <div key={m.l} style={{marginBottom:8}}>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                <span style={{fontSize:11,fontWeight:700,color:T.fg}}>{m.l}</span>
+                <span style={{fontSize:10,fontWeight:900,color:T.muted}}>{m.p}%</span>
+              </div>
+              <div style={{height:3,background:T.hi,borderRadius:4,overflow:'hidden'}}>
+                <div style={{width:`${m.p}%`,height:'100%',background:m.c,borderRadius:4}}/>
+              </div>
+            </div>
+          )}
+        </div>
+        {/* Activity */}
+        <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:18,padding:'14px 0',marginBottom:8}} className="u">
+          <div style={{padding:'0 16px',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+            <div style={{fontSize:9,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.14em'}}>Live Activity</div>
+            <button onClick={()=>onTab('orders')} style={{fontSize:10,fontWeight:800,color:T.fg,background:'none',border:'none',cursor:'pointer',textTransform:'uppercase'}} className="tap">View All</button>
+          </div>
+          {ORDERS.slice(0,4).map((o,i)=>
+            <div key={o.id} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 16px',borderTop:i>0?`1px solid ${T.border}`:'none'}}>
+              <div style={{fontSize:10,fontWeight:700,color:T.muted,width:36,flexShrink:0}}>{o.time}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:11,fontWeight:700,color:T.fg,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.member}</div>
+                <div style={{fontSize:10,color:T.muted,fontWeight:600}}>{o.items} item</div>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontSize:12,fontWeight:900,color:T.fg,marginBottom:1}}>{fmt(o.total)}</div>
+                <MethodBadge method={o.method} provider={o.provider}/>
+              </div>
+            </div>
+          )}
+        </div>
+        <div style={{height:8}}/>
+        </>)}
+      </div>
+      {showRangePicker&&<div onClick={()=>setShowRangePicker(false)} style={{position:'absolute',inset:0,zIndex:40,background:'rgba(0,0,0,0.6)'}} className="f"/>}
+      {showRangePicker&&
+        <div style={{position:'absolute',bottom:0,left:0,right:0,zIndex:50,background:T.surface,borderRadius:'20px 20px 0 0',padding:'8px 20px 40px'}} className="su">
+          <div style={{width:36,height:4,borderRadius:2,background:T.border,margin:'12px auto 18px'}}/>
+          <div style={{fontSize:13,fontWeight:800,color:T.fg,marginBottom:16}}>Select Date Range</div>
+          <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:6}}>From</div>
+          <div style={{display:'flex',gap:8,justifyContent:'center',marginBottom:16}}>
+            <WheelPicker items={_DAY} value={fromDay} onChange={setFromDay} width={54}/>
+            <WheelPicker items={_MON} value={fromMonth} onChange={setFromMonth} width={62}/>
+            <WheelPicker items={_YR} value={fromYear} onChange={setFromYear} width={66}/>
+          </div>
+          <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:6}}>To</div>
+          <div style={{display:'flex',gap:8,justifyContent:'center',marginBottom:24}}>
+            <WheelPicker items={_DAY} value={toDay} onChange={setToDay} width={54}/>
+            <WheelPicker items={_MON} value={toMonth} onChange={setToMonth} width={62}/>
+            <WheelPicker items={_YR} value={toYear} onChange={setToYear} width={66}/>
+          </div>
+          <button onClick={()=>setShowRangePicker(false)} style={{width:'100%',height:48,borderRadius:14,border:'none',background:T.green,color:'#000',fontSize:13,fontWeight:900,cursor:'pointer',letterSpacing:'0.03em'}} className="tap">Terapkan</button>
+        </div>
+      }
+      <BottomNav active="home" onTab={onTab}/>
+    </div>
+  );
+}
+
+// ── POS ───────────────────────────────────────────────────────────────────────
+function POSScreen({onTab}) {
+  const [loading,setLoading]=useState(true);
+  useEffect(()=>{const t=setTimeout(()=>setLoading(false),1100);return()=>clearTimeout(t);},[]);
+  const [cart,setCart]=useState([]);
+  const [screen,setScreen]=useState('products');
+  const [search,setSearch]=useState('');
+  const [cat,setCat]=useState('Semua');
+
+  const filtered=useMemo(()=>PRODUCTS.filter(p=>(cat==='Semua'||p.cat===cat)&&p.name.toLowerCase().includes(search.toLowerCase())),[cat,search]);
+  const inCart=p=>cart.find(i=>i.product.id===p.id);
+  const addToCart=p=>{
+    if(p.stock<=0)return;
+    setCart(prev=>{const ex=prev.find(i=>i.product.id===p.id);if(ex)return prev.map(i=>i.product.id===p.id?{...i,qty:i.qty+1}:i);return[...prev,{product:p,qty:1}];});
+  };
+  const updateQty=(id,qty)=>{
+    if(qty<=0)setCart(prev=>prev.filter(i=>i.product.id!==id));
+    else setCart(prev=>prev.map(i=>i.product.id===id?{...i,qty}:i));
+  };
+  const cartCount=cart.reduce((s,i)=>s+i.qty,0);
+  const cartTotal=cart.reduce((s,i)=>s+i.product.price*i.qty,0);
+
+  if(screen==='cart')return <CartScreen cart={cart} setCart={setCart} cartTotal={cartTotal} onBack={()=>setScreen('products')} onPayment={()=>setScreen('payment')} onTab={onTab}/>;
+  if(screen==='payment')return <PaymentScreen cart={cart} setCart={setCart} cartTotal={cartTotal} onBack={()=>setScreen('cart')} onDone={()=>{setCart([]);setScreen('products');onTab('orders');}} onTab={onTab}/>;
+
+  const tagC=tag=>tag==='Baru'?T.indigo:tag==='Fresh'?T.green:T.amber;
+  const tagBg=tag=>tag==='Baru'?'rgba(129,140,248,0.12)':tag==='Fresh'?'rgba(34,197,94,0.12)':'rgba(245,158,11,0.12)';
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg,position:'relative'}}>
+      {/* Header */}
+      <div style={{padding:'60px 18px 0',flexShrink:0}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+          <div style={{display:'flex',alignItems:'baseline',gap:8}}>
+            <div>
+              <div style={{fontSize:22,fontWeight:900,color:T.fg,letterSpacing:'-0.03em'}}>Point of Sale</div>
+              <div style={{fontSize:9,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.14em',marginTop:1}}>Ready to Sell</div>
+            </div>
+            <div style={{fontSize:10,fontWeight:700,color:T.muted}}>{filtered.length} item</div>
+          </div>
+          <button onClick={()=>cartCount>0&&setScreen('cart')} style={{position:'relative',width:40,height:40,borderRadius:11,background:cartCount>0?T.fg:T.surface,border:'none',cursor:cartCount>0?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center'}} className="tap">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={cartCount>0?T.bg:T.muted} strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+            </svg>
+            {cartCount>0&&<span style={{position:'absolute',top:-4,right:-4,background:T.red,color:'#fff',fontSize:9,fontWeight:900,minWidth:16,height:16,borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',padding:'0 3px',border:`2px solid ${T.bg}`}} className="p">{cartCount}</span>}
+          </button>
+        </div>
+        {/* Search */}
+        <div style={{position:'relative',marginBottom:12}}>
+          <svg width="13" height="13" style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)'}} viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" placeholder="Cari produk…" value={search} onChange={e=>{setSearch(e.target.value);}}
+            style={{width:'100%',height:38,borderRadius:10,border:`1px solid ${T.border}`,background:T.surface,paddingLeft:34,paddingRight:12,fontSize:12,fontWeight:600,color:T.fg,outline:'none'}}/>
+        </div>
+        {/* Category Pills - dari data produk aktual */}
+        <div style={{display:'flex',gap:6,overflowX:'auto',paddingBottom:12}} className="ns">
+          {CATS.map(c=>
+            <button key={c} onClick={()=>setCat(c)} style={{flexShrink:0,height:28,padding:'0 12px',borderRadius:7,border:`1px solid ${cat===c?T.fg:T.border}`,background:cat===c?T.fg:'transparent',color:cat===c?T.bg:T.muted,fontSize:10,fontWeight:800,letterSpacing:'0.07em',textTransform:'uppercase',cursor:'pointer',transition:'all 0.15s'}} className="tap">{c}</button>
+          )}
+        </div>
+      </div>
+      {/* Product List — scroll semua, no pagination */}
+      <div style={{flex:1,overflowY:'auto',padding:'0 18px 172px'}} className="ns">
+        {loading
+          ?<div style={{display:'flex',flexDirection:'column'}}>{[0,1,2,3,4].map(i=><div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 0',borderBottom:`1px solid ${T.border}`}}><div className="sk" style={{width:44,height:44,borderRadius:12,flexShrink:0}}/><div style={{flex:1,display:'flex',flexDirection:'column',gap:7}}><Sk w="55%" h={13}/><Sk w="35%" h={11}/><Sk w="25%" h={10}/></div><div className="sk" style={{width:30,height:30,borderRadius:9,flexShrink:0}}/></div>)}</div>
+          :filtered.length===0
+          ?<EmptyState icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>} title="Produk tidak ditemukan" sub="Coba kata kunci lain atau ubah kategori"/>
+
+          :<div style={{display:'flex',flexDirection:'column'}}>
+            {filtered.map((p,i)=>{
+              const qty=inCart(p)?.qty||0;const oos=p.stock<=0;
+              return (
+                <div key={p.id} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 0',minHeight:72,borderBottom:`1px solid ${T.border}`,opacity:oos?.38:1,animationDelay:`${i*22}ms`}} className="u">
+                  <Avatar label={p.name} uid={p.id} size={46} radius={10}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:4}}>
+                      <span style={{fontSize:13,fontWeight:700,color:T.fg,lineHeight:'18px',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:110}}>{p.name}</span>
+                      {p.tag&&<span style={{fontSize:8,fontWeight:900,letterSpacing:'0.1em',color:tagC(p.tag),background:tagBg(p.tag),padding:'2px 6px',borderRadius:4,textTransform:'uppercase',flexShrink:0}}>{p.tag}</span>}
+                    </div>
+                    <div style={{fontSize:12,fontWeight:800,color:T.fg,marginBottom:2}}>{fmt(p.price)}</div>
+                    <div style={{fontSize:10,fontWeight:600,color:p.stock<=5&&!oos?T.red:T.muted}}>{oos?'Out of Stock':`${p.stock} in stock`}</div>
+                  </div>
+                  {qty>0
+                    ?<div style={{display:'flex',alignItems:'center',gap:2,background:T.surface,borderRadius:9,padding:3,flexShrink:0}}>
+                        <button onClick={()=>updateQty(p.id,qty-1)} style={{width:26,height:26,borderRadius:7,border:'none',background:'transparent',cursor:'pointer',color:T.muted,fontSize:16,fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center'}} className="tap">−</button>
+                        <span style={{width:22,textAlign:'center',fontSize:12,fontWeight:900,color:T.fg}}>{qty}</span>
+                        <button onClick={()=>!oos&&addToCart(p)} style={{width:26,height:26,borderRadius:7,border:'none',background:T.fg,cursor:'pointer',color:T.bg,fontSize:16,fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center'}} className="tap">+</button>
+                      </div>
+                    :<button onClick={()=>addToCart(p)} disabled={oos} style={{width:30,height:30,borderRadius:9,border:`1px solid ${T.border}`,background:'transparent',color:T.muted,display:'flex',alignItems:'center',justifyContent:'center',cursor:oos?'not-allowed':'pointer',fontSize:18,fontWeight:300,flexShrink:0}} className="tap">+</button>
+                  }
+                </div>
+              );
+            })}
+          </div>
+        }
+        <div style={{height:8}}/>
+      </div>
+      {cartCount>0&&
+        <div onClick={()=>setScreen('cart')} style={{position:'absolute',bottom:108,left:18,right:18,zIndex:11,borderRadius:14,background:T.fg,padding:'14px 18px',display:'flex',alignItems:'center',cursor:'pointer',boxShadow:'0 4px 24px rgba(0,0,0,0.4)'}} className="tap su">
+          <span style={{width:26,height:26,borderRadius:7,background:T.bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:900,color:T.fg,flexShrink:0}}>{cartCount}</span>
+          <span style={{flex:1,fontSize:11,fontWeight:900,color:T.bg,textAlign:'center',letterSpacing:'0.1em',textTransform:'uppercase'}}>View Cart</span>
+          <span style={{fontSize:12,fontWeight:900,color:T.bg}}>{fmt(cartTotal)}</span>
+        </div>
+      }
+      <BottomNav active="pos" onTab={onTab}/>
+    </div>
+  );
+}
+
+// ── CART ──────────────────────────────────────────────────────────────────────
+function CartScreen({cart,setCart,cartTotal,onBack,onPayment,onTab}) {
+  const [memberSearch,setMemberSearch]=useState('');
+  const [selectedMember,setSelectedMember]=useState(null);
+  const [showMemberDrop,setShowMemberDrop]=useState(false);
+  const [redeemPoints,setRedeemPoints]=useState(false);
+
+  const updateQty=(id,qty)=>{
+    if(qty<=0)setCart(prev=>prev.filter(i=>i.product.id!==id));
+    else setCart(prev=>prev.map(i=>i.product.id===id?{...i,qty}:i));
+  };
+
+  const filteredMembers=MEMBERS.filter(m=>m.name.toLowerCase().includes(memberSearch.toLowerCase())||m.phone.includes(memberSearch));
+
+  // Charges dari settings nyata
+  const subtotal=cartTotal;
+  const pointsDiscount=redeemPoints&&selectedMember?Math.min(Math.floor(subtotal/CHARGES.points_redeem_rate)*CHARGES.points_redeem_rate,selectedMember.points*CHARGES.points_redeem_rate):0;
+  const taxBase=Math.max(subtotal-pointsDiscount,0);
+  const tax=CHARGES.tax_enabled?Math.round(taxBase*CHARGES.tax_rate/100):0;
+  const service=CHARGES.service_enabled?Math.round(taxBase*CHARGES.service_rate/100):0;
+  const total=taxBase+tax+service;
+
+  // Earn points setelah transaksi
+  const earnPoints=Math.floor(total/CHARGES.points_earn_rate);
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg}}>
+      <div style={{padding:'60px 18px 14px',flexShrink:0,display:'flex',alignItems:'center',gap:12}}>
+        <BackBtn onPress={onBack}/>
+        <div style={{flex:1}}>
+          <div style={{fontSize:20,fontWeight:900,color:T.fg,letterSpacing:'-0.03em'}}>Cart</div>
+        </div>
+        {cart.length>0&&<button onClick={()=>setCart([])} style={{fontSize:10,fontWeight:800,color:T.red,background:'none',border:'none',cursor:'pointer',letterSpacing:'0.1em',textTransform:'uppercase'}} className="tap">Clear All</button>}
+      </div>
+
+      {/* Member Selector — MemberCombobox dari sistem nyata */}
+      <div style={{padding:'0 18px 12px',flexShrink:0,position:'relative'}}>
+        <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:6}}>Customer</div>
+        {selectedMember
+          ?<div style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:12,border:`1px solid rgba(34,197,94,0.25)`,background:'rgba(34,197,94,0.06)'}}>
+              <div style={{width:32,height:32,borderRadius:8,background:'rgba(34,197,94,0.1)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12,fontWeight:700,color:T.fg}}>{selectedMember.name}</div>
+                <div style={{fontSize:10,color:T.muted,fontWeight:600}}>{selectedMember.points.toLocaleString()} poin · {selectedMember.phone}</div>
+              </div>
+              <button onClick={()=>{setSelectedMember(null);setRedeemPoints(false);}} style={{fontSize:10,fontWeight:800,color:T.muted,background:'none',border:'none',cursor:'pointer'}} className="tap">×</button>
+            </div>
+          :<div>
+            <div style={{position:'relative'}}>
+              <svg width="13" height="13" style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)'}} viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <input placeholder="Cari member atau buat baru…" value={memberSearch} onChange={e=>{setMemberSearch(e.target.value);setShowMemberDrop(true);}} onFocus={()=>setShowMemberDrop(true)}
+                style={{width:'100%',height:38,borderRadius:10,border:`1px solid ${T.border}`,background:T.surface,paddingLeft:34,paddingRight:12,fontSize:12,fontWeight:600,color:T.fg,outline:'none'}}/>
+            </div>
+            {showMemberDrop&&memberSearch&&
+              <div style={{position:'absolute',left:18,right:18,background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,marginTop:4,zIndex:20,overflow:'hidden',boxShadow:'0 8px 24px rgba(0,0,0,0.4)'}} className="sd">
+                {filteredMembers.map(m=>
+                  <div key={m.id} onClick={()=>{setSelectedMember(m);setMemberSearch('');setShowMemberDrop(false);}} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',borderBottom:`1px solid ${T.border}`,cursor:'pointer'}} className="tap">
+                    <Avatar label={m.name} uid={m.id} size={30} radius={8}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:12,fontWeight:700,color:T.fg}}>{m.name}</div>
+                      <div style={{fontSize:10,color:T.muted}}>{m.phone} · {m.points} poin</div>
+                    </div>
+                  </div>
+                )}
+                <div onClick={()=>{setShowMemberDrop(false);}} style={{padding:'10px 14px',fontSize:11,fontWeight:700,color:T.indigo,cursor:'pointer',display:'flex',alignItems:'center',gap:6}} className="tap">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.indigo} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  New Member
+                </div>
+              </div>
+            }
+          </div>
+        }
+
+        {/* Points Redeem Toggle */}
+        {selectedMember&&CHARGES.points_enabled&&selectedMember.points>=CHARGES.points_min_redeem&&
+          <button onClick={()=>setRedeemPoints(!redeemPoints)} style={{marginTop:8,width:'100%',display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:10,border:`1px solid ${redeemPoints?'rgba(34,197,94,0.25)':T.border}`,background:redeemPoints?'rgba(34,197,94,0.06)':T.surface,cursor:'pointer',textAlign:'left'}} className="tap">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={redeemPoints?T.green:T.muted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+            <div style={{flex:1}}>
+              <div style={{fontSize:11,fontWeight:800,color:redeemPoints?T.green:T.fg}}>
+                {redeemPoints?`Use ${Math.floor(subtotal/CHARGES.points_redeem_rate)} points (-${fmt(pointsDiscount)})`:'Use Points'}
+              </div>
+              <div style={{fontSize:10,color:redeemPoints?'rgba(34,197,94,0.7)':T.muted,fontWeight:600}}>{selectedMember.points.toLocaleString()} points available</div>
+            </div>
+            <div style={{width:36,height:20,borderRadius:10,background:redeemPoints?T.green:T.hi,display:'flex',alignItems:'center',padding:'0 2px',justifyContent:redeemPoints?'flex-end':'flex-start',transition:'all 0.2s'}}>
+              <div style={{width:16,height:16,borderRadius:8,background:'#fff'}}/>
+            </div>
+          </button>
+        }
+      </div>
+
+      {/* Items */}
+      <div style={{flex:1,overflowY:'auto',padding:'0 18px 108px'}} className="ns" onClick={()=>setShowMemberDrop(false)}>
+        {cart.length===0
+          ?<div style={{padding:'60px 0',textAlign:'center',color:T.muted,fontSize:11,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase'}}>Cart is empty</div>
+          :cart.map((item,i)=>
+            <div key={item.product.id} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 0',borderBottom:`1px solid ${T.border}`,animationDelay:`${i*30}ms`}} className="u">
+              <Avatar label={item.product.name} uid={item.product.id+'c'} size={44} radius={10}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:700,color:T.fg,marginBottom:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.product.name}</div>
+                <div style={{fontSize:11,fontWeight:800,color:T.fg}}>{fmt(item.product.price)}</div>
+              </div>
+              <div style={{fontSize:11,fontWeight:700,color:T.muted,marginRight:4}}>{fmt(item.product.price*item.qty)}</div>
+              <div style={{display:'flex',alignItems:'center',gap:2,background:T.surface,borderRadius:9,padding:3}}>
+                <button onClick={()=>updateQty(item.product.id,item.qty-1)} style={{width:26,height:26,borderRadius:7,border:'none',background:'transparent',cursor:'pointer',color:T.muted,fontSize:16,fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center'}} className="tap">−</button>
+                <span style={{width:22,textAlign:'center',fontSize:12,fontWeight:900,color:T.fg}}>{item.qty}</span>
+                <button onClick={()=>updateQty(item.product.id,item.qty+1)} style={{width:26,height:26,borderRadius:7,border:'none',background:T.fg,cursor:'pointer',color:T.bg,fontSize:16,fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center'}} className="tap">+</button>
+              </div>
+            </div>
+          )
+        }
+        <div style={{height:8}}/>
+      </div>
+
+      {/* Summary + CTA */}
+      <div style={{padding:'12px 18px 40px',flexShrink:0,borderTop:`1px solid ${T.border}`,background:T.bg}}>
+        <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:14,padding:'14px 16px',marginBottom:10}}>
+          {[
+            {l:'Subtotal',v:fmt(subtotal)},
+            redeemPoints&&pointsDiscount>0?{l:'Points Discount',v:`-${fmt(pointsDiscount)}`,c:T.green}:null,
+            CHARGES.tax_enabled?{l:`Tax (${CHARGES.tax_rate}%)`,v:fmt(tax)}:null,
+            CHARGES.service_enabled?{l:`Service (${CHARGES.service_rate}%)`,v:fmt(service)}:null,
+          ].filter(Boolean).map((row,i)=>
+            <div key={i} style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
+              <span style={{fontSize:11,fontWeight:600,color:row.c||T.muted}}>{row.l}</span>
+              <span style={{fontSize:11,fontWeight:700,color:row.c||T.fg}}>{row.v}</span>
+            </div>
+          )}
+          <div style={{borderTop:`1px solid ${T.border}`,marginTop:4,paddingTop:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <span style={{fontSize:11,fontWeight:900,color:T.fg,textTransform:'uppercase',letterSpacing:'0.1em'}}>Total</span>
+            <span style={{fontSize:20,fontWeight:900,color:T.fg,letterSpacing:'-0.02em'}}>{fmt(total)}</span>
+          </div>
+          {earnPoints>0&&
+            <div style={{marginTop:8,padding:'6px 10px',borderRadius:7,background:'rgba(34,197,94,0.06)',border:'1px solid rgba(34,197,94,0.15)',display:'flex',alignItems:'center',gap:6}}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/></svg>
+              <span style={{fontSize:10,fontWeight:700,color:T.green}}>+{earnPoints} points will be earned</span>
+            </div>
+          }
+        </div>
+        <button onClick={()=>cart.length>0&&onPayment()} disabled={cart.length===0} style={{width:'100%',height:50,borderRadius:14,background:cart.length>0?T.fg:T.surface,color:cart.length>0?T.bg:T.dim,border:'none',cursor:cart.length>0?'pointer':'not-allowed',fontSize:11,fontWeight:900,letterSpacing:'0.12em',textTransform:'uppercase'}} className="tap">
+          Proceed to Payment
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── PAYMENT ───────────────────────────────────────────────────────────────────
+function PaymentScreen({cart,setCart,cartTotal,onBack,onDone,onTab}) {
+  const tax=CHARGES.tax_enabled?Math.round(cartTotal*CHARGES.tax_rate/100):0;
+  const total=cartTotal+tax;
+  const [method,setMethod]=useState('cash');
+  const [provider,setProvider]=useState('general');
+  const [notes,setNotes]=useState('');
+  const [proofName,setProofName]=useState(null);
+  const [done,setDone]=useState(false);
+  const [showReceipt,setShowReceipt]=useState(false);
+  const needsProof=method==='qris'||method==='bank_transfer';
+
+  const confirm=()=>{
+    setDone(true);
+    setTimeout(()=>setShowReceipt(true),900);
+  };
+
+  const closeReceipt=()=>{
+    setShowReceipt(false);
+    onDone();
+  };
+
+  if(done)return(
+    <div style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg,alignItems:'center',justifyContent:'center',gap:14,padding:32,position:'relative'}}>
+      <div style={{width:64,height:64,borderRadius:20,background:'rgba(34,197,94,0.1)',display:'flex',alignItems:'center',justifyContent:'center'}} className="p">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div style={{fontSize:20,fontWeight:900,color:T.fg,letterSpacing:'-0.02em',textAlign:'center'}} className="u">Payment Successful</div>
+      <div style={{fontSize:12,fontWeight:600,color:T.muted,textAlign:'center'}} className="u">Transaction recorded</div>
+      <div style={{background:'rgba(34,197,94,0.07)',border:'1px solid rgba(34,197,94,0.18)',borderRadius:14,padding:'16px 28px',textAlign:'center',marginTop:4}} className="u">
+        <div style={{fontSize:9,fontWeight:900,color:T.green,letterSpacing:'0.16em',textTransform:'uppercase',marginBottom:4}}>Amount Paid</div>
+        <div style={{fontSize:24,fontWeight:900,color:T.green}}>{fmt(total)}</div>
+      </div>
+
+      {/* Receipt Bottom Sheet */}
+      {showReceipt&&(
+        <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'flex-end',zIndex:50}} className="f">
+          <div style={{width:'100%',background:T.surface,borderRadius:'20px 20px 0 0',padding:'8px 20px 40px'}} className="su" onClick={e=>e.stopPropagation()}>
+            <div style={{width:36,height:4,borderRadius:2,background:T.border,margin:'12px auto 18px'}}/>
+            {/* Receipt paper */}
+            <div style={{background:'#f8f8f8',borderRadius:12,padding:'18px 16px',marginBottom:16,boxShadow:'0 2px 16px rgba(0,0,0,0.15)'}}>
+              <div style={{textAlign:'center',marginBottom:12,borderBottom:'1px dashed #ddd',paddingBottom:10}}>
+                <div style={{fontSize:13,fontWeight:900,color:'#111'}}>Aegis Kafe</div>
+                <div style={{fontSize:9,color:'#888',marginTop:2}}>{new Date().toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'})} · {new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</div>
+              </div>
+              <div style={{marginBottom:10}}>
+                {cart.map((item,i)=>(
+                  <div key={i} style={{display:'flex',justifyContent:'space-between',marginBottom:5}}>
+                    <span style={{fontSize:11,color:'#333'}}>{item.product.name} <span style={{color:'#888'}}>×{item.qty}</span></span>
+                    <span style={{fontSize:11,fontWeight:700,color:'#111'}}>{fmt(item.product.price*item.qty)}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{borderTop:'1px dashed #ddd',paddingTop:8,marginBottom:4}}>
+                {CHARGES.tax_enabled&&<div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span style={{fontSize:10,color:'#888'}}>Tax ({CHARGES.tax_rate}%)</span><span style={{fontSize:10,color:'#888'}}>{fmt(tax)}</span></div>}
+                <div style={{display:'flex',justifyContent:'space-between'}}>
+                  <span style={{fontSize:12,fontWeight:900,color:'#111'}}>Total</span>
+                  <span style={{fontSize:12,fontWeight:900,color:'#111'}}>{fmt(total)}</span>
+                </div>
+              </div>
+              <div style={{marginTop:8,textAlign:'center'}}>
+                <span style={{fontSize:9,fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'0.1em'}}>{method==='bank_transfer'?'Bank Transfer':method==='qris'?`QRIS · ${provider}`:method.charAt(0).toUpperCase()+method.slice(1)}</span>
+              </div>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button style={{flex:1,height:46,borderRadius:12,background:T.hi,border:`1px solid ${T.border}`,color:T.fg,fontSize:11,fontWeight:800,letterSpacing:'0.08em',textTransform:'uppercase',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}} className="tap">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                Print
+              </button>
+              <button onClick={closeReceipt} style={{flex:2,height:46,borderRadius:12,background:T.fg,border:'none',color:T.bg,fontSize:11,fontWeight:900,letterSpacing:'0.08em',textTransform:'uppercase',cursor:'pointer'}} className="tap">
+                Done → Transactions
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  return(
+    <div style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg}}>
+      <div style={{padding:'60px 18px 14px',flexShrink:0,display:'flex',alignItems:'center',gap:12}}>
+        <BackBtn onPress={onBack}/>
+        <div style={{fontSize:20,fontWeight:900,color:T.fg,letterSpacing:'-0.03em'}}>Payment</div>
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:'0 18px 24px'}} className="ns">
+        {/* Total */}
+        <div style={{background:'#0a0a0a',border:`1px solid ${T.border}`,borderRadius:16,padding:'20px 18px',marginBottom:16}} className="u">
+          <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.18em',textTransform:'uppercase',marginBottom:6}}>Total Amount</div>
+          <div style={{fontSize:34,fontWeight:900,color:T.fg,letterSpacing:'-0.03em',marginBottom:10}}>{fmt(total)}</div>
+          {CHARGES.tax_enabled&&<div style={{fontSize:10,fontWeight:600,color:T.muted}}>Includes tax {CHARGES.tax_rate}% ({fmt(tax)})</div>}
+          <div style={{display:'flex',gap:5,flexWrap:'wrap',marginTop:10}}>
+            {cart.slice(0,3).map(item=>
+              <div key={item.product.id} style={{display:'flex',alignItems:'center',gap:4,background:'rgba(255,255,255,0.07)',borderRadius:6,padding:'4px 9px'}}>
+                <span style={{fontSize:10,fontWeight:600,color:T.muted}}>{item.product.name}</span>
+                <span style={{fontSize:10,fontWeight:900,color:'rgba(240,240,240,0.4)'}}>×{item.qty}</span>
+              </div>
+            )}
+            {cart.length>3&&<div style={{background:'rgba(255,255,255,0.07)',borderRadius:6,padding:'4px 9px'}}><span style={{fontSize:10,color:T.muted}}>+{cart.length-3} more</span></div>}
+          </div>
+        </div>
+        {/* Method */}
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:8}}>Payment Method</div>
+          <div style={{display:'flex',flexDirection:'column',gap:6}}>
+            {PAYMENT_METHODS.map(m=>
+              <button key={m.id} onClick={()=>setMethod(m.id)} style={{display:'flex',alignItems:'center',gap:12,padding:'13px 14px',borderRadius:12,border:method===m.id?`1.5px solid ${T.fg}`:`1px solid ${T.border}`,background:method===m.id?'rgba(240,240,240,0.04)':T.surface,cursor:'pointer',outline:'none',textAlign:'left'}} className="tap">
+                <div style={{width:34,height:34,borderRadius:8,flexShrink:0,background:method===m.id?T.fg:T.hi,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  {m.id==='cash'&&<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={method===m.id?T.bg:T.muted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="6" width="22" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg>}
+                  {m.id==='debit'&&<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={method===m.id?T.bg:T.muted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>}
+                  {m.id==='qris'&&<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={method===m.id?T.bg:T.muted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM17 17h3v3"/></svg>}
+                  {m.id==='bank_transfer'&&<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={method===m.id?T.bg:T.muted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>}
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:12,fontWeight:700,color:T.fg}}>{m.label}</div>
+                  <div style={{fontSize:10,color:T.muted,fontWeight:600}}>{m.sub}</div>
+                </div>
+                {method===m.id&&<div style={{width:18,height:18,borderRadius:9,background:T.fg,display:'flex',alignItems:'center',justifyContent:'center'}}><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={T.bg} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>}
+              </button>
+            )}
+          </div>
+        </div>
+        {/* QRIS Provider */}
+        {method==='qris'&&
+          <div style={{marginBottom:14}} className="f">
+            <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:8}}>Provider QRIS</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+              {QRIS_PROVIDERS.map(p=>
+                <button key={p.id} onClick={()=>setProvider(p.id)} style={{height:38,padding:'0 10px',borderRadius:10,border:provider===p.id?`1.5px solid ${T.amber}`:`1px solid ${T.border}`,background:provider===p.id?'rgba(245,158,11,0.08)':T.surface,color:provider===p.id?T.amber:T.muted,fontSize:11,fontWeight:800,cursor:'pointer',transition:'all 0.12s'}} className="tap">{p.label}</button>
+              )}
+            </div>
+          </div>
+        }
+        {/* Proof + Notes (QRIS & Bank Transfer) */}
+        {needsProof&&
+          <div style={{marginBottom:14,padding:'14px',borderRadius:12,border:`1.5px dashed ${T.border}`,background:T.surface}} className="f">
+            <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:8}}>Payment Proof</div>
+            <div onClick={()=>setProofName('bukti_transfer.jpg')} style={{height:72,borderRadius:10,border:`1px solid ${T.border}`,background:T.hi,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:5,cursor:'pointer',marginBottom:10}} className="tap">
+              {proofName
+                ?<><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span style={{fontSize:11,fontWeight:700,color:T.green}}>{proofName}</span></>
+                :<><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg><span style={{fontSize:10,fontWeight:700,color:T.muted}}>Open Camera</span></>
+              }
+            </div>
+            <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:6}}>Notes (Optional)</div>
+            <input placeholder="cth: Transfer via BCA" value={notes} onChange={e=>setNotes(e.target.value)}
+              style={{width:'100%',height:38,borderRadius:10,border:`1px solid ${T.border}`,background:T.hi,padding:'0 12px',fontSize:12,fontWeight:600,color:T.fg,outline:'none'}}/>
+          </div>
+        }
+        <div style={{height:8}}/>
+      </div>
+      <div style={{padding:'12px 18px 40px',flexShrink:0,borderTop:`1px solid ${T.border}`,background:T.bg}}>
+        <button onClick={confirm} style={{width:'100%',height:52,borderRadius:14,background:T.fg,color:T.bg,border:'none',cursor:'pointer',fontSize:12,fontWeight:900,letterSpacing:'0.1em',textTransform:'uppercase',display:'flex',alignItems:'center',justifyContent:'center',gap:8}} className="tap">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Confirm Payment
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── ORDERS ────────────────────────────────────────────────────────────────────
+function OrdersScreen({onTab}) {
+  const [loading,setLoading]=useState(true);
+  useEffect(()=>{const t=setTimeout(()=>setLoading(false),1200);return()=>clearTimeout(t);},[]);
+  const [dateFilter,setDateFilter]=useState('all');
+  const [showRangePicker,setShowRangePicker]=useState(false);
+  const _now2=new Date();
+  const [fromDay,setFromDay]=useState(_now2.getDate());
+  const [fromMonth,setFromMonth]=useState(_now2.getMonth()+1);
+  const [fromYear,setFromYear]=useState(_now2.getFullYear());
+  const [toDay,setToDay]=useState(_now2.getDate());
+  const [toMonth,setToMonth]=useState(_now2.getMonth()+1);
+  const [toYear,setToYear]=useState(_now2.getFullYear());
+  const [methodFilter,setMethodFilter]=useState('all');
+  const [orderSearch,setOrderSearch]=useState('');
+  const [detail,setDetail]=useState(null);
+  const [showReport,setShowReport]=useState(false);
+  const [rPeriod,setRPeriod]=useState('hari');
+  const _MN2=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'];
+  const _DAY2=Array.from({length:31},(_,i)=>({v:i+1,l:String(i+1).padStart(2,'0')}));
+  const _MON2=_MN2.map((l,i)=>({v:i+1,l}));
+  const _YR2=[2024,2025,2026,2027].map(v=>({v,l:String(v)}));
+  const rangeLabel=dateFilter==='range'?`${fromDay} ${_MN2[fromMonth-1]} – ${toDay} ${_MN2[toMonth-1]}`:'Range';
+
+  const filtered=ORDERS.filter(o=>{
+    const matchMethod=methodFilter==='all'||o.method===methodFilter;
+    const matchSearch=!orderSearch||o.id.toLowerCase().includes(orderSearch.toLowerCase())||o.member.toLowerCase().includes(orderSearch.toLowerCase());
+    return matchMethod&&matchSearch;
+  });
+  const totalRev=filtered.reduce((s,o)=>s+o.total,0);
+  const avgTicket=filtered.length?Math.round(totalRev/filtered.length):0;
+
+  if(showReport){
+    const RDATA={hari:{rev:2450000,orders:12,avg:204167,items:31,proof:10,proofOf:12},minggu:{rev:14200000,orders:68,avg:208824,items:184,proof:55,proofOf:68},bulan:{rev:61000000,orders:294,avg:207483,items:798,proof:241,proofOf:294},tahun:{rev:720000000,orders:3480,avg:206897,items:9420,proof:2876,proofOf:3480}};
+    const d=RDATA[rPeriod];
+    const proofPct=Math.round(d.proof/d.proofOf*100);
+    const DAILY=[{l:'Sen 21',rev:1850000,orders:9},{l:'Sel 22',rev:2300000,orders:11},{l:'Rab 23',rev:1600000,orders:8},{l:'Kam 24',rev:2750000,orders:13},{l:'Jum 25',rev:3100000,orders:15},{l:'Sab 26',rev:2450000,orders:12}];
+    const METHOD=[{l:'Cash',count:4,pct:33},{l:'QRIS',count:5,pct:42},{l:'Debit',count:2,pct:17},{l:'Bank Transfer',count:1,pct:8}];
+    const NARRATIVE=[
+      `${d.orders} transaksi dengan total omzet ${fmtK(d.rev)} dan rata-rata ${fmtK(d.avg)} per order.`,
+      `Metode dominan: QRIS (5 transaksi, 42%). QRIS provider utama: GoPay.`,
+      `Penjualan terkuat: Sabtu 26 Apr — ${fmtK(3100000)} dari 15 transaksi.`,
+    ];
+    const HIGHLIGHTS=[
+      `Bukti pembayaran: ${proofPct}% coverage (${d.proof}/${d.proofOf} transaksi).`,
+      `Total item terjual: ${d.items} unit.`,
+      `QRIS: 42% dari semua transaksi.`,
+    ];
+    const pLabel={hari:'Hari Ini',minggu:'Minggu Ini',bulan:'Bulan Ini',tahun:'Tahun Ini'}[rPeriod];
+    return(
+      <div style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg}}>
+        <div style={{padding:'60px 18px 14px',flexShrink:0,display:'flex',alignItems:'center',gap:12}}>
+          <BackBtn onPress={()=>setShowReport(false)}/>
+          <div style={{flex:1}}>
+            <div style={{fontSize:18,fontWeight:900,color:T.fg}}>Sales Report</div>
+            <div style={{fontSize:9,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.14em',marginTop:1}}>Print · Save PDF</div>
+          </div>
+          <button style={{height:32,padding:'0 12px',borderRadius:8,background:T.fg,border:'none',color:T.bg,fontSize:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:5}} className="tap">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Print / PDF
+          </button>
+        </div>
+        {/* Period tabs */}
+        <div style={{padding:'0 18px 10px',flexShrink:0}}>
+          <div style={{display:'flex',gap:5}}>
+            {[{id:'hari',l:'Hari Ini'},{id:'minggu',l:'Minggu'},{id:'bulan',l:'Bulan'},{id:'tahun',l:'Tahun'}].map(p=><button key={p.id} onClick={()=>setRPeriod(p.id)} style={{flex:1,height:28,borderRadius:7,border:`1px solid ${rPeriod===p.id?T.fg:T.border}`,background:rPeriod===p.id?T.fg:'transparent',color:rPeriod===p.id?T.bg:T.muted,fontSize:9,fontWeight:800,cursor:'pointer',transition:'all 0.15s'}} className="tap">{p.l}</button>)}
+          </div>
+        </div>
+        {/* Document preview — light paper */}
+        <div style={{flex:1,overflowY:'auto',padding:'0 14px 108px'}} className="ns">
+          <div style={{background:'#f8f8f8',borderRadius:16,overflow:'hidden',border:'1px solid rgba(0,0,0,0.08)'}} className="u">
+            {/* Doc header */}
+            <div style={{background:'#1a1a1a',padding:'20px 20px 16px'}}>
+              <div style={{fontSize:8,fontWeight:800,color:'rgba(255,255,255,0.5)',letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:4}}>Aegis Kafe · Sales & Payment Audit Report</div>
+              <div style={{fontSize:16,fontWeight:900,color:'#fff',marginBottom:2}}>{pLabel}</div>
+              <div style={{fontSize:10,fontWeight:600,color:'rgba(255,255,255,0.45)'}}>Generated: 26 Apr 2026 · {d.orders} transaksi</div>
+            </div>
+            {/* Metrics */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:1,background:'rgba(0,0,0,0.06)'}}>
+              {[{l:'Total Omzet',v:fmtK(d.rev),c:'#111'},{l:'Transaksi',v:String(d.orders),c:'#111'},{l:'Rata-rata Order',v:fmtK(d.avg),c:'#111'},{l:'Coverage Bukti',v:`${proofPct}%`,c:proofPct>=80?'#16a34a':proofPct>=50?'#d97706':'#dc2626'}].map((m,i)=>(
+                <div key={i} style={{background:'#f8f8f8',padding:'14px 16px'}}>
+                  <div style={{fontSize:8,fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>{m.l}</div>
+                  <div style={{fontSize:16,fontWeight:900,color:m.c}}>{m.v}</div>
+                </div>
+              ))}
+            </div>
+            {/* Narrative */}
+            <div style={{padding:'16px 20px',borderBottom:'1px solid rgba(0,0,0,0.08)'}}>
+              <div style={{fontSize:9,fontWeight:800,color:'#888',textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:10}}>Ringkasan</div>
+              {NARRATIVE.map((t,i)=><div key={i} style={{fontSize:11,fontWeight:500,color:'#333',lineHeight:'1.6',marginBottom:6}}>{t}</div>)}
+              <div style={{marginTop:10,padding:'10px 12px',background:'rgba(0,0,0,0.04)',borderRadius:8,borderLeft:'3px solid #22c55e'}}>
+                {HIGHLIGHTS.map((h,i)=><div key={i} style={{fontSize:10,fontWeight:600,color:'#444',marginBottom:i<HIGHLIGHTS.length-1?4:0}}>· {h}</div>)}
+              </div>
+            </div>
+            {/* Payment breakdown */}
+            <div style={{padding:'16px 20px',borderBottom:'1px solid rgba(0,0,0,0.08)'}}>
+              <div style={{fontSize:9,fontWeight:800,color:'#888',textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:10}}>Payment Method</div>
+              {METHOD.map((m,i)=>(
+                <div key={m.l} style={{marginBottom:10}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                    <span style={{fontSize:11,fontWeight:700,color:'#222'}}>{m.l}</span>
+                    <span style={{fontSize:10,fontWeight:700,color:'#888'}}>{m.count}x · {m.pct}%</span>
+                  </div>
+                  <div style={{height:4,background:'rgba(0,0,0,0.08)',borderRadius:3}}>
+                    <div style={{width:`${m.pct}%`,height:'100%',background:i===0?'#22c55e':i===1?'#f59e0b':i===2?'#60a5fa':'#818cf8',borderRadius:3}}/>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Daily breakdown */}
+            <div style={{padding:'16px 20px',borderBottom:'1px solid rgba(0,0,0,0.08)'}}>
+              <div style={{fontSize:9,fontWeight:800,color:'#888',textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:10}}>Daily Sales</div>
+              {DAILY.map((day,i)=>(
+                <div key={day.l} style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+                  <span style={{width:40,fontSize:10,fontWeight:700,color:'#555',flexShrink:0}}>{day.l}</span>
+                  <div style={{flex:1,height:4,background:'rgba(0,0,0,0.08)',borderRadius:3}}>
+                    <div style={{width:`${day.rev/3100000*100}%`,height:'100%',background:'#1a1a1a',borderRadius:3}}/>
+                  </div>
+                  <span style={{fontSize:10,fontWeight:700,color:'#222',width:50,textAlign:'right',flexShrink:0}}>{fmtK(day.rev)}</span>
+                </div>
+              ))}
+            </div>
+            {/* Transaction table */}
+            <div style={{padding:'16px 20px 20px'}}>
+              <div style={{fontSize:9,fontWeight:800,color:'#888',textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:10}}>Transaction List</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:'0',borderRadius:8,overflow:'hidden',border:'1px solid rgba(0,0,0,0.08)'}}>
+                <div style={{padding:'7px 10px',background:'rgba(0,0,0,0.05)',fontSize:8,fontWeight:800,color:'#888',letterSpacing:'0.08em',textTransform:'uppercase'}}>Customer</div>
+                <div style={{padding:'7px 10px',background:'rgba(0,0,0,0.05)',fontSize:8,fontWeight:800,color:'#888',letterSpacing:'0.08em',textTransform:'uppercase',textAlign:'right'}}>Method</div>
+                <div style={{padding:'7px 10px',background:'rgba(0,0,0,0.05)',fontSize:8,fontWeight:800,color:'#888',letterSpacing:'0.08em',textTransform:'uppercase',textAlign:'right'}}>Total</div>
+                {ORDERS.map((o,i)=><React.Fragment key={o.id}>
+                  <div style={{padding:'8px 10px',borderTop:'1px solid rgba(0,0,0,0.06)',background:i%2===0?'transparent':'rgba(0,0,0,0.02)'}}>
+                    <div style={{fontSize:10,fontWeight:700,color:'#222'}}>{o.member}</div>
+                    <div style={{fontSize:9,color:'#888',fontFamily:'monospace'}}>{o.id} · {o.time}</div>
+                  </div>
+                  <div style={{padding:'8px 10px',borderTop:'1px solid rgba(0,0,0,0.06)',background:i%2===0?'transparent':'rgba(0,0,0,0.02)',display:'flex',alignItems:'center',justifyContent:'flex-end'}}>
+                    <span style={{fontSize:9,fontWeight:800,color:{cash:'#16a34a',qris:'#d97706',debit:'#2563eb',bank_transfer:'#7c3aed'}[o.method]||'#888',letterSpacing:'0.04em',textTransform:'uppercase'}}>{o.method==='bank_transfer'?'Transfer':o.method==='qris'?o.provider?`QRIS·${o.provider}`:'QRIS':o.method.charAt(0).toUpperCase()+o.method.slice(1)}</span>
+                  </div>
+                  <div style={{padding:'8px 10px',borderTop:'1px solid rgba(0,0,0,0.06)',background:i%2===0?'transparent':'rgba(0,0,0,0.02)',display:'flex',alignItems:'center',justifyContent:'flex-end'}}>
+                    <span style={{fontSize:11,fontWeight:800,color:'#111'}}>{fmtK(o.total)}</span>
+                  </div>
+                </React.Fragment>)}
+              </div>
+            </div>
+          </div>
+          <div style={{height:8}}/>
+        </div>
+      </div>
+    );
+  }
+
+  if(detail){
+    const o=ORDERS.find(x=>x.id===detail);
+    return(
+      <div style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg}}>
+        <div style={{padding:'60px 18px 14px',flexShrink:0,display:'flex',alignItems:'center',gap:12}}>
+          <BackBtn onPress={()=>setDetail(null)}/>
+          <div style={{flex:1}}>
+            <div style={{fontSize:16,fontWeight:900,color:T.fg,letterSpacing:'-0.02em'}}>{o.id}</div>
+            <div style={{fontSize:10,fontWeight:600,color:T.muted,marginTop:1}}>{o.time} · {o.member}</div>
+          </div>
+        </div>
+        <div style={{flex:1,overflowY:'auto',padding:'0 18px 108px'}} className="ns">
+          <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:14,padding:'16px',marginBottom:12}}>
+            {[{l:'Total',v:fmt(o.total),bold:true},{l:'Method',v:<MethodBadge method={o.method} provider={o.provider}/>},{l:'Time',v:o.time},{l:'Customer',v:o.member}].map((row,i)=>
+              <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:i<3?8:0}}>
+                <span style={{fontSize:11,fontWeight:600,color:T.muted}}>{row.l}</span>
+                <span style={{fontSize:row.bold?16:11,fontWeight:row.bold?900:700,color:T.fg}}>{row.v}</span>
+              </div>
+            )}
+          </div>
+          <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:8}}>Items</div>
+          {Array.from({length:o.items},(_,i)=>(
+            <div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:`1px solid ${T.border}`}}>
+              <Avatar label={PRODUCTS[i%PRODUCTS.length].name} uid={o.id+i} size={36} radius={8}/>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,fontWeight:700,color:T.fg}}>{PRODUCTS[i%PRODUCTS.length].name}</div>
+                <div style={{fontSize:10,color:T.muted,fontWeight:600}}>×1</div>
+              </div>
+              <div style={{fontSize:11,fontWeight:800,color:T.fg}}>{fmt(PRODUCTS[i%PRODUCTS.length].price)}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{padding:'10px 18px 40px',flexShrink:0}}>
+          <button style={{width:'100%',height:46,borderRadius:12,background:T.surface,color:T.fg,border:`1px solid ${T.border}`,fontSize:11,fontWeight:800,letterSpacing:'0.1em',textTransform:'uppercase',display:'flex',alignItems:'center',justifyContent:'center',gap:8,cursor:'pointer'}} className="tap">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Print Receipt
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return(
+    <div style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg}}>
+      <div style={{padding:'60px 18px 0',flexShrink:0}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end',marginBottom:12}}>
+          <div>
+            <div style={{fontSize:22,fontWeight:900,color:T.fg,letterSpacing:'-0.03em'}}>Transactions</div>
+            <div style={{fontSize:9,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.14em',marginTop:1}}>History & Reports</div>
+          </div>
+          <button onClick={()=>setShowReport(true)} style={{height:32,padding:'0 10px',borderRadius:8,background:T.surface,border:`1px solid ${T.border}`,color:T.fg,fontSize:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:5}} className="tap">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export
+          </button>
+        </div>
+        {/* Stats row */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+          {[{l:'Total Orders',v:String(filtered.length),c:T.fg},{l:'Revenue',v:fmtK(totalRev),c:T.green},{l:'Avg. Ticket',v:fmtK(avgTicket),c:T.indigo}].map((s,i)=>(
+            <div key={i} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:'10px 10px 8px'}}>
+              <div style={{fontSize:7,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>{s.l}</div>
+              <div style={{fontSize:13,fontWeight:900,color:s.c}}>{s.v}</div>
+            </div>
+          ))}
+        </div>
+        {/* Date filter */}
+        <div style={{display:'flex',gap:6,marginBottom:8,overflowX:'auto'}} className="ns">
+          {[{id:'all',l:'Semua'},{id:'today',l:'Hari Ini'},{id:'range',l:rangeLabel}].map(f=>(
+            <button key={f.id} onClick={()=>{setDateFilter(f.id);if(f.id==='range')setShowRangePicker(true);}} style={{flexShrink:0,height:26,padding:'0 10px',borderRadius:7,border:`1px solid ${dateFilter===f.id?T.fg:T.border}`,background:dateFilter===f.id?T.fg:'transparent',color:dateFilter===f.id?T.bg:T.muted,fontSize:10,fontWeight:800,cursor:'pointer',transition:'all 0.15s'}} className="tap">{f.l}</button>
+          ))}
+          <select value={methodFilter} onChange={e=>setMethodFilter(e.target.value)} style={{height:26,padding:'0 8px',borderRadius:7,border:`1px solid ${T.border}`,background:T.surface,color:T.muted,fontSize:10,fontWeight:800,cursor:'pointer',outline:'none',flexShrink:0}}>
+            <option value="all">All Methods</option>
+            <option value="cash">Cash</option>
+            <option value="qris">QRIS</option>
+            <option value="debit">Debit</option>
+            <option value="bank_transfer">Transfer</option>
+          </select>
+        </div>
+        {/* Order ID search */}
+        <div style={{position:'relative',marginBottom:8}}>
+          <svg width="12" height="12" style={{position:'absolute',left:11,top:'50%',transform:'translateY(-50%)'}} viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input placeholder="Cari Order ID…" value={orderSearch} onChange={e=>setOrderSearch(e.target.value)} style={{width:'100%',height:34,borderRadius:9,border:`1px solid ${T.border}`,background:T.surface,paddingLeft:30,paddingRight:10,fontSize:11,fontWeight:600,color:T.fg,outline:'none'}}/>
+        </div>
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:'0 18px 108px'}} className="ns">
+        {loading
+          ?<div style={{display:'flex',flexDirection:'column'}}>{[0,1,2,3,4].map(i=><div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 0',borderBottom:`1px solid ${T.border}`}}><div className="sk" style={{width:40,height:40,borderRadius:11,flexShrink:0}}/><div style={{flex:1,display:'flex',flexDirection:'column',gap:7}}><Sk w="45%" h={13}/><Sk w="30%" h={10}/></div><div style={{display:'flex',flexDirection:'column',gap:6,alignItems:'flex-end'}}><Sk w={70} h={13}/><Sk w={50} h={10}/></div></div>)}</div>
+          :filtered.length===0
+          ?<EmptyState icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>} title="Tidak ada transaksi" sub="Belum ada transaksi yang sesuai dengan filter yang dipilih"/>
+          :<><div style={{fontSize:9,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:8}}>25 Apr 2026</div>
+        {filtered.map((o,i)=>(
+          <div key={o.id} onClick={()=>setDetail(o.id)} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 0',borderBottom:`1px solid ${T.border}`,cursor:'pointer',animationDelay:`${i*20}ms`}} className="u tap">
+            <div style={{width:40,height:40,borderRadius:11,background:{cash:'rgba(34,197,94,0.08)',qris:'rgba(245,158,11,0.08)',debit:'rgba(96,165,250,0.08)',bank_transfer:'rgba(129,140,248,0.08)'}[o.method]||T.surface,border:`1px solid ${{cash:'rgba(34,197,94,0.2)',qris:'rgba(245,158,11,0.2)',debit:'rgba(96,165,250,0.2)',bank_transfer:'rgba(129,140,248,0.2)'}[o.method]||T.border}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+              <span style={{fontSize:11,fontWeight:900,color:{cash:T.green,qris:T.amber,debit:T.blue,bank_transfer:T.indigo}[o.method]||T.muted,letterSpacing:'-0.03em'}}>Rp</span>
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
+                <span style={{fontSize:9,fontWeight:900,color:T.muted,fontFamily:'monospace'}}>{o.id}</span>
+              </div>
+              <div style={{fontSize:11,fontWeight:700,color:T.fg,marginBottom:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.member}</div>
+              <div style={{display:'flex',alignItems:'center',gap:5}}>
+                <span style={{fontSize:10,color:T.muted,fontWeight:600}}>{o.time}</span>
+                <span style={{fontSize:10,color:T.muted}}>·</span>
+                <span style={{fontSize:10,fontWeight:600,color:T.muted}}>{o.items} item</span>
+              </div>
+            </div>
+            <div style={{textAlign:'right',flexShrink:0}}>
+              <div style={{fontSize:12,fontWeight:900,color:T.fg,marginBottom:2}}>{fmt(o.total)}</div>
+              <MethodBadge method={o.method} provider={o.provider}/>
+            </div>
+          </div>
+        ))}
+        <div style={{height:8}}/>
+        </>}
+      </div>
+      {showRangePicker&&<div onClick={()=>setShowRangePicker(false)} style={{position:'absolute',inset:0,zIndex:40,background:'rgba(0,0,0,0.6)'}} className="f"/>}
+      {showRangePicker&&
+        <div style={{position:'absolute',bottom:0,left:0,right:0,zIndex:50,background:T.surface,borderRadius:'20px 20px 0 0',padding:'8px 20px 40px'}} className="su">
+          <div style={{width:36,height:4,borderRadius:2,background:T.border,margin:'12px auto 18px'}}/>
+          <div style={{fontSize:13,fontWeight:800,color:T.fg,marginBottom:16}}>Select Date Range</div>
+          <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:6}}>From</div>
+          <div style={{display:'flex',gap:8,justifyContent:'center',marginBottom:16}}>
+            <WheelPicker items={_DAY2} value={fromDay} onChange={setFromDay} width={54}/>
+            <WheelPicker items={_MON2} value={fromMonth} onChange={setFromMonth} width={62}/>
+            <WheelPicker items={_YR2} value={fromYear} onChange={setFromYear} width={66}/>
+          </div>
+          <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:6}}>To</div>
+          <div style={{display:'flex',gap:8,justifyContent:'center',marginBottom:24}}>
+            <WheelPicker items={_DAY2} value={toDay} onChange={setToDay} width={54}/>
+            <WheelPicker items={_MON2} value={toMonth} onChange={setToMonth} width={62}/>
+            <WheelPicker items={_YR2} value={toYear} onChange={setToYear} width={66}/>
+          </div>
+          <button onClick={()=>setShowRangePicker(false)} style={{width:'100%',height:48,borderRadius:14,border:'none',background:T.green,color:'#000',fontSize:13,fontWeight:900,cursor:'pointer',letterSpacing:'0.03em'}} className="tap">Terapkan</button>
+        </div>
+      }
+      <BottomNav active="orders" onTab={onTab}/>
+    </div>
+  );
+}
+
+// ── CHATAEGIS (GlobalCommand mobile) ─────────────────────────────────────────
+function AIScreen({onTab}) {
+  const [messages,setMessages]=useState([{role:'assistant',text:'Halo! Tanya apa saja soal bisnis kamu, atau ketik **/** untuk lihat perintah cepat.'}]);
+  const [input,setInput]=useState('');
+  const [loading,setLoading]=useState(false);
+  const [slashOpen,setSlashOpen]=useState(false);
+  const [activeCmd,setActiveCmd]=useState(null);
+  const [cmdValues,setCmdValues]=useState({});
+  const endRef=useRef(null);
+  const inputRef=useRef(null);
+
+  useEffect(()=>{endRef.current?.scrollIntoView({behavior:'smooth'});},[messages,loading]);
+
+  const filteredCmds=input.startsWith('/')?SLASH_CMDS.filter(c=>c.key.includes(input.slice(1).toLowerCase())||c.label.toLowerCase().includes(input.slice(1).toLowerCase())):[];
+
+  const selectCmd=cmd=>{
+    setSlashOpen(false);setInput('');
+    if(cmd.key==='stokmin'){
+      setMessages(prev=>[...prev,{role:'user',text:cmd.label},{role:'assistant',text:'**Produk stok menipis (≤5):**\n- Tiramisu: 0 sisa\n- Club Sandwich: 5 sisa\n- Cheesecake: 6 sisa'}]);
+      return;
+    }
+    setActiveCmd(cmd);setCmdValues({});
+  };
+
+  const runCmd=()=>{
+    const label=activeCmd.label;
+    const vals=Object.values(cmdValues).join(' · ');
+    setActiveCmd(null);setCmdValues({});
+    setMessages(prev=>[...prev,{role:'user',text:`${label}: ${vals}`}]);
+    setLoading(true);
+    setTimeout(()=>{
+      const replies={
+        stok:`✓ Stok **${cmdValues[activeCmd?.fields?.[0]?.name]||'produk'}** berhasil diupdate ke ${cmdValues[activeCmd?.fields?.[1]?.name]||'?'}.`,
+        harga:`✓ Harga **${cmdValues[activeCmd?.fields?.[0]?.name]||'produk'}** berhasil diupdate ke Rp ${Number(cmdValues[activeCmd?.fields?.[1]?.name]||0).toLocaleString('id-ID')}.`,
+        poin:`✓ Poin member **${cmdValues[activeCmd?.fields?.[0]?.name]||'member'}** berhasil diset ke ${cmdValues[activeCmd?.fields?.[1]?.name]||'?'}.`,
+        revenue:`**Revenue ${vals}:** Rp 2.450.000 · Profit Rp 880.000 · 12 order`,
+        produk:PRODUCTS.filter(p=>p.name.toLowerCase().includes((cmdValues[activeCmd?.fields?.[0]?.name]||'').toLowerCase())).map(p=>`**${p.name}** — ${fmt(p.price)} · Stok: ${p.stock}`).join('\n')||'Produk tidak ditemukan.',
+        member:`**Budi Santoso** — 081234567890 · 420 poin · Rp 2.350.000 total`,
+      };
+      setMessages(prev=>[...prev,{role:'assistant',text:replies[label?.split(' ')[1]?.toLowerCase()]||`✓ Perintah "${label}" berhasil dijalankan.`}]);
+      setLoading(false);
+    },1200);
+  };
+
+  const send=()=>{
+    if(!input.trim()||loading)return;
+    const q=input.trim();setInput('');
+    setMessages(prev=>[...prev,{role:'user',text:q}]);
+    setLoading(true);
+    setTimeout(()=>{
+      const r=q.toLowerCase();
+      let reply='Maaf, saya tidak mengerti pertanyaan tersebut. Coba ketik **/** untuk melihat perintah yang tersedia.';
+      if(r.includes('revenue')||r.includes('pendapatan'))reply='**Revenue Hari Ini:** Rp 2.450.000\nProfit: Rp 880.000 · 12 transaksi · Naik 23% vs kemarin';
+      else if(r.includes('stok')||r.includes('habis'))reply='**Produk stok menipis:**\n- Tiramisu: habis\n- Club Sandwich: 5 sisa\n- Cheesecake: 6 sisa';
+      else if(r.includes('member'))reply='Total 48 member aktif hari ini. Member terbanyak transaksi: Budi Santoso (Rp 2.35jt), Andi Wijaya (Rp 1.9jt).';
+      else if(r.includes('produk terlaris')||r.includes('best seller'))reply='**Top 3 Produk Hari Ini:**\n1. Beef Burger — 8 terjual · Rp 1.000.000\n2. Latte — 14 terjual · Rp 770.000\n3. Caesar Salad — 6 terjual · Rp 534.000';
+      setMessages(prev=>[...prev,{role:'assistant',text:reply}]);
+      setLoading(false);
+    },1200);
+  };
+
+  const renderText=t=>t.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br/>');
+
+  return(
+    <div style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg}}>
+      <div style={{padding:'60px 18px 14px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div>
+          <div style={{fontSize:22,fontWeight:900,color:T.fg,letterSpacing:'-0.03em'}}>ChatAegis</div>
+          <div style={{fontSize:10,fontWeight:600,color:T.muted,marginTop:1}}>AI Business Advisor · ketik / untuk perintah</div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:6,padding:'4px 10px',borderRadius:8,border:`1px solid ${T.border}`,background:T.surface}}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          <span style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.08em'}}>/ PERINTAH</span>
+        </div>
+      </div>
+
+      <div style={{flex:1,overflowY:'auto',padding:'0 18px 108px'}} className="ns">
+        {/* Messages */}
+        {messages.map((m,i)=>
+          <div key={i} style={{marginBottom:12,display:'flex',flexDirection:'column',alignItems:m.role==='user'?'flex-end':'flex-start'}} className="u">
+            <div style={{maxWidth:'84%',padding:'10px 14px',borderRadius:m.role==='user'?'14px 14px 4px 14px':'14px 14px 14px 4px',background:m.role==='user'?T.fg:T.surface,border:m.role==='user'?'none':`1px solid ${T.border}`}}>
+              <span style={{fontSize:12,fontWeight:m.role==='user'?700:600,color:m.role==='user'?T.bg:T.fg,lineHeight:'1.55'}} dangerouslySetInnerHTML={{__html:renderText(m.text)}}/>
+            </div>
+          </div>
+        )}
+        {loading&&
+          <div style={{marginBottom:12,display:'flex'}}>
+            <div style={{padding:'12px 16px',borderRadius:'14px 14px 14px 4px',background:T.surface,border:`1px solid ${T.border}`,display:'flex',gap:4,alignItems:'center'}}>
+              <span className="dot1"/><span className="dot2"/><span className="dot3"/>
+            </div>
+          </div>
+        }
+
+        {/* Active command form */}
+        {activeCmd&&
+          <div style={{marginBottom:12,padding:'14px',borderRadius:12,border:`1px solid ${T.indigo}33`,background:'rgba(129,140,248,0.04)'}} className="sd">
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+              <span style={{fontSize:12,fontWeight:800,color:T.fg}}>/{activeCmd.key} — {activeCmd.label}</span>
+              <button onClick={()=>setActiveCmd(null)} style={{fontSize:11,fontWeight:700,color:T.muted,background:'none',border:'none',cursor:'pointer'}}>ESC</button>
+            </div>
+            {activeCmd.fields.map((f,i)=>
+              <div key={f.name} style={{marginBottom:8}}>
+                <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:4}}>{f.label}</div>
+                {'options' in f
+                  ?<div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+                      {f.options.map(opt=><button key={opt} onClick={()=>setCmdValues(v=>({...v,[f.name]:opt}))} style={{height:30,padding:'0 10px',borderRadius:7,border:`1px solid ${cmdValues[f.name]===opt?T.fg:T.border}`,background:cmdValues[f.name]===opt?T.fg:'transparent',color:cmdValues[f.name]===opt?T.bg:T.muted,fontSize:11,fontWeight:700,cursor:'pointer',transition:'all 0.12s'}} className="tap">{opt}</button>)}
+                    </div>
+                  :<input value={cmdValues[f.name]||''} onChange={e=>setCmdValues(v=>({...v,[f.name]:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&runCmd()} placeholder={f.placeholder}
+                      style={{width:'100%',height:38,borderRadius:9,border:`1px solid ${T.border}`,background:T.hi,padding:'0 12px',fontSize:12,fontWeight:600,color:T.fg,outline:'none'}} autoFocus={i===0}/>
+                }
+              </div>
+            )}
+            <button onClick={runCmd} style={{width:'100%',height:38,borderRadius:9,background:T.fg,color:T.bg,border:'none',cursor:'pointer',fontSize:11,fontWeight:900,letterSpacing:'0.1em',textTransform:'uppercase',marginTop:4}} className="tap">Jalankan</button>
+          </div>
+        }
+        <div ref={endRef}/>
+      </div>
+
+      {/* Slash dropdown — floating above input, outside scroll area */}
+      {slashOpen&&filteredCmds.length>0&&
+        <div style={{margin:'0 18px',marginBottom:6,borderRadius:12,border:`1px solid ${T.border}`,background:T.surface,overflow:'hidden',boxShadow:'0 -4px 20px rgba(0,0,0,0.4)',flexShrink:0}} className="sd">
+          {filteredCmds.map((c,i)=>
+            <div key={c.key} onClick={()=>selectCmd(c)} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',borderTop:i>0?`1px solid ${T.border}`:'none',cursor:'pointer'}} className="tap">
+              <span style={{fontSize:11,fontWeight:900,color:T.indigo,fontFamily:'monospace',width:90,flexShrink:0}}>/{c.key}</span>
+              <span style={{fontSize:11,fontWeight:700,color:T.fg,flex:1}}>{c.label}</span>
+            </div>
+          )}
+        </div>
+      }
+
+      <div style={{padding:'10px 18px 14px',flexShrink:0,display:'flex',gap:8}}>
+        <input ref={inputRef} value={input} onChange={e=>{const v=e.target.value;setInput(v);setSlashOpen(v.startsWith('/'));}} onKeyDown={e=>{if(e.key==='Enter')send();}} placeholder="Tanya Aegis... atau ketik / untuk command"
+          style={{flex:1,height:44,borderRadius:12,border:`1px solid ${T.border}`,background:T.surface,padding:'0 14px',fontSize:12,fontWeight:600,color:T.fg,outline:'none'}}/>
+        <button onClick={send} style={{width:44,height:44,borderRadius:12,background:input.trim()?T.fg:T.surface,border:'none',cursor:input.trim()?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s',flexShrink:0}} className="tap">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={input.trim()?T.bg:T.muted} strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+      <div style={{height:100,flexShrink:0}}/>
+      <BottomNav active="ai" onTab={onTab}/>
+    </div>
+  );
+}
+
+// ── PRODUCTS ─────────────────────────────────────────────────────────────────
+function ProductsScreen({onTab}) {
+  const [search,setSearch]=useState('');
+  const [cat,setCat]=useState('Semua');
+  const [editItem,setEditItem]=useState(null);
+  const [editForm,setEditForm]=useState({name:'',cat:'',stock:'',hpp:'',price:''});
+  const [addOpen,setAddOpen]=useState(false);
+  const [newForm,setNewForm]=useState({name:'',cat:'Makanan',stock:'',hpp:'',price:''});
+  const [editPhoto,setEditPhoto]=useState(null);
+  const [newPhoto,setNewPhoto]=useState(null);
+  const filtered=useMemo(()=>PRODUCTS.filter(p=>(cat==='Semua'||p.cat===cat)&&p.name.toLowerCase().includes(search.toLowerCase())),[cat,search]);
+  const tagC=tag=>tag==='Baru'?T.indigo:tag==='Fresh'?T.green:T.amber;
+  const tagBg=tag=>tag==='Baru'?'rgba(129,140,248,0.12)':tag==='Fresh'?'rgba(34,197,94,0.12)':'rgba(245,158,11,0.12)';
+  const openEdit=p=>{setEditItem(p);setEditForm({name:p.name,cat:p.cat,stock:String(p.stock),hpp:String(p.hpp||0),price:String(p.price)});};
+  const stockVal=PRODUCTS.reduce((s,p)=>s+p.price*p.stock,0);
+  const lowItems=PRODUCTS.filter(p=>p.stock<=5).length;
+  const FORM_CATS=['Makanan','Minuman','Snack','Lainnya'];
+  const FInput=({label,value,onChange,prefix})=>(
+    <div style={{marginBottom:10}}>
+      <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:5}}>{label}</div>
+      <div style={{display:'flex',alignItems:'center',gap:6}}>
+        {prefix&&<span style={{fontSize:11,fontWeight:700,color:T.muted,width:20}}>{prefix}</span>}
+        <input value={value} onChange={e=>onChange(e.target.value)} inputMode="numeric" style={{flex:1,height:40,borderRadius:10,border:`1px solid ${T.border}`,background:T.hi,padding:'0 12px',fontSize:13,fontWeight:700,color:T.fg,outline:'none'}}/>
+      </div>
+    </div>
+  );
+  const FText=({label,value,onChange})=>(
+    <div style={{marginBottom:10}}>
+      <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:5}}>{label}</div>
+      <input value={value} onChange={e=>onChange(e.target.value)} style={{width:'100%',height:40,borderRadius:10,border:`1px solid ${T.border}`,background:T.hi,padding:'0 12px',fontSize:13,fontWeight:700,color:T.fg,outline:'none'}}/>
+    </div>
+  );
+  const CatPicker=({val,set})=>(
+    <div style={{marginBottom:10}}>
+      <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:5}}>Kategori</div>
+      <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+        {FORM_CATS.map(c=><button key={c} onClick={()=>set(c)} style={{height:30,padding:'0 10px',borderRadius:7,border:`1px solid ${val===c?T.fg:T.border}`,background:val===c?T.fg:'transparent',color:val===c?T.bg:T.muted,fontSize:11,fontWeight:700,cursor:'pointer'}} className="tap">{c}</button>)}
+      </div>
+    </div>
+  );
+  const ProductForm=({form,setForm,onSave,title,photo,setPhoto})=>(
+    <div style={{width:'100%',background:T.surface,borderRadius:'20px 20px 0 0',padding:'20px 20px 36px',border:`1px solid ${T.border}`,maxHeight:'82%',overflowY:'auto'}} className="su ns" onClick={e=>e.stopPropagation()}>
+      <div style={{width:36,height:4,borderRadius:2,background:T.dim,margin:'0 auto 18px'}}/>
+      <div style={{fontSize:14,fontWeight:900,color:T.fg,marginBottom:16}}>{title}</div>
+      {/* Photo upload */}
+      <div style={{marginBottom:14}}>
+        <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:8}}>Product Photo</div>
+        {photo
+          ?<div style={{position:'relative',width:'100%',height:110,borderRadius:12,overflow:'hidden',border:`1px solid ${T.border}`}}>
+              <div style={{width:'100%',height:'100%',background:'linear-gradient(135deg,#1f1f1f 0%,#2a2a2a 100%)',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:6}}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span style={{fontSize:11,fontWeight:700,color:T.green,maxWidth:'80%',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{photo}</span>
+              </div>
+              <button onClick={()=>setPhoto(null)} style={{position:'absolute',top:8,right:8,width:26,height:26,borderRadius:7,background:'rgba(239,68,68,0.9)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}} className="tap">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          :<div onClick={()=>setPhoto('foto_produk.jpg')} style={{width:'100%',height:90,borderRadius:12,border:`1.5px dashed ${T.border}`,background:T.hi,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:7,cursor:'pointer'}} className="tap">
+              <div style={{width:36,height:36,borderRadius:10,background:T.surface,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+              </div>
+              <span style={{fontSize:10,fontWeight:700,color:T.muted}}>Open Camera / Choose Photo</span>
+            </div>
+        }
+      </div>
+      <FText label="Product Name" value={form.name} onChange={v=>setForm(f=>({...f,name:v}))}/>
+      <CatPicker val={form.cat} set={v=>setForm(f=>({...f,cat:v}))}/>
+      <FInput label="Stock" value={form.stock} onChange={v=>setForm(f=>({...f,stock:v}))}/>
+      <FInput label="Harga Pokok (HPP)" value={form.hpp} onChange={v=>setForm(f=>({...f,hpp:v}))} prefix="Rp"/>
+      <FInput label="Harga Jual" value={form.price} onChange={v=>setForm(f=>({...f,price:v}))} prefix="Rp"/>
+      <button onClick={onSave} style={{width:'100%',height:48,borderRadius:12,background:T.fg,color:T.bg,border:'none',cursor:'pointer',fontSize:12,fontWeight:900,letterSpacing:'0.1em',textTransform:'uppercase',marginTop:4}} className="tap">Save Product</button>
+    </div>
+  );
+  return(
+    <div style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg,position:'relative'}}>
+      <div style={{padding:'60px 18px 0',flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
+          <button onClick={()=>onTab('home')} style={{width:36,height:36,borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} className="tap">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <div style={{flex:1}}>
+            <div style={{fontSize:20,fontWeight:900,color:T.fg,letterSpacing:'-0.03em'}}>Inventory</div>
+            <div style={{fontSize:9,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.14em',marginTop:1}}>Product Catalog</div>
+          </div>
+          <button onClick={()=>setAddOpen(true)} style={{width:36,height:36,borderRadius:10,background:T.fg,border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} className="tap">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.bg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+          <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:'10px 12px'}}>
+            <div style={{fontSize:8,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>Stock Value</div>
+            <div style={{fontSize:15,fontWeight:900,color:T.fg}}>{fmtK(stockVal)}</div>
+          </div>
+          <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:'10px 12px'}}>
+            <div style={{fontSize:8,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>Low Items</div>
+            <div style={{fontSize:15,fontWeight:900,color:T.amber}}>{lowItems} item</div>
+          </div>
+        </div>
+        <div style={{position:'relative',marginBottom:10}}>
+          <svg width="13" height="13" style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)'}} viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" placeholder="Cari produk…" value={search} onChange={e=>setSearch(e.target.value)} style={{width:'100%',height:38,borderRadius:10,border:`1px solid ${T.border}`,background:T.surface,paddingLeft:34,paddingRight:12,fontSize:12,fontWeight:600,color:T.fg,outline:'none'}}/>
+        </div>
+        <div style={{display:'flex',gap:6,overflowX:'auto',paddingBottom:10}} className="ns">
+          {CATS.map(c=><button key={c} onClick={()=>setCat(c)} style={{flexShrink:0,height:28,padding:'0 12px',borderRadius:7,border:`1px solid ${cat===c?T.fg:T.border}`,background:cat===c?T.fg:'transparent',color:cat===c?T.bg:T.muted,fontSize:10,fontWeight:800,letterSpacing:'0.07em',textTransform:'uppercase',cursor:'pointer',transition:'all 0.15s'}} className="tap">{c}</button>)}
+        </div>
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:'0 18px 108px'}} className="ns">
+        {filtered.map((p,i)=>{
+          const oos=p.stock<=0;
+          return(
+            <div key={p.id} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 0',borderBottom:`1px solid ${T.border}`,animationDelay:`${i*20}ms`}} className="u">
+              <Avatar label={p.name} uid={p.id+'mg'} size={44} radius={10}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:3}}>
+                  <span style={{fontSize:13,fontWeight:700,color:T.fg,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:110}}>{p.name}</span>
+                  {p.tag&&<span style={{fontSize:8,fontWeight:900,letterSpacing:'0.1em',color:tagC(p.tag),background:tagBg(p.tag),padding:'2px 6px',borderRadius:4,textTransform:'uppercase',flexShrink:0}}>{p.tag}</span>}
+                </div>
+                <div style={{fontSize:12,fontWeight:800,color:T.fg,marginBottom:2}}>{fmt(p.price)}</div>
+                <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                  <span style={{fontSize:9,fontWeight:700,color:T.muted}}>HPP: {fmtK(p.hpp||0)}</span>
+                  <span style={{fontSize:10,fontWeight:700,color:oos?T.red:p.stock<=5?T.amber:T.muted}}>{oos?'Habis':`${p.stock} stok`}</span>
+                </div>
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                <button onClick={()=>openEdit(p)} style={{width:30,height:30,borderRadius:8,border:`1px solid ${T.border}`,background:'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}} className="tap">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button style={{width:30,height:30,borderRadius:8,border:`1px solid rgba(239,68,68,0.2)`,background:'rgba(239,68,68,0.06)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}} className="tap">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.red} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        <div style={{height:8}}/>
+      </div>
+      {editItem&&
+        <div style={{position:'absolute',inset:0,zIndex:60,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'flex-end'}} className="f" onClick={()=>setEditItem(null)}>
+          <ProductForm form={editForm} setForm={setEditForm} onSave={()=>setEditItem(null)} title="Edit Product" photo={editPhoto} setPhoto={setEditPhoto}/>
+        </div>
+      }
+      {addOpen&&
+        <div style={{position:'absolute',inset:0,zIndex:60,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'flex-end'}} className="f" onClick={()=>setAddOpen(false)}>
+          <ProductForm form={newForm} setForm={setNewForm} onSave={()=>setAddOpen(false)} title="Add New Product" photo={newPhoto} setPhoto={setNewPhoto}/>
+        </div>
+      }
+      <BottomNav active="home" onTab={onTab}/>
+    </div>
+  );
+}
+
+// ── MEMBERS ───────────────────────────────────────────────────────────────────
+function MembersScreen({onTab}) {
+  const [search,setSearch]=useState('');
+  const [detail,setDetail]=useState(null);
+  const [addOpen,setAddOpen]=useState(false);
+  const [newMember,setNewMember]=useState({name:'',phone:'',email:''});
+  const [showDeleteConfirm,setShowDeleteConfirm]=useState(false);
+  const [loading,setLoading]=useState(true);
+  useEffect(()=>{const t=setTimeout(()=>setLoading(false),1100);return()=>clearTimeout(t);},[]);
+
+  const allMembers=[...MEMBERS,
+    {id:'m5',name:'Dewi Lestari',  phone:'085678901234',email:'dewi@email.com',  points:320, total_spend:1580000},
+    {id:'m6',name:'Rizki Pratama', phone:'086789012345',email:'',               points:75,  total_spend:420000},
+    {id:'m7',name:'Hendra Saputra',phone:'087890123456',email:'hendra@mail.com',points:1200,total_spend:6100000},
+  ];
+  const totalPoints=allMembers.reduce((s,m)=>s+m.points,0);
+  const totalSpend=allMembers.reduce((s,m)=>s+(m.total_spend||0),0);
+  const shown=allMembers.filter(m=>m.name.toLowerCase().includes(search.toLowerCase())||m.phone.includes(search));
+  if(detail){
+    const m=allMembers.find(x=>x.id===detail);
+    return(
+      <div style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg}}>
+        <div style={{padding:'60px 18px 0',flexShrink:0,display:'flex',alignItems:'center',gap:12,marginBottom:18}}>
+          <button onClick={()=>setDetail(null)} style={{width:36,height:36,borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} className="tap">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <div style={{fontSize:18,fontWeight:900,color:T.fg}}>Member Profile</div>
+        </div>
+        <div style={{flex:1,overflowY:'auto',padding:'0 18px 108px'}} className="ns">
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'8px 0 24px',gap:10}}>
+            <Avatar label={m.name} uid={m.id+'dp'} size={72} radius={18}/>
+            <div style={{fontSize:18,fontWeight:900,color:T.fg}}>{m.name}</div>
+            <div style={{fontSize:11,color:T.muted,fontWeight:600}}>{m.phone}</div>
+            {m.email&&<div style={{fontSize:11,color:T.muted,fontWeight:600}}>{m.email}</div>}
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:16}}>
+            {[{l:'Total Points',v:m.points.toLocaleString(),c:T.green},{l:'Total Spend',v:fmtK(m.total_spend||0),c:T.fg},{l:'Transactions',v:'8 kali',c:T.fg},{l:'Joined',v:'Jan 2025',c:T.fg}].map((s,i)=>
+              <div key={i} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:14,padding:'14px 14px 12px'}}>
+                <div style={{fontSize:9,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>{s.l}</div>
+                <div style={{fontSize:16,fontWeight:900,color:s.c}}>{s.v}</div>
+              </div>
+            )}
+          </div>
+          <div style={{fontSize:9,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:8}}>Transaction History</div>
+          {ORDERS.slice(0,3).map((o,i)=>
+            <div key={o.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:`1px solid ${T.border}`}}>
+              <div style={{width:36,height:36,borderRadius:9,background:{cash:'rgba(34,197,94,0.08)',qris:'rgba(245,158,11,0.08)',debit:'rgba(96,165,250,0.08)',bank_transfer:'rgba(129,140,248,0.08)'}[o.method],border:`1px solid ${T.border}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                <span style={{fontSize:9,fontWeight:900,color:{cash:T.green,qris:T.amber,debit:T.blue,bank_transfer:T.indigo}[o.method],letterSpacing:'-0.02em'}}>Rp</span>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,fontWeight:700,color:T.fg}}>{o.id}</div>
+                <div style={{fontSize:10,color:T.muted,fontWeight:600}}>{o.time} · {o.items} item</div>
+              </div>
+              <div style={{fontSize:12,fontWeight:900,color:T.fg}}>{fmt(o.total)}</div>
+            </div>
+          )}
+          <div style={{height:16}}/>
+          <button onClick={()=>setShowDeleteConfirm(true)} style={{width:'100%',height:46,borderRadius:12,background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.2)',color:T.red,fontSize:11,fontWeight:800,letterSpacing:'0.1em',textTransform:'uppercase',cursor:'pointer',marginBottom:8}} className="tap">Delete Member</button>
+        </div>
+        {/* Delete confirmation sheet */}
+        {showDeleteConfirm&&<div onClick={()=>setShowDeleteConfirm(false)} style={{position:'absolute',inset:0,zIndex:50,background:'rgba(0,0,0,0.6)'}} className="f"/>}
+        {showDeleteConfirm&&
+          <div style={{position:'absolute',bottom:0,left:0,right:0,zIndex:51,background:T.surface,borderRadius:'20px 20px 0 0',padding:'8px 20px 40px',border:`1px solid ${T.border}`}} className="su">
+            <div style={{width:36,height:4,borderRadius:2,background:T.border,margin:'12px auto 20px'}}/>
+            <div style={{width:48,height:48,borderRadius:14,background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.2)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px'}}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.red} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            </div>
+            <div style={{fontSize:16,fontWeight:900,color:T.fg,textAlign:'center',marginBottom:6}}>Delete Member?</div>
+            <div style={{fontSize:12,fontWeight:600,color:T.muted,textAlign:'center',lineHeight:1.5,marginBottom:24}}>
+              <span style={{color:T.fg,fontWeight:700}}>{m.name}</span> akan dihapus permanen.{'\n'}Riwayat transaksi tidak terpengaruh.
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setShowDeleteConfirm(false)} style={{flex:1,height:48,borderRadius:13,border:`1px solid ${T.border}`,background:'transparent',color:T.fg,fontSize:12,fontWeight:800,cursor:'pointer',letterSpacing:'0.06em'}} className="tap">Cancel</button>
+              <button onClick={()=>{setShowDeleteConfirm(false);setDetail(null);}} style={{flex:1,height:48,borderRadius:13,border:'none',background:T.red,color:'#fff',fontSize:12,fontWeight:900,cursor:'pointer',letterSpacing:'0.06em'}} className="tap">Delete</button>
+            </div>
+          </div>
+        }
+        <BottomNav active="home" onTab={onTab}/>
+      </div>
+    );
+  }
+  return(
+    <div style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg,position:'relative'}}>
+      <div style={{padding:'60px 18px 0',flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
+          <button onClick={()=>onTab('home')} style={{width:36,height:36,borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} className="tap">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <div style={{flex:1}}>
+            <div style={{fontSize:20,fontWeight:900,color:T.fg,letterSpacing:'-0.03em'}}>Members</div>
+            <div style={{fontSize:9,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.14em',marginTop:1}}>Customer Loyalty</div>
+          </div>
+          <button onClick={()=>setAddOpen(true)} style={{width:36,height:36,borderRadius:10,background:T.fg,border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} className="tap">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.bg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+        {/* Stats */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+          {[{l:'Total Members',v:String(allMembers.length),c:T.fg},{l:'Total Points',v:totalPoints.toLocaleString(),c:T.green},{l:'Revenue',v:fmtK(totalSpend),c:T.indigo}].map((s,i)=>
+            <div key={i} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:'10px 10px 8px'}}>
+              <div style={{fontSize:7,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4}}>{s.l}</div>
+              <div style={{fontSize:13,fontWeight:900,color:s.c,whiteSpace:'nowrap'}}>{s.v}</div>
+            </div>
+          )}
+        </div>
+        <div style={{position:'relative',marginBottom:12}}>
+          <svg width="13" height="13" style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)'}} viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" placeholder="Cari nama atau nomor HP…" value={search} onChange={e=>setSearch(e.target.value)} style={{width:'100%',height:38,borderRadius:10,border:`1px solid ${T.border}`,background:T.surface,paddingLeft:34,paddingRight:12,fontSize:12,fontWeight:600,color:T.fg,outline:'none'}}/>
+        </div>
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:'0 18px 108px'}} className="ns">
+        {loading
+          ?<div style={{display:'flex',flexDirection:'column'}}>{[0,1,2,3,4,5].map(i=><div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 0',borderBottom:`1px solid ${T.border}`}}><div className="sk" style={{width:44,height:44,borderRadius:12,flexShrink:0}}/><div style={{flex:1,display:'flex',flexDirection:'column',gap:7}}><Sk w="50%" h={13}/><Sk w="35%" h={10}/><Sk w="40%" h={10}/></div><div style={{display:'flex',flexDirection:'column',gap:6,alignItems:'flex-end'}}><Sk w={44} h={16}/><Sk w={28} h={9}/></div></div>)}</div>
+          :shown.length===0
+          ?<EmptyState icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>} title="Member tidak ditemukan" sub="Coba kata kunci lain atau tambahkan member baru"/>
+          :<>{shown.map((m,i)=>(
+            <div key={m.id} onClick={()=>setDetail(m.id)} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 0',borderBottom:`1px solid ${T.border}`,cursor:'pointer',animationDelay:`${i*20}ms`}} className="u tap">
+              <Avatar label={m.name} uid={m.id+'ml'} size={44} radius={12}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{marginBottom:3}}>
+                  <span style={{fontSize:13,fontWeight:700,color:T.fg,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.name}</span>
+                </div>
+                <div style={{fontSize:10,color:T.muted,fontWeight:600}}>{m.phone}</div>
+                <div style={{fontSize:10,color:T.green,fontWeight:700}}>{fmtK(m.total_spend||0)}</div>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontSize:13,fontWeight:900,color:T.green}}>{m.points.toLocaleString()}</div>
+                <div style={{fontSize:9,fontWeight:700,color:T.muted,textTransform:'uppercase',letterSpacing:'0.06em'}}>pts</div>
+              </div>
+            </div>
+          ))}
+          <div style={{height:8}}/>
+          </>}
+      </div>
+      {/* Add Member Bottom Sheet */}
+      {addOpen&&
+        <div style={{position:'absolute',inset:0,zIndex:60,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'flex-end'}} className="f" onClick={()=>setAddOpen(false)}>
+          <div style={{width:'100%',background:T.surface,borderRadius:'20px 20px 0 0',padding:'20px 20px 36px',border:`1px solid ${T.border}`}} className="su" onClick={e=>e.stopPropagation()}>
+            <div style={{width:36,height:4,borderRadius:2,background:T.dim,margin:'0 auto 18px'}}/>
+            <div style={{fontSize:14,fontWeight:900,color:T.fg,marginBottom:16}}>New Member</div>
+            {[{l:'Nama',k:'name',ph:'Nama lengkap'},{l:'No. HP',k:'phone',ph:'08xxxxxxxxxx'},{l:'Email (opsional)',k:'email',ph:'email@domain.com'}].map(f=>(
+              <div key={f.k} style={{marginBottom:10}}>
+                <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:5}}>{f.l}</div>
+                <input value={newMember[f.k]} onChange={e=>setNewMember(v=>({...v,[f.k]:e.target.value}))} placeholder={f.ph} style={{width:'100%',height:40,borderRadius:10,border:`1px solid ${T.border}`,background:T.hi,padding:'0 12px',fontSize:13,fontWeight:600,color:T.fg,outline:'none'}}/>
+              </div>
+            ))}
+            <button onClick={()=>setAddOpen(false)} style={{width:'100%',height:48,borderRadius:12,background:T.fg,color:T.bg,border:'none',cursor:'pointer',fontSize:12,fontWeight:900,letterSpacing:'0.1em',textTransform:'uppercase',marginTop:4}} className="tap">Save Member</button>
+          </div>
+        </div>
+      }
+      <BottomNav active="home" onTab={onTab}/>
+    </div>
+  );
+}
+
+// ── LAPORAN ───────────────────────────────────────────────────────────────────
+function LaporanScreen({onTab}) {
+  const [period,setPeriod]=useState('hari');
+  const PERIODS=[{id:'hari',l:'Hari Ini'},{id:'minggu',l:'Minggu'},{id:'bulan',l:'Bulan'},{id:'tahun',l:'Tahun'}];
+  const DATA={
+    hari: {rev:2450000,orders:12,avg:204167,items:31,proof:10,proofOf:12},
+    minggu:{rev:14200000,orders:68,avg:208824,items:184,proof:55,proofOf:68},
+    bulan:{rev:61000000,orders:294,avg:207483,items:798,proof:241,proofOf:294},
+    tahun:{rev:720000000,orders:3480,avg:206897,items:9420,proof:2876,proofOf:3480},
+  };
+  const d=DATA[period];
+  const proofPct=Math.round(d.proof/d.proofOf*100);
+  const METHOD=[{l:'Cash',count:4,pct:33},{l:'QRIS',count:5,pct:42},{l:'Debit',count:2,pct:17},{l:'Bank Transfer',count:1,pct:8}];
+  const DAILY=[{l:'Sen 21',rev:1850000,orders:9},{l:'Sel 22',rev:2300000,orders:11},{l:'Rab 23',rev:1600000,orders:8},{l:'Kam 24',rev:2750000,orders:13},{l:'Jum 25',rev:3100000,orders:15},{l:'Sab 26',rev:2450000,orders:12}];
+  const NARRATIVE=[
+    `${d.orders} transaksi dengan total omzet ${fmtK(d.rev)} dan rata-rata ${fmtK(d.avg)} per order.`,
+    `Metode dominan: QRIS (5 transaksi, 42%). QRIS provider utama: GoPay.`,
+    `Penjualan terkuat: Sabtu 26 Apr — ${fmtK(3100000)} dari 15 transaksi.`,
+  ];
+  const HIGHLIGHTS=[
+    `Bukti pembayaran: ${proofPct}% coverage (${d.proof}/${d.proofOf} transaksi).`,
+    `Total item terjual: ${d.items} unit.`,
+    `QRIS: 42% dari semua transaksi.`,
+  ];
+  const pLabel={hari:'Hari Ini',minggu:'Minggu Ini',bulan:'Bulan Ini',tahun:'Tahun Ini'}[period];
+  return(
+    <div style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg}}>
+      <div style={{padding:'60px 18px 10px',flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:10}}>
+          <button onClick={()=>onTab('home')} style={{width:36,height:36,borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} className="tap">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <div style={{flex:1}}>
+            <div style={{fontSize:20,fontWeight:900,color:T.fg,letterSpacing:'-0.03em'}}>Sales Report</div>
+            <div style={{fontSize:9,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.14em',marginTop:1}}>Print · Save PDF</div>
+          </div>
+          <button style={{height:32,padding:'0 12px',borderRadius:8,background:T.fg,border:'none',color:T.bg,fontSize:10,fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:5}} className="tap">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Print / PDF
+          </button>
+        </div>
+        <div style={{display:'flex',gap:5}}>
+          {PERIODS.map(p=><button key={p.id} onClick={()=>setPeriod(p.id)} style={{flex:1,height:28,borderRadius:7,border:`1px solid ${period===p.id?T.fg:T.border}`,background:period===p.id?T.fg:'transparent',color:period===p.id?T.bg:T.muted,fontSize:9,fontWeight:800,cursor:'pointer',transition:'all 0.15s'}} className="tap">{p.l}</button>)}
+        </div>
+      </div>
+      {/* Document paper preview */}
+      <div style={{flex:1,overflowY:'auto',padding:'10px 14px 8px'}} className="ns">
+        <div style={{background:'#f8f8f8',borderRadius:16,overflow:'hidden',border:'1px solid rgba(0,0,0,0.08)'}} className="u">
+          {/* Doc header */}
+          <div style={{background:'#1a1a1a',padding:'20px 20px 16px'}}>
+            <div style={{fontSize:8,fontWeight:800,color:'rgba(255,255,255,0.5)',letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:4}}>Aegis Kafe · Sales & Payment Audit Report</div>
+            <div style={{fontSize:16,fontWeight:900,color:'#fff',marginBottom:2}}>{pLabel}</div>
+            <div style={{fontSize:10,fontWeight:600,color:'rgba(255,255,255,0.45)'}}>Generated: 26 Apr 2026 · {d.orders} transaksi</div>
+          </div>
+          {/* Metrics */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:1,background:'rgba(0,0,0,0.06)'}}>
+            {[{l:'Total Omzet',v:fmtK(d.rev),c:'#111'},{l:'Transaksi',v:String(d.orders),c:'#111'},{l:'Rata-rata Order',v:fmtK(d.avg),c:'#111'},{l:'Coverage Bukti',v:`${proofPct}%`,c:proofPct>=80?'#16a34a':proofPct>=50?'#d97706':'#dc2626'}].map((m,i)=>(
+              <div key={i} style={{background:'#f8f8f8',padding:'14px 16px'}}>
+                <div style={{fontSize:8,fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>{m.l}</div>
+                <div style={{fontSize:16,fontWeight:900,color:m.c}}>{m.v}</div>
+              </div>
+            ))}
+          </div>
+          {/* Narrative */}
+          <div style={{padding:'16px 20px',borderBottom:'1px solid rgba(0,0,0,0.08)'}}>
+            <div style={{fontSize:9,fontWeight:800,color:'#888',textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:10}}>Ringkasan</div>
+            {NARRATIVE.map((t,i)=><div key={i} style={{fontSize:11,fontWeight:500,color:'#333',lineHeight:'1.6',marginBottom:6}}>{t}</div>)}
+            <div style={{marginTop:10,padding:'10px 12px',background:'rgba(0,0,0,0.04)',borderRadius:8,borderLeft:'3px solid #22c55e'}}>
+              {HIGHLIGHTS.map((h,i)=><div key={i} style={{fontSize:10,fontWeight:600,color:'#444',marginBottom:i<HIGHLIGHTS.length-1?4:0}}>· {h}</div>)}
+            </div>
+          </div>
+          {/* Payment breakdown */}
+          <div style={{padding:'16px 20px',borderBottom:'1px solid rgba(0,0,0,0.08)'}}>
+            <div style={{fontSize:9,fontWeight:800,color:'#888',textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:10}}>Payment Method</div>
+            {METHOD.map((m,i)=>(
+              <div key={m.l} style={{marginBottom:10}}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                  <span style={{fontSize:11,fontWeight:700,color:'#222'}}>{m.l}</span>
+                  <span style={{fontSize:10,fontWeight:700,color:'#888'}}>{m.count}x · {m.pct}%</span>
+                </div>
+                <div style={{height:4,background:'rgba(0,0,0,0.08)',borderRadius:3}}>
+                  <div style={{width:`${m.pct}%`,height:'100%',background:i===0?'#22c55e':i===1?'#f59e0b':i===2?'#60a5fa':'#818cf8',borderRadius:3}}/>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Daily breakdown */}
+          <div style={{padding:'16px 20px',borderBottom:'1px solid rgba(0,0,0,0.08)'}}>
+            <div style={{fontSize:9,fontWeight:800,color:'#888',textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:10}}>Daily Sales</div>
+            {DAILY.map((day)=>(
+              <div key={day.l} style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+                <span style={{width:40,fontSize:10,fontWeight:700,color:'#555',flexShrink:0}}>{day.l}</span>
+                <div style={{flex:1,height:4,background:'rgba(0,0,0,0.08)',borderRadius:3}}>
+                  <div style={{width:`${day.rev/3100000*100}%`,height:'100%',background:'#1a1a1a',borderRadius:3}}/>
+                </div>
+                <span style={{fontSize:10,fontWeight:700,color:'#222',width:50,textAlign:'right',flexShrink:0}}>{fmtK(day.rev)}</span>
+              </div>
+            ))}
+          </div>
+          {/* Transaction table */}
+          <div style={{padding:'16px 20px 20px'}}>
+            <div style={{fontSize:9,fontWeight:800,color:'#888',textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:10}}>Transaction List</div>
+            <div style={{borderRadius:8,overflow:'hidden',border:'1px solid rgba(0,0,0,0.08)'}}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr auto auto',background:'rgba(0,0,0,0.05)'}}>
+                {['Customer','Method','Total'].map((h,i)=><div key={h} style={{padding:'7px 10px',fontSize:8,fontWeight:800,color:'#888',letterSpacing:'0.08em',textTransform:'uppercase',textAlign:i>0?'right':'left'}}>{h}</div>)}
+              </div>
+              {ORDERS.map((o,i)=><React.Fragment key={o.id}>
+                <div style={{display:'grid',gridTemplateColumns:'1fr auto auto',background:i%2===0?'transparent':'rgba(0,0,0,0.02)',borderTop:'1px solid rgba(0,0,0,0.06)'}}>
+                  <div style={{padding:'8px 10px'}}>
+                    <div style={{fontSize:10,fontWeight:700,color:'#222'}}>{o.member}</div>
+                    <div style={{fontSize:9,color:'#888',fontFamily:'monospace'}}>{o.id} · {o.time}</div>
+                  </div>
+                  <div style={{padding:'8px 10px',display:'flex',alignItems:'center',justifyContent:'flex-end'}}>
+                    <span style={{fontSize:9,fontWeight:800,color:{cash:'#16a34a',qris:'#d97706',debit:'#2563eb',bank_transfer:'#7c3aed'}[o.method]||'#888',letterSpacing:'0.04em',textTransform:'uppercase'}}>{o.method==='bank_transfer'?'Transfer':o.method==='qris'?'QRIS':o.method.charAt(0).toUpperCase()+o.method.slice(1)}</span>
+                  </div>
+                  <div style={{padding:'8px 10px',display:'flex',alignItems:'center',justifyContent:'flex-end'}}>
+                    <span style={{fontSize:11,fontWeight:800,color:'#111'}}>{fmtK(o.total)}</span>
+                  </div>
+                </div>
+              </React.Fragment>)}
+            </div>
+          </div>
+        </div>
+        <div style={{height:8}}/>
+      </div>
+      <BottomNav active="home" onTab={onTab}/>
+    </div>
+  );
+}
+
+// ── SETTINGS HELPERS (module-level so React doesn't remount on state change) ──
+function SToggle({on,setOn}) {
+  return(
+    <div onClick={()=>setOn(!on)} style={{width:42,height:24,borderRadius:12,background:on?T.green:T.hi,display:'flex',alignItems:'center',padding:'0 2px',justifyContent:on?'flex-end':'flex-start',cursor:'pointer',transition:'all 0.2s',flexShrink:0}}>
+      <div style={{width:20,height:20,borderRadius:10,background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,0.3)'}}/>
+    </div>
+  );
+}
+function SRow({label,sub,right,last}) {
+  return(
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'13px 0',borderBottom:last?'none':`1px solid ${T.border}`}}>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:12,fontWeight:700,color:T.fg}}>{label}</div>
+        {sub&&<div style={{fontSize:10,color:T.muted,fontWeight:600,marginTop:2}}>{sub}</div>}
+      </div>
+      {right}
+    </div>
+  );
+}
+function SInputRow({label,sub,value,onChange,prefix,last}) {
+  return(
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'12px 0',borderBottom:last?'none':`1px solid ${T.border}`}}>
+      <div style={{flex:1}}>
+        <div style={{fontSize:12,fontWeight:700,color:T.fg}}>{label}</div>
+        {sub&&<div style={{fontSize:10,color:T.muted,fontWeight:600,marginTop:2}}>{sub}</div>}
+      </div>
+      <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+        {prefix&&<span style={{fontSize:11,fontWeight:700,color:T.muted}}>{prefix}</span>}
+        <input value={value} onChange={e=>onChange(e.target.value)} inputMode="numeric" style={{width:64,height:34,borderRadius:8,border:`1px solid ${T.border}`,background:T.hi,padding:'0 8px',fontSize:13,fontWeight:900,color:T.fg,outline:'none',textAlign:'right'}}/>
+      </div>
+    </div>
+  );
+}
+function STextRow({label,value,onChange,last,placeholder}) {
+  return(
+    <div style={{padding:'12px 0',borderBottom:last?'none':`1px solid ${T.border}`}}>
+      <div style={{fontSize:10,fontWeight:700,color:T.muted,marginBottom:6}}>{label}</div>
+      <input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder||''} style={{width:'100%',height:38,borderRadius:9,border:`1px solid ${T.border}`,background:T.hi,padding:'0 12px',fontSize:12,fontWeight:600,color:T.fg,outline:'none'}}/>
+    </div>
+  );
+}
+function SSection({title,children}) {
+  return(
+    <div style={{marginBottom:12}}>
+      <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.18em',textTransform:'uppercase'}}>{title}</div>
+      <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:16,padding:'0 16px',marginTop:8}}>{children}</div>
+    </div>
+  );
+}
+
+// ── SETTINGS ──────────────────────────────────────────────────────────────────
+function SettingsScreen({onTab}) {
+  // Business Profile
+  const [bizName,setBizName]=useState('Aegis Kafe');
+  const [bizPIC,setBizPIC]=useState('Jhordi Deamarall');
+  const [bizPhone,setBizPhone]=useState('081234567890');
+  const [bizEmail,setBizEmail]=useState('');
+  const [bizAddress,setBizAddress]=useState('');
+  // Financial
+  const [taxEnabled,setTaxEnabled]=useState(CHARGES.tax_enabled);
+  const [taxRate,setTaxRate]=useState(String(CHARGES.tax_rate));
+  const [serviceEnabled,setServiceEnabled]=useState(CHARGES.service_enabled);
+  const [serviceRate,setServiceRate]=useState(String(CHARGES.service_rate));
+  // Points
+  const [pointsEnabled,setPointsEnabled]=useState(CHARGES.points_enabled);
+  const [earnRate,setEarnRate]=useState(String(CHARGES.points_earn_rate));
+  const [redeemRate,setRedeemRate]=useState(String(CHARGES.points_redeem_rate));
+  const [minRedeem,setMinRedeem]=useState(String(CHARGES.points_min_redeem));
+  const [calcTab,setCalcTab]=useState('earn');
+  const [calcAmt,setCalcAmt]=useState('');
+  // AI
+  const [aiName,setAiName]=useState('Aegis');
+  const [aiInstructions,setAiInstructions]=useState('');
+  // Receipt
+  const [paperSize,setPaperSize]=useState('80mm');
+  const [receiptHeader,setReceiptHeader]=useState('');
+  const [receiptFooter,setReceiptFooter]=useState('Terima kasih atas kunjungan Anda!');
+
+
+  const earnCalc=calcAmt?Math.floor(Number(calcAmt)/Number(earnRate||10000)):0;
+  const redeemCalc=calcAmt?Math.floor(Number(calcAmt))*Number(redeemRate||100):0;
+
+  return(
+    <div style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg}}>
+      <div style={{padding:'60px 18px 14px',flexShrink:0,display:'flex',alignItems:'center',gap:12}}>
+        <button onClick={()=>onTab('home')} style={{width:36,height:36,borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} className="tap">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <div style={{fontSize:20,fontWeight:900,color:T.fg,letterSpacing:'-0.03em'}}>Settings</div>
+        <div style={{fontSize:9,fontWeight:800,color:T.muted,textTransform:'uppercase',letterSpacing:'0.14em',marginTop:1}}>Configuration</div>
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:'0 18px 108px'}} className="ns">
+
+        {/* 1. Business Profile */}
+        <SSection title="Business Profile">
+          <STextRow label="Nama Bisnis" value={bizName} onChange={setBizName} placeholder="Nama toko"/>
+          <STextRow label="Penanggung Jawab (PIC)" value={bizPIC} onChange={setBizPIC} placeholder="Nama PIC"/>
+          <STextRow label="No. HP" value={bizPhone} onChange={setBizPhone} placeholder="08xxxxxxxxxx"/>
+          <STextRow label="Email" value={bizEmail} onChange={setBizEmail} placeholder="email@domain.com"/>
+          <STextRow label="Alamat" value={bizAddress} onChange={setBizAddress} placeholder="Alamat lengkap" last/>
+        </SSection>
+
+        {/* 2. Financial Rules */}
+        <SSection title="Financial Rules">
+          <SRow label="Value Added Tax (VAT)" sub="Pajak Pertambahan Nilai" right={<SToggle on={taxEnabled} setOn={setTaxEnabled}/>}/>
+          {taxEnabled&&<SInputRow label="Tarif Pajak" value={taxRate} onChange={setTaxRate} prefix="%"/>}
+          <SRow label="Service Charge" sub="Biaya layanan" right={<SToggle on={serviceEnabled} setOn={setServiceEnabled}/>} last={!serviceEnabled}/>
+          {serviceEnabled&&<SInputRow label="Tarif Service" value={serviceRate} onChange={setServiceRate} prefix="%" last/>}
+        </SSection>
+
+        {/* 3. Member Points */}
+        <SSection title="Member Points">
+          <SRow label="Program Poin" sub="Aktifkan earn & redeem poin" right={<SToggle on={pointsEnabled} setOn={setPointsEnabled}/>}/>
+          {pointsEnabled&&<>
+            <SInputRow label="Earn Rate" sub={`Poin per Rp ${Number(earnRate||10000).toLocaleString('id-ID')} belanja`} value={earnRate} onChange={setEarnRate} prefix="Rp"/>
+            <SInputRow label="Redeem Rate" sub="1 poin = Rp berapa" value={redeemRate} onChange={setRedeemRate} prefix="Rp"/>
+            <SInputRow label="Min Redeem" sub="Minimal poin untuk ditukar" value={minRedeem} onChange={setMinRedeem} prefix="pts" last/>
+            {/* Calculator */}
+            <div style={{padding:'14px 0'}}>
+              <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:10}}>Points Calculator</div>
+              <div style={{display:'flex',gap:6,marginBottom:10}}>
+                {[{id:'earn',l:'Earn'},{id:'redeem',l:'Redeem'}].map(t=>(
+                  <button key={t.id} onClick={()=>setCalcTab(t.id)} style={{flex:1,height:28,borderRadius:7,border:`1px solid ${calcTab===t.id?T.fg:T.border}`,background:calcTab===t.id?T.fg:'transparent',color:calcTab===t.id?T.bg:T.muted,fontSize:10,fontWeight:800,cursor:'pointer'}} className="tap">{t.l}</button>
+                ))}
+              </div>
+              <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                <input value={calcAmt} onChange={e=>setCalcAmt(e.target.value)} inputMode="numeric" placeholder={calcTab==='earn'?'Purchase amount (Rp)':'Number of points'} style={{flex:1,height:38,borderRadius:9,border:`1px solid ${T.border}`,background:T.hi,padding:'0 12px',fontSize:12,fontWeight:700,color:T.fg,outline:'none'}}/>
+                <div style={{background:T.hi,borderRadius:9,padding:'8px 12px',flexShrink:0,minWidth:80,textAlign:'center'}}>
+                  <div style={{fontSize:9,fontWeight:700,color:T.muted,textTransform:'uppercase',marginBottom:2}}>{calcTab==='earn'?'Points':'Value'}</div>
+                  <div style={{fontSize:14,fontWeight:900,color:T.green}}>{calcTab==='earn'?earnCalc:fmt(redeemCalc)}</div>
+                </div>
+              </div>
+            </div>
+          </>}
+        </SSection>
+
+        {/* 4. AI Assistant */}
+        <SSection title="Personalisasi Asisten">
+          <STextRow label="Assistant Name" value={aiName} onChange={setAiName} placeholder="Nama AI assistant"/>
+          <div style={{padding:'12px 0'}}>
+            <div style={{fontSize:10,fontWeight:700,color:T.muted,marginBottom:6}}>Custom Instruction</div>
+            <textarea value={aiInstructions} onChange={e=>setAiInstructions(e.target.value)} placeholder="Tulis instruksi khusus untuk AI assistant kamu…" rows={3} style={{width:'100%',borderRadius:9,border:`1px solid ${T.border}`,background:T.hi,padding:'10px 12px',fontSize:12,fontWeight:600,color:T.fg,outline:'none',resize:'none',lineHeight:'1.5'}}/>
+          </div>
+        </SSection>
+
+        {/* 5. Receipt Design */}
+        <SSection title="Receipt Design">
+          <div style={{padding:'12px 0',borderBottom:`1px solid ${T.border}`}}>
+            <div style={{fontSize:10,fontWeight:700,color:T.muted,marginBottom:8}}>Paper Size</div>
+            <div style={{display:'flex',gap:8}}>
+              {['58mm','80mm'].map(s=>(
+                <button key={s} onClick={()=>setPaperSize(s)} style={{flex:1,height:34,borderRadius:9,border:`1px solid ${paperSize===s?T.fg:T.border}`,background:paperSize===s?T.fg:'transparent',color:paperSize===s?T.bg:T.muted,fontSize:12,fontWeight:800,cursor:'pointer'}} className="tap">{s}</button>
+              ))}
+            </div>
+          </div>
+          <STextRow label="Receipt Header" value={receiptHeader} onChange={setReceiptHeader} placeholder="Teks header struk"/>
+          <STextRow label="Footer Note" value={receiptFooter} onChange={setReceiptFooter} placeholder="Teks footer struk" last/>
+          {/* Live preview */}
+          <div style={{padding:'14px 0'}}>
+            <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:10}}>Receipt Preview</div>
+            <div style={{background:'#fff',borderRadius:8,padding:'12px 10px',maxWidth:160,margin:'0 auto',boxShadow:'0 2px 12px rgba(0,0,0,0.2)'}}>
+              {receiptHeader&&<div style={{fontSize:8,fontWeight:700,color:'#333',textAlign:'center',marginBottom:4,borderBottom:'1px dashed #ddd',paddingBottom:4}}>{receiptHeader}</div>}
+              <div style={{fontSize:9,fontWeight:900,color:'#111',textAlign:'center',marginBottom:2}}>{bizName||'Nama Toko'}</div>
+              <div style={{fontSize:7,color:'#888',textAlign:'center',marginBottom:6}}>25 Apr 2026 · 09:14</div>
+              <div style={{borderTop:'1px dashed #ddd',borderBottom:'1px dashed #ddd',padding:'4px 0',marginBottom:4}}>
+                {[['Beef Burger','×1','Rp 125.000'],['Latte','×2','Rp 110.000']].map(([n,q,p],i)=>(
+                  <div key={i} style={{display:'flex',justifyContent:'space-between',marginBottom:2}}>
+                    <span style={{fontSize:7,color:'#333'}}>{n} {q}</span>
+                    <span style={{fontSize:7,fontWeight:700,color:'#111'}}>{p}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+                <span style={{fontSize:8,fontWeight:900,color:'#111'}}>Total</span>
+                <span style={{fontSize:8,fontWeight:900,color:'#111'}}>Rp 235.000</span>
+              </div>
+              {receiptFooter&&<div style={{fontSize:7,color:'#888',textAlign:'center',borderTop:'1px dashed #ddd',paddingTop:4}}>{receiptFooter}</div>}
+            </div>
+          </div>
+        </SSection>
+
+        <div style={{marginBottom:8}}>
+          <button style={{width:'100%',height:48,borderRadius:14,background:T.fg,color:T.bg,border:'none',cursor:'pointer',fontSize:12,fontWeight:900,letterSpacing:'0.1em',textTransform:'uppercase'}} className="tap">Save Changes</button>
+        </div>
+        <div style={{height:8}}/>
+      </div>
+      <BottomNav active="home" onTab={onTab}/>
+    </div>
+  );
+}
+
+// ── FEATURE UPDATES ───────────────────────────────────────────────────────────
+const MOCK_UPDATES=[
+  {id:'u1',version:'1.4.0',title:'ChatAegis AI Business Advisor',summary:'Tanya langsung ke AI soal bisnis kamu — revenue, stok, member, semua bisa.',category:'AI',date:'24 Apr 2026'},
+  {id:'u2',version:'1.3.5',title:'PWA & Install ke Home Screen',summary:'Aegis POS kini bisa diinstall langsung ke layar utama HP kamu.',category:'App',date:'18 Apr 2026'},
+  {id:'u3',version:'1.3.0',title:'Program Poin Member',summary:'Earn & redeem poin dengan konfigurasi rate yang fleksibel dari Settings.',category:'Feature',date:'10 Apr 2026'},
+  {id:'u4',version:'1.2.8',title:'Multi-Payment Support',summary:'Cash, Debit, QRIS, Bank Transfer — termasuk upload bukti pembayaran.',category:'Feature',date:'2 Apr 2026'},
+  {id:'u5',version:'1.2.0',title:'Laporan & Export',summary:'Lihat revenue, top produk, dan breakdown metode pembayaran per periode.',category:'Report',date:'20 Mar 2026'},
+];
+const CAT_COLOR={AI:T.indigo,App:T.blue,Feature:T.green,Report:T.amber};
+function FeatureUpdatesScreen({onTab}) {
+  return(
+    <div style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg}}>
+      <div style={{padding:'60px 18px 14px',flexShrink:0,display:'flex',alignItems:'center',gap:12}}>
+        <button onClick={()=>onTab('home')} style={{width:36,height:36,borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} className="tap">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <div style={{flex:1}}>
+          <div style={{fontSize:20,fontWeight:900,color:T.fg,letterSpacing:'-0.03em'}}>What's New</div>
+          <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.18em',textTransform:'uppercase',marginTop:1}}>Latest Updates</div>
+        </div>
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:'0 18px 108px'}} className="ns">
+        {MOCK_UPDATES.map((u,i)=>(
+          <div key={u.id} style={{padding:'16px 0',borderBottom:`1px solid ${T.border}`,animationDelay:`${i*40}ms`}} className="u">
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+              <span style={{fontSize:8,fontWeight:900,color:'rgba(255,255,255,0.3)',background:T.surface,border:`1px solid ${T.border}`,padding:'3px 8px',borderRadius:5,letterSpacing:'0.1em'}}>v{u.version}</span>
+              <span style={{fontSize:8,fontWeight:900,color:CAT_COLOR[u.category]||T.muted,background:`${CAT_COLOR[u.category]}18`,padding:'3px 8px',borderRadius:5,letterSpacing:'0.1em',textTransform:'uppercase'}}>{u.category}</span>
+              <span style={{fontSize:9,fontWeight:600,color:T.muted,marginLeft:'auto'}}>{u.date}</span>
+            </div>
+            <div style={{fontSize:14,fontWeight:800,color:T.fg,marginBottom:4,letterSpacing:'-0.01em'}}>{u.title}</div>
+            <div style={{fontSize:11,color:T.muted,fontWeight:600,lineHeight:'1.5'}}>{u.summary}</div>
+          </div>
+        ))}
+        <div style={{height:8}}/>
+      </div>
+      <BottomNav active="home" onTab={onTab}/>
+    </div>
+  );
+}
+
+// ── INTEGRATIONS ───────────────────────────────────────────────────────────────
+const INTEGRATIONS=[
+  {id:'instagram',name:'Instagram',sub:'Social Media Insights',badge:'Coming Soon',badgeC:'rgba(168,85,247,0.8)',heroBg:'linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045)',desc:'Monitor performa Instagram kamu langsung dari Aegis POS. Follower growth, top content, audience demographics.'},
+  {id:'shopee',name:'Shopee',sub:'E-Commerce Sync',badge:'Coming Soon',badgeC:'rgba(245,89,19,0.8)',heroBg:'linear-gradient(135deg,#f55713,#ff9a3c)',desc:'Sinkronisasi produk, stok, dan pesanan Shopee otomatis ke sistem POS kamu.'},
+  {id:'tiktok',name:'TikTok Shop',sub:'Social Commerce',badge:'Coming Soon',badgeC:'rgba(96,165,250,0.7)',heroBg:'linear-gradient(135deg,#010101,#69c9d0)',desc:'Kelola TikTok Shop langsung dari Aegis — produk, order, dan analitik konten dalam satu dashboard.'},
+];
+function IntegrationsScreen({onTab}) {
+  const [detail,setDetail]=useState(null);
+  if(detail){
+    const ig=INTEGRATIONS.find(x=>x.id===detail);
+    return(
+      <div style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg}}>
+        <div style={{padding:'60px 18px 14px',flexShrink:0,display:'flex',alignItems:'center',gap:12}}>
+          <button onClick={()=>setDetail(null)} style={{width:36,height:36,borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} className="tap">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <div style={{flex:1,fontSize:18,fontWeight:900,color:T.fg}}>{ig.name}</div>
+          <span style={{fontSize:8,fontWeight:900,color:ig.badgeC,background:`${ig.badgeC}22`,padding:'4px 10px',borderRadius:6,letterSpacing:'0.1em',textTransform:'uppercase',border:`1px solid ${ig.badgeC}44`}}>Coming Soon</span>
+        </div>
+        <div style={{flex:1,overflowY:'auto',padding:'0 18px 108px'}} className="ns">
+          <div style={{borderRadius:20,background:ig.heroBg,padding:'32px 20px',marginBottom:14,textAlign:'center'}} className="u">
+            <div style={{fontSize:22,fontWeight:900,color:'#fff',letterSpacing:'-0.02em',marginBottom:8}}>{ig.name} Integration</div>
+            <div style={{fontSize:12,color:'rgba(255,255,255,0.75)',fontWeight:600,lineHeight:'1.6',maxWidth:260,margin:'0 auto'}}>{ig.desc}</div>
+          </div>
+          <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:16,padding:'20px 18px',display:'flex',flexDirection:'column',gap:4,alignItems:'center',textAlign:'center'}}>
+            <div style={{width:48,height:48,borderRadius:14,background:T.hi,display:'flex',alignItems:'center',justifyContent:'center',marginBottom:8}}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div style={{fontSize:13,fontWeight:900,color:T.fg}}>Sedang Dalam Pengembangan</div>
+            <div style={{fontSize:11,color:T.muted,fontWeight:600,lineHeight:'1.5',maxWidth:220}}>Fitur ini masih dalam pengembangan. Kami akan memberitahu kamu saat sudah tersedia.</div>
+            <button style={{marginTop:12,height:42,padding:'0 24px',borderRadius:11,background:T.hi,border:`1px solid ${T.border}`,color:T.fg,fontSize:11,fontWeight:800,letterSpacing:'0.1em',textTransform:'uppercase',cursor:'pointer',opacity:0.5}} className="tap">Connect Account</button>
+          </div>
+          <div style={{height:8}}/>
+        </div>
+        <BottomNav active="home" onTab={onTab}/>
+      </div>
+    );
+  }
+  return(
+    <div style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg}}>
+      <div style={{padding:'60px 18px 14px',flexShrink:0,display:'flex',alignItems:'center',gap:12}}>
+        <button onClick={()=>onTab('home')} style={{width:36,height:36,borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} className="tap">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <div style={{flex:1,fontSize:20,fontWeight:900,color:T.fg,letterSpacing:'-0.03em'}}>Integrasi</div>
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:'0 18px 108px'}} className="ns">
+        <div style={{fontSize:10,fontWeight:600,color:T.muted,lineHeight:'1.6',marginBottom:14}}>Hubungkan Aegis POS dengan platform eksternal untuk menyinkronkan data bisnis kamu secara otomatis.</div>
+        {INTEGRATIONS.map((ig,i)=>(
+          <div key={ig.id} onClick={()=>setDetail(ig.id)} style={{display:'flex',alignItems:'center',gap:14,padding:'16px',borderRadius:16,border:`1px solid ${T.border}`,background:T.surface,marginBottom:10,cursor:'pointer',animationDelay:`${i*60}ms`}} className="u tap">
+            <div style={{width:46,height:46,borderRadius:13,background:ig.heroBg,flexShrink:0}}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
+                <span style={{fontSize:13,fontWeight:800,color:T.fg}}>{ig.name}</span>
+                <span style={{fontSize:8,fontWeight:900,color:ig.badgeC,background:`${ig.badgeC}22`,padding:'2px 6px',borderRadius:4,letterSpacing:'0.08em',textTransform:'uppercase'}}>{ig.badge}</span>
+              </div>
+              <div style={{fontSize:10,color:T.muted,fontWeight:600}}>{ig.sub}</div>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.dim} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          </div>
+        ))}
+        <div style={{height:8}}/>
+      </div>
+      <BottomNav active="home" onTab={onTab}/>
+    </div>
+  );
+}
+
+// ── MCP SERVER ────────────────────────────────────────────────────────────────
+function MCPServerScreen({onTab}) {
+  return(
+    <div style={{display:'flex',flexDirection:'column',height:'100%',background:T.bg}}>
+      <div style={{padding:'60px 18px 14px',flexShrink:0,display:'flex',alignItems:'center',gap:12}}>
+        <button onClick={()=>onTab('home')} style={{width:36,height:36,borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',flexShrink:0}} className="tap">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <div style={{flex:1}}>
+          <div style={{fontSize:20,fontWeight:900,color:T.fg,letterSpacing:'-0.03em'}}>MCP Server</div>
+          <div style={{fontSize:9,fontWeight:800,color:T.muted,letterSpacing:'0.18em',textTransform:'uppercase',marginTop:1}}>External AI Protocol</div>
+        </div>
+        <span style={{fontSize:8,fontWeight:900,color:T.muted,background:T.hi,padding:'4px 8px',borderRadius:6,letterSpacing:'0.1em',textTransform:'uppercase'}}>Alpha</span>
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:'0 18px 108px'}} className="ns">
+        {/* Hero */}
+        <div style={{borderRadius:20,background:'#0a0a0a',border:`1px solid ${T.border}`,padding:'28px 20px',marginBottom:12,textAlign:'center'}} className="u">
+          <div style={{width:56,height:56,borderRadius:16,background:T.fg,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px'}}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={T.bg} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+          </div>
+          <div style={{fontSize:18,fontWeight:900,color:T.fg,letterSpacing:'-0.02em',marginBottom:8}}>Connect Aegis to Any AI Agent</div>
+          <div style={{fontSize:11,color:T.muted,fontWeight:600,lineHeight:'1.6',maxWidth:260,margin:'0 auto'}}>Model Context Protocol memungkinkan Claude, Gemini, atau AI lainnya mengakses data bisnis kamu secara langsung via link.</div>
+          <span style={{display:'inline-block',marginTop:14,fontSize:8,fontWeight:900,color:T.muted,border:`1px solid ${T.border}`,padding:'4px 12px',borderRadius:20,letterSpacing:'0.2em',textTransform:'uppercase'}}>Open Standard Integration</span>
+        </div>
+        {/* Feature cards */}
+        {[
+          {icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.indigo} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>,c:T.indigo,t:'Direct AI Bridge',d:'Copy satu link ke AI Desktop kamu dan mulai tanya soal inventory atau sales.'},
+          {icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,c:T.green,t:'Secure Personal Access',d:'Generate token unik untuk AI agent kamu dengan kontrol granular atas data yang bisa diakses.'},
+          {icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.amber} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h18v18H3z"/><path d="M21 9H3M21 15H3M12 3v18"/></svg>,c:T.amber,t:'Remote Connectivity',d:'Akses analitik bisnis dari mana saja melalui protokol AI standar.'},
+        ].map((f,i)=>(
+          <div key={i} style={{display:'flex',gap:14,padding:'14px 16px',borderRadius:14,background:T.surface,border:`1px solid ${T.border}`,marginBottom:8,animationDelay:`${i*60+200}ms`}} className="u">
+            <div style={{width:36,height:36,borderRadius:10,background:`${f.c}14`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{f.icon}</div>
+            <div>
+              <div style={{fontSize:12,fontWeight:800,color:T.fg,marginBottom:3}}>{f.t}</div>
+              <div style={{fontSize:10,color:T.muted,fontWeight:600,lineHeight:'1.5'}}>{f.d}</div>
+            </div>
+          </div>
+        ))}
+        {/* Status banner */}
+        <div style={{borderRadius:16,background:T.fg,padding:'18px 16px',marginTop:4,display:'flex',alignItems:'center',gap:14,marginBottom:8}} className="u">
+          <div style={{width:40,height:40,borderRadius:11,background:'rgba(0,0,0,0.1)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.bg} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <div>
+            <div style={{fontSize:11,fontWeight:900,color:T.bg,textTransform:'uppercase',letterSpacing:'0.08em'}}>Status: Building SSE Transport</div>
+            <div style={{fontSize:10,color:'rgba(0,0,0,0.5)',fontWeight:600,marginTop:2}}>Developing Server-Sent Events architecture</div>
+          </div>
+        </div>
+        <button style={{width:'100%',height:48,borderRadius:14,background:T.surface,border:`1px solid ${T.border}`,color:T.muted,fontSize:11,fontWeight:800,letterSpacing:'0.1em',textTransform:'uppercase',cursor:'not-allowed',opacity:0.5,marginBottom:8}} className="tap">Get Config Link</button>
+        <div style={{height:8}}/>
+      </div>
+      <BottomNav active="home" onTab={onTab}/>
+    </div>
+  );
+}
+
+// ── APP ───────────────────────────────────────────────────────────────────────
+function App() {
+  const [tab,setTab]=useState('home');
+  const phoneW=390,phoneH=844;
+
+  useEffect(()=>{
+    const scale=()=>{
+      const el=document.getElementById('phone-wrap');if(!el)return;
+      const s=Math.min(window.innerWidth/phoneW,window.innerHeight/phoneH)*.96;
+      el.style.transform=`scale(${s})`;
+    };
+    scale();window.addEventListener('resize',scale);return()=>window.removeEventListener('resize',scale);
+  },[]);
+
+  const screens={home:HomeScreen,pos:POSScreen,orders:OrdersScreen,ai:AIScreen,products:ProductsScreen,members:MembersScreen,laporan:LaporanScreen,settings:SettingsScreen,updates:FeatureUpdatesScreen,integrations:IntegrationsScreen,mcp:MCPServerScreen};
+  const Screen=screens[tab]||HomeScreen;
+
+  return(
+    <div id="phone-wrap">
+      <div style={{width:phoneW,height:phoneH,background:T.bg,borderRadius:50,overflow:'hidden',boxShadow:'0 0 0 12px #1a1a1a,0 0 0 13px rgba(255,255,255,0.06),0 40px 80px rgba(0,0,0,0.7)',position:'relative'}}>
+        <div style={{position:'absolute',top:14,left:'50%',transform:'translateX(-50%)',width:120,height:32,background:'#000',borderRadius:20,zIndex:30}}/>
+        {/* Top scrim — masks border-radius bleed at top edge */}
+        <div style={{position:'absolute',top:0,left:0,right:0,height:52,background:`linear-gradient(to bottom,${T.bg} 36px,transparent)`,zIndex:19,pointerEvents:'none'}}/>
+        <Screen onTab={setTab}/>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

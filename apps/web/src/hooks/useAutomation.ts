@@ -321,14 +321,11 @@ export function useAutomation({ onMessage }: UseAutomationOptions) {
       return
     }
 
-    // Handle create_order
+    // Handle create_order — maps to /api/orders which expects {product_id, qty, price}
     if (automation.intent === 'create_order') {
       const orderData = automation.params as {
         items: Array<{ product_id: string; product_name: string; qty: number; unit_price: number; subtotal: number }>
         total: number
-        subtotal: number
-        tax_amount: number
-        service_amount: number
         payment_method: string
       }
       try {
@@ -339,17 +336,11 @@ export function useAutomation({ onMessage }: UseAutomationOptions) {
           body: JSON.stringify({
             items: orderData.items.map(i => ({
               product_id: i.product_id,
-              product_name: i.product_name,
-              quantity: i.qty,
-              unit_price: i.unit_price,
-              subtotal: i.subtotal,
+              qty: i.qty,
+              price: i.unit_price,
             })),
-            total_amount: orderData.total,
-            subtotal: orderData.subtotal,
-            tax_amount: orderData.tax_amount,
-            service_amount: orderData.service_amount,
+            total: orderData.total,
             payment_method: orderData.payment_method,
-            source: 'chat',
           })
         })
         const data = await res.json()
