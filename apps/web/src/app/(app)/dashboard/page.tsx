@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { getClientCache, setClientCache } from '@/lib/clientCache'
 import { formatPaymentDisplay, getPaymentMethodLabel } from '@/lib/payments'
@@ -80,10 +81,28 @@ function formatChartDateLabel(dateKey: string): string {
 
 export default function DashboardPage() {
   const { business, loading } = useAuth()
+  const searchParams = useSearchParams()
   const [data, setData] = useState<DashboardData | null>(null)
   const [fetching, setFetching] = useState(true)
-  const [dateRangeFilter, setDateRangeFilter] = useState<'today' | 'week' | 'month' | 'custom'>('today')
+  
+  const [dateRangeFilter, setDateRangeFilterState] = useState<'today' | 'week' | 'month' | 'custom'>(() => {
+    const urlFilter = searchParams.get('filter') as 'today' | 'week' | 'month' | 'custom'
+    if (urlFilter) return urlFilter
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('dashboard_filter')
+      if (stored === 'today' || stored === 'week' || stored === 'month' || stored === 'custom') return stored
+    }
+    return 'today'
+  })
   const [chartMode, setChartMode] = useState<'sales' | 'profit'>('sales')
+  
+  const setDateRangeFilter = useCallback((filter: 'today' | 'week' | 'month' | 'custom') => {
+    setDateRangeFilterState(filter)
+    localStorage.setItem('dashboard_filter', filter)
+    const url = new URL(window.location.href)
+    url.searchParams.set('filter', filter)
+    window.history.replaceState({}, '', url.toString())
+  }, [])
   
   const [customDate, setCustomDate] = useState<DateRange | undefined>({
     from: new Date(),
@@ -151,10 +170,10 @@ export default function DashboardPage() {
   }, [business, dateRangeFilter, customDate])
 
   useEffect(() => {
-    if (!loading && business) {
+    if (business) {
       fetchDashboard()
     }
-  }, [loading, business, dateRangeFilter, customDate, fetchDashboard])
+  }, [business, dateRangeFilter, customDate, fetchDashboard])
 
   const buildTrend = (current: number, previous: number) => {
     if (previous === 0) return { label: '0%', direction: 'neutral' as const }
