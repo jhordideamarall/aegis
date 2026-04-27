@@ -37,7 +37,7 @@ export default function AppLayout({
       <DesktopPwaInstallBanner />
 
       <PageTransition>
-        <main className="min-h-screen lg:ml-64">
+        <main className="min-h-screen md:ml-52 lg:ml-64">
           {children}
         </main>
       </PageTransition>

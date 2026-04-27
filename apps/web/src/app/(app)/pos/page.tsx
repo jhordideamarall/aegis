@@ -443,13 +443,13 @@ export default function POSPage() {
     <div className="flex h-screen overflow-hidden bg-background">
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="flex p-6 md:p-8 flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div className="flex p-4 md:px-5 md:py-3 lg:p-8 flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-4">
           <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase">Point of Sale</h1>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Ready to Sell</p>
+            <h1 className="text-2xl md:text-base lg:text-2xl font-black text-slate-900 tracking-tight uppercase">Point of Sale</h1>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1 md:hidden lg:block">Ready to Sell</p>
           </div>
 
-          <div className="relative w-full md:w-80">
+          <div className="relative w-full md:w-56 lg:w-80">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
             <Input
               placeholder="Quick search products..."
@@ -460,7 +460,7 @@ export default function POSPage() {
           </div>
         </div>
 
-        <div className="px-6 md:px-8 pb-6 overflow-x-auto flex items-center gap-2 no-scrollbar">
+        <div className="px-4 md:px-5 lg:px-8 pb-4 overflow-x-auto flex items-center gap-2 no-scrollbar">
            <div className="p-1.5 bg-slate-100 rounded-2xl flex items-center gap-1 border border-slate-200 shadow-inner">
             {categories.map(cat => (
               <button 
@@ -480,7 +480,7 @@ export default function POSPage() {
 
         <div className="flex-1 overflow-y-auto no-scrollbar">
           {/* Product grid */}
-          <div className="grid content-start px-4 pt-2 md:px-8 md:pt-3 pb-8 auto-rows-max grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5">
+          <div className="grid content-start px-4 pt-2 md:px-4 md:pt-3 pb-8 auto-rows-max grid-cols-2 md:grid-cols-1 xl:grid-cols-3 2xl:grid-cols-5 gap-3 md:gap-2 xl:gap-4">
             {productsLoading && filteredProducts.length === 0 ? (
               <ProductGridSkeleton />
             ) : filteredProducts.length === 0 ? (
@@ -500,7 +500,7 @@ export default function POSPage() {
       </div>
 
       {/* Cart Sidebar - Refined Sidebar */}
-      <div className="hidden lg:flex flex-col bg-slate-50 border-l w-[380px]">
+      <div className="hidden md:flex flex-col bg-slate-50 border-l w-[280px] lg:w-[380px]">
         <div className="p-6 border-b flex justify-between items-center bg-white shadow-sm">
           <div className="flex items-center gap-2">
             <ShoppingCart size={16} className="text-slate-900" />

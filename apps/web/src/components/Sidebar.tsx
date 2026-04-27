@@ -68,7 +68,7 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
       {/* Mobile Menu Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-md border border-gray-200"
+        className="md:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-md border border-gray-200"
       >
         {isOpen ? <X size={20} className="text-slate-900" /> : <Menu size={20} className="text-slate-900" />}
       </button>
@@ -76,16 +76,16 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
       {/* Overlay */}
       {isOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black/50 z-40 transition-opacity"
+          className="md:hidden fixed inset-0 bg-black/50 z-40 transition-opacity"
           onClick={() => setIsOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside className={`
-        bg-white border-r border-slate-100 h-screen w-64 flex flex-col fixed lg:fixed lg:inset-y-0 left-0
+        bg-white border-r border-slate-100 h-screen w-52 lg:w-64 flex flex-col fixed md:fixed md:inset-y-0 left-0
         transition-transform duration-300 ease-in-out z-50
-        ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
         <div className="p-6 border-b border-gray-50 desktop-sidebar-top">
           <div className="flex items-center gap-3">
