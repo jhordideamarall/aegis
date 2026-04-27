@@ -30,7 +30,10 @@ export async function POST(request: Request) {
 
     const { businessId, user } = businessContext
     const body = await request.json()
-    const { firstMessage } = body as { firstMessage?: string }
+    const { firstMessage, messages } = body as {
+      firstMessage?: string
+      messages?: Array<{ role: string; content: string }>
+    }
 
     if (!firstMessage?.trim()) {
       return NextResponse.json({ error: 'firstMessage is required' }, { status: 400 })
@@ -40,16 +43,18 @@ export async function POST(request: Request) {
 
     const { data: conversation, error } = await supabaseAdmin
       .from('ai_conversations')
-      .insert([{
-        business_id: businessId,
-        user_id: user.id,
-        title
-      }])
+      .insert([{ business_id: businessId, user_id: user.id, title }])
       .select('id, title, created_at, updated_at')
       .single()
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Bulk-save messages if provided (automation-only conversations)
+    if (messages?.length) {
+      const rows = messages
+        .filter(m => m.content?.trim())
+        .map(m => ({ conversation_id: conversation.id, role: m.role, content: m.content.trim() }))
+      if (rows.length) await supabaseAdmin.from('ai_messages').insert(rows)
     }
 
     return NextResponse.json({ conversation })

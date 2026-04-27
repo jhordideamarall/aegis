@@ -1,13 +1,37 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Plus, ArrowUp } from 'lucide-react'
+import { Plus, ArrowUp, Check, Loader2 } from 'lucide-react'
 import { getClientAuthHeaders } from '@/lib/clientAuth'
 import { useAuth } from '@/hooks/useAuth'
 import { HistoryTooltip } from '../components/HistoryTooltip'
 import { OutputRenderer } from '../components/OutputRenderer'
 import { COMMANDS, CommandDef, FieldDef, detectLocalIntent, resolvePronoun, parseIDNumber, fmt } from '@/lib/ai/commands'
-import { useAutomation } from '@/hooks/useAutomation'
+import { useAutomation, StepEntry } from '@/hooks/useAutomation'
+
+// ─── Execution Log ────────────────────────────────────────────────────────────
+function ExecutionLog({ steps }: { steps: StepEntry[] }) {
+  if (!steps.length) return null
+  return (
+    <div className="mt-2 space-y-1.5">
+      {steps.map((s, i) => (
+        <div
+          key={i}
+          className="flex items-start gap-2 text-[13px] leading-snug"
+          style={{ animation: 'fadeSlideIn 0.18s ease both', animationDelay: `${i * 40}ms` }}
+        >
+          <span className="mt-[2px] shrink-0">
+            {s.done
+              ? <Check size={12} className="text-emerald-500" strokeWidth={3} />
+              : <Loader2 size={12} className="text-indigo-400 animate-spin" />
+            }
+          </span>
+          <span className={s.done ? 'text-slate-400' : 'text-slate-600 font-medium'}>{s.text}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 interface Message {
   role: 'user' | 'assistant'
@@ -342,12 +366,62 @@ export default function ChatAegisPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const hasMessages = messages.length > 0 || conversationId !== null
 
+  const [automationSteps, setAutomationSteps] = useState<StepEntry[]>([])
+  // Track conversationId in a ref so addMessage callback can read current value without stale closure
+  const conversationIdRef = useRef<string | null>(null)
+  useEffect(() => { conversationIdRef.current = conversationId }, [conversationId])
+  const savingConvRef = useRef(false)
+
+  const handleStepStart = useCallback((text: string) => {
+    setAutomationSteps(prev => [...prev, { text, done: false }])
+  }, [])
+
+  const handleStepDone = useCallback((text?: string) => {
+    setAutomationSteps(prev => {
+      const last = prev[prev.length - 1]
+      if (!last) return prev
+      return [...prev.slice(0, -1), { text: text ?? last.text, done: true }]
+    })
+  }, [])
+
   const addMessage = useCallback((content: string) => {
-    setMessages(prev => [...prev, { role: 'assistant', content }])
+    setMessages(prev => {
+      const newMsgs = [...prev, { role: 'assistant' as const, content }]
+      // Auto-save automation-only conversations (no conversationId = never went through AI chat)
+      if (!conversationIdRef.current && !savingConvRef.current && content.trim()) {
+        const userMsg = [...prev].reverse().find(m => m.role === 'user')
+        if (userMsg) {
+          savingConvRef.current = true
+          const msgsToSave = newMsgs
+            .filter(m => m.content?.trim())
+            .map(m => ({ role: m.role as string, content: m.content }))
+          getClientAuthHeaders({ 'Content-Type': 'application/json' })
+            .then(headers => fetch('/api/ai/conversations', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ firstMessage: userMsg.content, messages: msgsToSave })
+            }))
+            .then(r => r.json())
+            .then(data => {
+              if (data.conversation?.id) {
+                setConversationId(data.conversation.id)
+                setRefreshTrigger(n => n + 1)
+              }
+            })
+            .catch(() => { /* silent — history save is best-effort */ })
+            .finally(() => { savingConvRef.current = false })
+        }
+      }
+      return newMsgs
+    })
     setLoading(false)
   }, [])
 
-  const { pendingAutomation, setPendingAutomation, runAutomation, confirmAutomation, cancelAutomation, selectMatch } = useAutomation({ onMessage: addMessage })
+  const { pendingAutomation, setPendingAutomation, runAutomation, confirmAutomation, cancelAutomation, selectMatch } = useAutomation({
+    onMessage: addMessage,
+    onStepStart: handleStepStart,
+    onStepDone: handleStepDone,
+  })
 
   const filteredCommands = input.startsWith('/')
     ? COMMANDS.filter(c => c.key.startsWith(input.slice(1).toLowerCase()) || c.label.toLowerCase().includes(input.slice(1).toLowerCase()))
@@ -443,6 +517,7 @@ export default function ChatAegisPage() {
     setConversationId(null)
     setMessages([])
     setPendingAutomation(null)
+    setAutomationSteps([])
     setTimeout(() => textareaRef.current?.focus(), 50)
   }
 
@@ -685,6 +760,13 @@ export default function ChatAegisPage() {
                 )}
               </div>
             ))}
+            {automationSteps.length > 0 && (
+              <div className="flex justify-start">
+                <div className="max-w-[90%]">
+                  <ExecutionLog steps={automationSteps} />
+                </div>
+              </div>
+            )}
             {pendingAutomation && (
               <div className="flex justify-start">
                 <div className="max-w-[90%] w-full">

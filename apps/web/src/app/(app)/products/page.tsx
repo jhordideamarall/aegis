@@ -121,13 +121,18 @@ export default function ProductsPage() {
   const handleDelete = async (id: string) => {
     if (!business) return
     if (!window.confirm('Delete this product?')) return
+    // Optimistic: remove from UI immediately for instant feedback
+    setProducts(prev => prev.filter(p => p.id !== id))
+    setTotal(prev => Math.max(0, prev - 1))
     try {
       const res = await fetch(`/api/products/${id}?business_id=${business.id}`, {
         method: 'DELETE',
         headers: await getClientAuthHeaders()
       })
-      if (res.ok) fetchProducts()
-    } catch (error) {}
+      if (!res.ok) fetchProducts() // rollback on API failure
+    } catch {
+      fetchProducts() // rollback on network error
+    }
   }
 
   return (

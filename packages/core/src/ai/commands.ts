@@ -157,51 +157,84 @@ export function resolvePronoun(input: string, lastMsg: string): string {
 
 export function detectLocalIntent(input: string): { intent: string; params: Record<string, unknown> } | null {
   const s = parseIDNumber(input.trim())
-  const updateVerb = /(?:update|ubah|ganti|set|jadiin?|tambahin?|kurangi?|coba(?:in)?|bikin?|kasih|pasang|pake)/i
-  const valueSep = /(?:jadi(?:in)?|ke|=|menjadi|:\s*|adi|jd)/i
-  const stockWord = /(?:stok|stock)/i
-  const priceWord = /(?:harga|price)/i
-  const pointWord = /(?:poin|points?)/i
+
+  // ── Verbs & separators ─────────────────────────────────────────────────────
+  const updateVerb = /(?:update|ubah|ganti|set|jadiin?|tambahin?|kurangi?|coba(?:in)?|bikin?|kasih|pasang|pake|naikin?|turunin?|rubah|ubah|revisi|edit|atur|setel)/i
+  const valueSep   = /(?:jadi(?:in)?|ke|=|menjadi|:\s*|adi|jd|jadi|sebesar|senilai)/i
+  const stockWord  = /(?:stok|stock|persediaan|inventory|sisa)/i
+  const priceWord  = /(?:harga|price|hrg|bandrol|banderol)/i
+  const pointWord  = /(?:poin|point|points?|reward|kredit)/i
 
   let m: RegExpMatchArray | null
 
+  // ── Stock update ────────────────────────────────────────────────────────────
   if (stockWord.test(s)) {
     m = s.match(new RegExp(`(?:${updateVerb.source}\\s+)?${stockWord.source}\\s+(.+?)\\s+${valueSep.source}\\s*(\\d+)`, 'i'))
-      || s.match(/(.+?)\s+(?:stoknya|stocknya)\s+(?:jadi|ke|=|menjadi)?\s*(\d+)/i)
-      || s.match(/(.+?)\s+tinggal\s+(\d+)/i)
+      || s.match(/(.+?)\s+(?:stoknya|stocknya|sisanya)\s+(?:jadi|ke|=|menjadi|sekarang|skrg)?\s*(\d+)/i)
+      || s.match(/(.+?)\s+tinggal\s+(\d+)\s*(?:pcs|buah|unit|biji|kg|liter)?/i)
+      || s.match(/(?:isi|restok|restock)\s+(.+?)\s+(?:jadi|ke|=|menjadi|dengan|dg|dgn)?\s*(\d+)/i)
     if (m) return { intent: 'update_stock', params: { product_name: m[1].trim(), stock: Number(m[2]) } }
   }
 
+  // ── Price update ────────────────────────────────────────────────────────────
   if (priceWord.test(s)) {
     m = s.match(new RegExp(`(?:${updateVerb.source}\\s+)?${priceWord.source}\\s+(.+?)\\s+${valueSep.source}\\s*(\\d+)`, 'i'))
-      || s.match(/(.+?)\s+(?:harganya|pricenya)\s+(?:jadi|ke|=|menjadi)?\s*(\d+)/i)
-    if (m) return { intent: 'update_price', params: { product_name: m[1].trim(), price: Number(m[2]) } }
+      || s.match(/(.+?)\s+(?:harganya|pricenya|harga\s+barunya)\s+(?:jadi|ke|=|menjadi|sekarang)?\s*(\d+)/i)
+      || s.match(/(.+?)\s+(?:dijual|jualnya|dijualnya)\s+(?:seharga|dengan harga|harga)?\s*(\d+)/i)
+    if (m && priceWord.test(s)) return { intent: 'update_price', params: { product_name: m[1].trim(), price: Number(m[2]) } }
   }
 
+  // ── Points update ───────────────────────────────────────────────────────────
   if (pointWord.test(s)) {
     m = s.match(new RegExp(`(?:${updateVerb.source}\\s+)?${pointWord.source}\\s+(.+?)\\s+${valueSep.source}\\s*(\\d+)`, 'i'))
+      || s.match(/(.+?)\s+(?:poinnya|pointnya|rewardnya)\s+(?:jadi|ke|=|menjadi)?\s*(\d+)/i)
     if (m) return { intent: 'update_member_points', params: { member_name: m[1].trim(), points: Number(m[2]) } }
   }
 
-  m = s.match(/(?:hapus|delete|remove|buang|ilangin?)\s+(?:data\s+)?member\s+(.+)/i)
+  // ── Revenue check ───────────────────────────────────────────────────────────
+  m = s.match(/(?:cek|lihat|tampilkan?|berapa|gimana|bagaimana|check)\s+(?:revenue|pendapatan|omset|omzet|penghasilan|penjualan)(?:\s+(.+))?/i)
+  if (m) {
+    const periodRaw = (m[1] || 'today').trim().toLowerCase()
+    const periodMap: Record<string, string> = { 'hari ini': 'today', 'today': 'today', 'minggu ini': 'week', 'minggu': 'week', 'bulan ini': 'month', 'bulan': 'month', 'tahun ini': 'year', 'tahun': 'year', 'all': 'all', 'semua': 'all' }
+    const period = periodMap[periodRaw] || 'today'
+    return { intent: 'check_revenue', params: { period } }
+  }
+
+  // ── Low stock alert ─────────────────────────────────────────────────────────
+  if (/(?:stok\s+(?:menipis|hampir\s+habis|kritis|dikit|sedikit|rendah)|produk\s+(?:mau\s+habis|abis|hampir\s+abis))/i.test(s)) {
+    return { intent: 'low_stock_alert', params: {} }
+  }
+
+  // ── Delete member ───────────────────────────────────────────────────────────
+  m = s.match(/(?:hapus|delete|remove|buang|ilangin?|keluarin?|kick)\s+(?:data\s+)?member\s+(.+)/i)
   if (m) return { intent: 'delete_member', params: { member_name: m[1].trim() } }
 
-  m = s.match(/(?:hapus|delete|remove|buang|ilangin?)\s+(?:produk\s+)?(.+)/i)
+  // ── Delete product ──────────────────────────────────────────────────────────
+  m = s.match(/(?:hapus|delete|remove|buang|ilangin?|nonaktifkan?)\s+(?:produk|product|item|barang\s+)?(.+)/i)
   if (m && !s.match(/\bmember\b/i)) return { intent: 'delete_product', params: { product_name: m[1].trim() } }
 
-  // create_product — "tambah produk NAME harga PRICE stok STOCK kategori CATEGORY"
-  m = s.match(/(?:tambah|buat|daftarkan?|input|add)\s+(?:produk\s+)?(.+?)\s+harga\s+(\d+)(?:\s+stok\s+(\d+))?(?:\s+kategori\s+(.+))?$/i)
+  // ── Find product ────────────────────────────────────────────────────────────
+  m = s.match(/(?:cari|search|cek|lihat|info|detail)\s+(?:produk|product|barang|item)\s+(.+)/i)
+  if (m) return { intent: 'find_product', params: { query: m[1].trim() } }
+
+  // ── Find member ─────────────────────────────────────────────────────────────
+  m = s.match(/(?:cari|search|cek|lihat|info|detail)\s+(?:member|pelanggan|customer)\s+(.+)/i)
+  if (m) return { intent: 'find_member', params: { query: m[1].trim() } }
+
+  // ── Create product ──────────────────────────────────────────────────────────
+  // "tambah/buat/daftar produk NAME harga PRICE stok STOCK kategori CAT"
+  m = s.match(/(?:tambah|buat|daftarkan?|input|add|masukin?|masukkan?|register)\s+(?:produk|product|barang|item\s+)?(.+?)\s+(?:harga|price|hrg)\s+(\d+)(?:\s+(?:stok|stock)\s+(\d+))?(?:\s+(?:kategori|category|cat)\s+(.+))?$/i)
   if (m) return {
     intent: 'create_product',
     params: { name: m[1].trim(), price: Number(m[2]), stock: Number(m[3] || 0), category: (m[4] || '').trim() }
   }
 
-  // create_order — "catat order QTY PRODUCT ... bayar METHOD"
-  m = s.match(/(?:catat|buat|create)\s+(?:order\s+)?(.+?)\s+bayar\s+(\S+)/i)
+  // ── Create order ─────────────────────────────────────────────────────────────
+  // "catat/buat order QTY PRODUCT ... bayar METHOD"
+  m = s.match(/(?:catat|buat|create|input|pesan|order)\s+(?:order|transaksi|pembelian\s+)?(.+?)\s+(?:bayar|payment|dibayar|via|pakai|dengan)\s+(\S+)/i)
   if (m) {
     const itemsStr = m[1].trim()
     const paymentMethod = m[2].toLowerCase()
-    // Parse items like "2 Kopi Americano 1 Es Teh"
     const itemMatches = [...itemsStr.matchAll(/(\d+)\s+([A-Za-z][^0-9]+?)(?=\d|$)/g)]
     if (itemMatches.length > 0) {
       const items = itemMatches.map(im => ({ product_name: im[2].trim(), qty: Number(im[1]) }))
