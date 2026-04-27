@@ -17,14 +17,16 @@ interface Message {
 }
 
 function parseAction(content: string): { text: string; action?: { type: string; payload: Record<string, unknown> } } {
-  const match = content.match(/\[ACTION\]([\s\S]*?)\[\/ACTION\]/)
-  if (!match) return { text: content }
+  // Strip [CMD] tags during streaming so raw markers are never shown to the user
+  const stripped = content.replace(/\[CMD\][\s\S]*?\[\/CMD\]/g, '').trim()
+  const match = stripped.match(/\[ACTION\]([\s\S]*?)\[\/ACTION\]/)
+  if (!match) return { text: stripped }
   try {
     const action = JSON.parse(match[1].trim())
-    const text = content.replace(/\[ACTION\][\s\S]*?\[\/ACTION\]/, '').trim()
+    const text = stripped.replace(/\[ACTION\][\s\S]*?\[\/ACTION\]/, '').trim()
     return { text, action }
   } catch {
-    return { text: content }
+    return { text: stripped }
   }
 }
 
@@ -537,6 +539,7 @@ export default function ChatAegisPage() {
     const localIntent = detectLocalIntent(resolvedInput)
     if (localIntent) {
       await runAutomation(localIntent.intent, localIntent.params)
+      setLoading(false)
       return
     }
 
@@ -556,7 +559,10 @@ export default function ChatAegisPage() {
       }
     } catch { /* fall through */ }
 
-    if (automateHandled) return
+    if (automateHandled) {
+      setLoading(false)
+      return
+    }
 
     // Full AI chat with conversation history
     setMessages(prev => [...prev, { role: 'assistant', content: '' }])

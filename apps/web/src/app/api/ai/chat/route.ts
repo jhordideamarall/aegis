@@ -311,6 +311,8 @@ Aksi perubahan data — gunakan format CMD (bukan ACTION):
 [CMD]hapus produk Pocari Sweat[/CMD]
 [CMD]update poin Andi jadi 200[/CMD]
 [CMD]hapus member Budi[/CMD]
+[CMD]tambah produk Kopi Susu harga 18000 stok 50 kategori Minuman[/CMD]
+[CMD]catat order 2 Kopi Americano 1 Es Teh bayar qris[/CMD]
 Jangan sebut ID/UUID. Jangan bilang "sudah diupdate" — user masih harus konfirmasi. Gunakan "Siap, konfirmasi dulu ya~" sebelum [CMD].
 
 ## Contoh Gaya Jawaban

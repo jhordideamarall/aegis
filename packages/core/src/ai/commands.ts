@@ -189,5 +189,25 @@ export function detectLocalIntent(input: string): { intent: string; params: Reco
   m = s.match(/(?:hapus|delete|remove|buang|ilangin?)\s+(?:produk\s+)?(.+)/i)
   if (m && !s.match(/\bmember\b/i)) return { intent: 'delete_product', params: { product_name: m[1].trim() } }
 
+  // create_product — "tambah produk NAME harga PRICE stok STOCK kategori CATEGORY"
+  m = s.match(/(?:tambah|buat|daftarkan?|input|add)\s+(?:produk\s+)?(.+?)\s+harga\s+(\d+)(?:\s+stok\s+(\d+))?(?:\s+kategori\s+(.+))?$/i)
+  if (m) return {
+    intent: 'create_product',
+    params: { name: m[1].trim(), price: Number(m[2]), stock: Number(m[3] || 0), category: (m[4] || '').trim() }
+  }
+
+  // create_order — "catat order QTY PRODUCT ... bayar METHOD"
+  m = s.match(/(?:catat|buat|create)\s+(?:order\s+)?(.+?)\s+bayar\s+(\S+)/i)
+  if (m) {
+    const itemsStr = m[1].trim()
+    const paymentMethod = m[2].toLowerCase()
+    // Parse items like "2 Kopi Americano 1 Es Teh"
+    const itemMatches = [...itemsStr.matchAll(/(\d+)\s+([A-Za-z][^0-9]+?)(?=\d|$)/g)]
+    if (itemMatches.length > 0) {
+      const items = itemMatches.map(im => ({ product_name: im[2].trim(), qty: Number(im[1]) }))
+      return { intent: 'create_order', params: { items, payment_method: paymentMethod } }
+    }
+  }
+
   return null
 }
