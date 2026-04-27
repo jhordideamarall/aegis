@@ -61,7 +61,9 @@ export async function GET(request: Request) {
       settings.business_phone = business.phone
     }
 
-    return NextResponse.json(settings)
+    return NextResponse.json(settings, {
+      headers: { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=60' }
+    })
   } catch (error) {
     console.error('Error fetching settings:', error)
     return NextResponse.json(

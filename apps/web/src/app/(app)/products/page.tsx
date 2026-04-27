@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { getClientCache, setClientCache } from '@/lib/clientCache'
 import { getClientAuthHeaders } from '@/lib/clientAuth'
@@ -58,6 +58,7 @@ export default function ProductsPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
@@ -65,15 +66,20 @@ export default function ProductsPage() {
   const isLoading = loading || fetching
 
   useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(searchQuery), 300)
+    return () => clearTimeout(id)
+  }, [searchQuery])
+
+  useEffect(() => {
     if (!loading && business) {
       fetchProducts()
     }
-  }, [loading, business, searchQuery, selectedCategory, page])
+  }, [loading, business, debouncedSearch, selectedCategory, page])
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     if (!business) return
     try {
-      const cacheKey = `products:${business.id}:${searchQuery}:${selectedCategory}:${page}`
+      const cacheKey = `products:${business.id}:${debouncedSearch}:${selectedCategory}:${page}`
       const cached = getClientCache<{ data: Product[]; total: number }>(cacheKey)
       if (cached) {
         setProducts(cached.data)
@@ -88,7 +94,7 @@ export default function ProductsPage() {
         page: String(page),
         limit: String(limit)
       })
-      if (searchQuery) params.set('q', searchQuery)
+      if (debouncedSearch) params.set('q', debouncedSearch)
       if (selectedCategory && selectedCategory !== 'all') params.set('category', selectedCategory)
 
       const res = await fetch(`/api/products?${params.toString()}`, {
@@ -105,7 +111,7 @@ export default function ProductsPage() {
     } finally {
       setFetching(false)
     }
-  }
+  }, [business, debouncedSearch, selectedCategory, page])
 
   const categories = ['all', ...Array.from(new Set(products.map(p => p.category)))]
   const totalPages = Math.max(1, Math.ceil(total / limit))

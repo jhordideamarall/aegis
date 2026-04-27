@@ -44,24 +44,30 @@ export default function MembersPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const limit = 20
   const isLoading = loading || fetching
 
   useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(searchQuery), 300)
+    return () => clearTimeout(id)
+  }, [searchQuery])
+
+  useEffect(() => {
     if (!loading && business) fetchMembers()
-  }, [loading, business, searchQuery, page])
+  }, [loading, business, debouncedSearch, page])
 
   const fetchMembers = async () => {
     if (!business) return
     try {
-      const cacheKey = `members:${business.id}:${searchQuery}:${page}`
+      const cacheKey = `members:${business.id}:${debouncedSearch}:${page}`
       const cached = getClientCache<{ data: Member[]; total: number }>(cacheKey)
       if (cached) { setMembers(cached.data); setTotal(cached.total); setFetching(false); } else { setFetching(true); }
 
       const params = new URLSearchParams({ business_id: business.id, page: String(page), limit: String(limit) })
-      if (searchQuery) params.set('q', searchQuery)
+      if (debouncedSearch) params.set('q', debouncedSearch)
 
       const res = await fetch(`/api/members?${params.toString()}`, { headers: await getClientAuthHeaders() })
       if (res.ok) {

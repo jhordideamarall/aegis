@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import {
@@ -283,6 +283,7 @@ export default function POSPage() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [showMemberModal, setShowMemberModal] = useState(false)
@@ -290,6 +291,12 @@ export default function POSPage() {
   const [productsLoading, setProductsLoading] = useState(true)
   const chargesRef = useRef({ tax_enabled: false, tax_rate: 0, service_enabled: false, service_rate: 0, points_enabled: true, points_earn_rate: 10000, points_redeem_rate: 100, points_min_redeem: 20 })
   const [charges, setCharges] = useState(chargesRef.current)
+
+  // Debounce search so filter only runs 300ms after user stops typing
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(searchQuery), 300)
+    return () => clearTimeout(id)
+  }, [searchQuery])
 
   useEffect(() => {
     if (loading) {
@@ -378,25 +385,31 @@ export default function POSPage() {
     } catch (error) {} finally { setProductsLoading(false) }
   }
 
-  const categories = getProductCategories(products)
-  const filteredProducts = filterProducts(products, selectedCategory, searchQuery)
+  const categories = useMemo(() => getProductCategories(products), [products])
+  const filteredProducts = useMemo(
+    () => filterProducts(products, selectedCategory, debouncedSearch),
+    [products, selectedCategory, debouncedSearch]
+  )
 
-  const addToCart = (product: Product) => {
+  const addToCart = useCallback((product: Product) => {
     setCart(prev => {
       const existing = prev.find(item => item.product.id === product.id)
       if (existing) return prev.map(item => item.product.id === product.id ? { ...item, qty: item.qty + 1 } : item)
       return [...prev, { product, qty: 1 }]
     })
-  }
+  }, [])
 
-  const updateQty = (productId: string, qty: number) => {
+  const updateQty = useCallback((productId: string, qty: number) => {
     if (qty <= 0) { setCart(prev => prev.filter(i => i.product.id !== productId)); return; }
     setCart(prev => prev.map(i => i.product.id === productId ? { ...i, qty } : i))
-  }
+  }, [])
 
-  const clearCart = () => { setCart([]); setSelectedMember(null); }
+  const clearCart = useCallback(() => { setCart([]); setSelectedMember(null); }, [])
 
-  const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.qty, 0)
+  const cartTotal = useMemo(
+    () => cart.reduce((sum, item) => sum + item.product.price * item.qty, 0),
+    [cart]
+  )
   const memberPoints = selectedMember?.points || 0
   const estimatedTotal = cartTotal + (charges.tax_enabled ? Math.round((cartTotal * charges.tax_rate) / 100) : 0) + (charges.service_enabled ? Math.round((cartTotal * charges.service_rate) / 100) : 0)
 
@@ -404,12 +417,9 @@ export default function POSPage() {
     if (!business || cart.length === 0) return
     setProcessing(true)
     try {
-      // Fetch settings fresh at checkout time — never trust potentially stale cache/state
       const { data: { session } } = await supabase.auth.getSession()
-      const settingsRes = await fetch(`/api/settings?business_id=${business.id}`, {
-        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
-      })
-      const liveCharges = settingsRes.ok ? { ...chargesRef.current, ...await settingsRes.json() } : chargesRef.current
+      // chargesRef is always kept fresh by fetchCharges (runs on mount + SWR-style background refresh)
+      const liveCharges = chargesRef.current
 
       const discount = redeemPoints * (liveCharges.points_redeem_rate || chargesRef.current.points_redeem_rate)
       const taxableBase = Math.max(cartTotal - discount, 0)
@@ -443,13 +453,13 @@ export default function POSPage() {
     <div className="flex h-screen overflow-hidden bg-background">
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="flex p-4 md:px-5 md:py-3 lg:p-8 flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-4">
+        <div className="flex p-4 md:px-4 md:py-2.5 xl:p-8 flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-3 xl:gap-4">
           <div>
-            <h1 className="text-2xl md:text-base lg:text-2xl font-black text-slate-900 tracking-tight uppercase">Point of Sale</h1>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1 md:hidden lg:block">Ready to Sell</p>
+            <h1 className="text-2xl md:text-sm xl:text-2xl font-black text-slate-900 tracking-tight uppercase">Point of Sale</h1>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1 md:hidden xl:block">Ready to Sell</p>
           </div>
 
-          <div className="relative w-full md:w-56 lg:w-80">
+          <div className="relative w-full md:w-48 xl:w-80">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
             <Input
               placeholder="Quick search products..."
@@ -460,13 +470,13 @@ export default function POSPage() {
           </div>
         </div>
 
-        <div className="px-4 md:px-5 lg:px-8 pb-4 overflow-x-auto flex items-center gap-2 no-scrollbar">
+        <div className="px-4 md:px-4 xl:px-8 pb-3 md:pb-2.5 xl:pb-4 overflow-x-auto flex items-center gap-2 no-scrollbar">
            <div className="p-1.5 bg-slate-100 rounded-2xl flex items-center gap-1 border border-slate-200 shadow-inner">
             {categories.map(cat => (
               <button 
                 key={cat} 
                 onClick={() => setSelectedCategory(cat)} 
-                className={`h-9 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 transform active:scale-95 ${
+                className={`h-7 md:h-7 xl:h-9 px-4 xl:px-6 rounded-xl text-[9px] xl:text-[10px] font-black uppercase tracking-widest transition-all duration-300 transform active:scale-95 ${
                   selectedCategory === cat 
                     ? 'bg-white text-slate-900 shadow-md ring-1 ring-black/5' 
                     : 'text-slate-400 hover:text-slate-600'
@@ -480,7 +490,7 @@ export default function POSPage() {
 
         <div className="flex-1 overflow-y-auto no-scrollbar">
           {/* Product grid */}
-          <div className="grid content-start px-4 pt-2 md:px-4 md:pt-3 pb-8 auto-rows-max grid-cols-2 md:grid-cols-1 xl:grid-cols-3 2xl:grid-cols-5 gap-3 md:gap-2 xl:gap-4">
+          <div className="grid content-start px-3 md:px-3 xl:px-8 pt-2 md:pt-2 xl:pt-3 pb-8 auto-rows-max grid-cols-2 md:grid-cols-1 xl:grid-cols-4 2xl:grid-cols-5 gap-3 md:gap-1.5 xl:gap-4">
             {productsLoading && filteredProducts.length === 0 ? (
               <ProductGridSkeleton />
             ) : filteredProducts.length === 0 ? (
@@ -500,8 +510,8 @@ export default function POSPage() {
       </div>
 
       {/* Cart Sidebar - Refined Sidebar */}
-      <div className="hidden md:flex flex-col bg-slate-50 border-l w-[280px] lg:w-[380px]">
-        <div className="p-6 border-b flex justify-between items-center bg-white shadow-sm">
+      <div className="hidden md:flex flex-col bg-slate-50 border-l w-[290px] xl:w-[360px]">
+        <div className="p-4 xl:p-6 border-b flex justify-between items-center bg-white shadow-sm">
           <div className="flex items-center gap-2">
             <ShoppingCart size={16} className="text-slate-900" />
             <span className="font-black text-sm uppercase tracking-widest">Cart</span>
@@ -513,17 +523,17 @@ export default function POSPage() {
           )}
         </div>
 
-        <ScrollArea className="flex-1 p-6">
-          <div className="space-y-4">
+        <ScrollArea className="flex-1 p-3 xl:p-6">
+          <div className="space-y-2.5 xl:space-y-4">
             {cart.length === 0 ? (
-              <div className="h-64 flex flex-col items-center justify-center text-slate-300 opacity-50">
-                <Package size={48} className="mb-4 stroke-[1px]" />
+              <div className="h-48 xl:h-64 flex flex-col items-center justify-center text-slate-300 opacity-50">
+                <Package size={36} className="mb-3 stroke-[1px] xl:mb-4 xl:size-12" />
                 <p className="text-[10px] font-black uppercase tracking-[0.3em]">Empty Selection</p>
               </div>
             ) : (
               cart.map(item => (
-                <div key={item.product.id} className="flex gap-4 animate-in fade-in slide-in-from-right-4 duration-500">
-                  <div className="w-12 h-12 rounded-lg bg-white border border-slate-100 flex-shrink-0 overflow-hidden shadow-sm">
+                <div key={item.product.id} className="flex gap-2.5 xl:gap-4 animate-in fade-in slide-in-from-right-4 duration-500">
+                  <div className="w-9 h-9 xl:w-12 xl:h-12 rounded-lg bg-white border border-slate-100 flex-shrink-0 overflow-hidden shadow-sm">
                     {item.product.image_url ? (
                       <img src={item.product.image_url} alt={item.product.name} className="w-full h-full object-cover" />
                     ) : (
@@ -545,8 +555,8 @@ export default function POSPage() {
           </div>
         </ScrollArea>
 
-        <div className="p-6 bg-white border-t space-y-4 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)]">
-          <Button variant="outline" className="w-full h-12 justify-start bg-slate-50 border-none rounded-xl hover:bg-slate-100 transition-all group px-4" onClick={() => setShowMemberModal(true)}>
+        <div className="p-3 xl:p-6 bg-white border-t space-y-2.5 xl:space-y-4 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)]">
+          <Button variant="outline" className="w-full h-9 xl:h-12 justify-start bg-slate-50 border-none rounded-xl hover:bg-slate-100 transition-all group px-3 xl:px-4" onClick={() => setShowMemberModal(true)}>
             <User size={14} className="mr-3 text-slate-400 group-hover:text-slate-900" />
             <div className="text-left">
               <span className="text-[10px] font-black uppercase text-slate-600">{selectedMember?.name || 'Customer Member'}</span>
@@ -560,14 +570,14 @@ export default function POSPage() {
             </div>
             <div className="flex justify-between items-end px-1 border-t border-slate-50 pt-2">
               <span className="text-[11px] font-black text-slate-900 uppercase tracking-[0.2em]">TOTAL</span>
-              <span className="text-3xl font-black tracking-tighter text-slate-900">{formatIDR(estimatedTotal)}</span>
+              <span className="text-xl xl:text-3xl font-black tracking-tighter text-slate-900">{formatIDR(estimatedTotal)}</span>
             </div>
           </div>
 
-          <Button 
-            onClick={() => setShowPaymentModal(true)} 
-            disabled={cart.length === 0} 
-            className="w-full h-14 bg-slate-900 hover:bg-black rounded-xl font-black uppercase tracking-[0.16em] text-xs shadow-2xl shadow-slate-200 transition-all hover:scale-[1.02] active:scale-95"
+          <Button
+            onClick={() => setShowPaymentModal(true)}
+            disabled={cart.length === 0}
+            className="w-full h-10 xl:h-14 bg-slate-900 hover:bg-black rounded-xl font-black uppercase tracking-[0.16em] text-xs shadow-2xl shadow-slate-200 transition-all hover:scale-[1.02] active:scale-95"
           >
             Create Order
           </Button>

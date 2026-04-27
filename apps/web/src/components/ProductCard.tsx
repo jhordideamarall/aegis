@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import { Product } from '@/lib/types'
 import { formatIDR } from '@/lib/utils'
 import { Package, Plus } from 'lucide-react'
@@ -9,7 +10,7 @@ interface ProductCardProps {
   onAddToCart: (product: Product) => void
 }
 
-export default function ProductCard({ product, onAddToCart }: ProductCardProps) {
+const ProductCard = memo(function ProductCard({ product, onAddToCart }: ProductCardProps) {
   const isOutOfStock = product.stock <= 0
 
   return (
@@ -91,4 +92,6 @@ export default function ProductCard({ product, onAddToCart }: ProductCardProps) 
       </div>
     </button>
   )
-}
+})
+
+export default ProductCard

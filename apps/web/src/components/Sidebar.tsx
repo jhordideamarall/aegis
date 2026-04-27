@@ -83,11 +83,11 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
 
       {/* Sidebar */}
       <aside className={`
-        bg-white border-r border-slate-100 h-screen w-52 lg:w-64 flex flex-col fixed md:fixed md:inset-y-0 left-0
+        bg-white border-r border-slate-100 h-screen w-52 xl:w-64 flex flex-col fixed md:fixed md:inset-y-0 left-0
         transition-transform duration-300 ease-in-out z-50
         ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
-        <div className="p-6 border-b border-gray-50 desktop-sidebar-top">
+        <div className="p-4 xl:p-6 border-b border-gray-50 desktop-sidebar-top">
           <div className="flex items-center gap-3">
             {business?.logo_url ? (
               <img
@@ -113,7 +113,7 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
           </div>
         </div>
 
-        <nav className="flex-1 p-4 overflow-y-auto space-y-8 no-scrollbar pb-10 desktop-sidebar-scroll">
+        <nav className="flex-1 p-3 xl:p-4 overflow-y-auto space-y-5 xl:space-y-8 no-scrollbar pb-10 desktop-sidebar-scroll">
           {/* Core POS Section */}
           <div className="space-y-1">
             {coreNavItems.map((item) => {
@@ -125,14 +125,14 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
                   <Link
                     href={item.href}
                     onClick={() => setIsOpen(false)}
-                    className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all ${
+                    className={`flex items-center gap-2.5 px-3 py-1.5 xl:py-2 rounded-lg transition-all ${
                       isActive
                         ? 'bg-gray-900 text-white shadow-sm'
                         : 'text-gray-600 hover:bg-gray-50'
                     }`}
                   >
-                    <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
-                    <span className="text-sm font-medium">{item.label}</span>
+                    <Icon size={16} strokeWidth={isActive ? 2.5 : 2} />
+                    <span className="text-xs xl:text-sm font-medium">{item.label}</span>
                   </Link>
                 </li>
               )
@@ -141,8 +141,8 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
 
           {/* Business Integrations Section */}
           <div className="space-y-3">
-            <div className="px-4">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Integrations</p>
+            <div className="px-3">
+              <p className="text-[9px] xl:text-[10px] font-bold text-gray-400 uppercase tracking-widest">Integrations</p>
             </div>
             
             <div className="space-y-1">
@@ -154,13 +154,13 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
                     <Link
                       href={item.href}
                       onClick={() => setIsOpen(false)}
-                      className={`flex items-center px-4 py-2 rounded-lg transition-all ${
+                      className={`flex items-center px-3 py-1.5 xl:py-2 rounded-lg transition-all ${
                         isActive
                           ? 'bg-gray-900 text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
-                      <span className="text-sm font-medium">{item.label}</span>
+                      <span className="text-xs xl:text-sm font-medium">{item.label}</span>
                     </Link>
                   </li>
                 )
@@ -170,10 +170,10 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
 
           {/* AI Intelligence Section */}
           <div className="space-y-3">
-            <div className="px-4">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">AI Intelligence</p>
+            <div className="px-3">
+              <p className="text-[9px] xl:text-[10px] font-bold text-gray-400 uppercase tracking-widest">AI Intelligence</p>
             </div>
-            
+
             <div className="space-y-1">
               {aiNavItems.map((item) => {
                 const isActive = pathname === item.href
@@ -183,13 +183,13 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
                     <Link
                       href={item.href}
                       onClick={() => setIsOpen(false)}
-                      className={`flex items-center px-4 py-2 rounded-lg transition-all ${
+                      className={`flex items-center px-3 py-1.5 xl:py-2 rounded-lg transition-all ${
                         isActive
                           ? 'bg-gray-900 text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
-                      <span className="text-sm font-medium">{item.label}</span>
+                      <span className="text-xs xl:text-sm font-medium">{item.label}</span>
                       {'badge' in item && item.badge && (
                         <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600">{item.badge}</span>
                       )}
@@ -201,26 +201,26 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
           </div>
         </nav>
 
-        <div className="p-4 border-t border-gray-50 space-y-1 desktop-sidebar-bottom">
+        <div className="p-3 xl:p-4 border-t border-gray-50 space-y-1 desktop-sidebar-bottom">
           <Link
             href="/settings"
             onClick={() => setIsOpen(false)}
-            className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-all ${
+            className={`flex items-center gap-2.5 px-3 py-1.5 xl:py-2 rounded-lg transition-all ${
               pathname === '/settings' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
             }`}
           >
-            <Settings size={18} strokeWidth={2} />
-            <span className="text-sm font-medium">Settings</span>
+            <Settings size={16} strokeWidth={2} />
+            <span className="text-xs xl:text-sm font-medium">Settings</span>
           </Link>
           <button
             onClick={() => {
               onLogout?.()
               setIsOpen(false)
             }}
-            className="flex items-center gap-3 px-4 py-2 rounded-lg text-gray-400 hover:text-rose-600 transition-all w-full text-left"
+            className="flex items-center gap-2.5 px-3 py-1.5 xl:py-2 rounded-lg text-gray-400 hover:text-rose-600 transition-all w-full text-left"
           >
-            <LogOut size={18} strokeWidth={2} />
-            <span className="text-sm font-medium">Logout</span>
+            <LogOut size={16} strokeWidth={2} />
+            <span className="text-xs xl:text-sm font-medium">Logout</span>
           </button>
         </div>
       </aside>

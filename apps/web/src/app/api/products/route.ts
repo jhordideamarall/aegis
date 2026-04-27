@@ -47,7 +47,9 @@ export async function GET(request: Request) {
     const { data, error, count } = await query.range(from, to)
 
     if (error) throw error
-    return NextResponse.json({ data: data || [], total: count || 0, page, limit })
+    return NextResponse.json({ data: data || [], total: count || 0, page, limit }, {
+      headers: { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' }
+    })
   } catch (error) {
     console.error('Error fetching products:', error)
     return NextResponse.json(
