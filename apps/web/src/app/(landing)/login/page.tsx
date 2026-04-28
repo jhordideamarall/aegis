@@ -20,6 +20,21 @@ export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'forgot' | 'recovery'>('login')
 
   useEffect(() => {
+    // Clear potentially stale session from old project on mount
+    const checkAndClearStaleSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        // If we have a session but it fails a simple query, it's probably stale
+        const { error } = await supabase.from('businesses').select('id').limit(1)
+        if (error && (error.message.includes('schema') || error.message.includes('token'))) {
+          console.warn('Stale session detected, clearing...')
+          await supabase.auth.signOut()
+          router.refresh()
+        }
+      }
+    }
+    checkAndClearStaleSession()
+
     const hash = window.location.hash
     const hashParams = new URLSearchParams(hash.replace(/^#/, ''))
     const searchParams = new URLSearchParams(window.location.search)
