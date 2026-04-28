@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aegis-shell-v1'
+const CACHE_NAME = 'aegis-shell-v2' // incremented version
 const APP_SHELL_ASSETS = [
   '/',
   '/dashboard',
@@ -19,12 +19,11 @@ self.addEventListener('install', (event) => {
 })
 
 self.addEventListener('activate', (event) => {
+  // Clear ALL old caches to fix hydration mismatches
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
+        keys.map((key) => caches.delete(key))
       )
     )
   )
@@ -48,6 +47,11 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  // DO NOT cache Next.js development files to prevent hydration mismatch!
+  if (url.pathname.startsWith('/_next/')) {
+    return
+  }
+
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request).catch(async () => {
@@ -59,7 +63,6 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (
-    url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/pwa/') ||
     url.pathname === '/site.webmanifest' ||
     url.pathname === '/favicon.ico' ||
@@ -80,3 +83,4 @@ self.addEventListener('fetch', (event) => {
     )
   }
 })
+

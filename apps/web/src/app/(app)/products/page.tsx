@@ -71,10 +71,10 @@ export default function ProductsPage() {
   }, [searchQuery])
 
   useEffect(() => {
-    if (!loading && business) {
+    if (business) {
       fetchProducts()
     }
-  }, [loading, business, debouncedSearch, selectedCategory, page])
+  }, [business, debouncedSearch, selectedCategory, page])
 
   const fetchProducts = useCallback(async () => {
     if (!business) return

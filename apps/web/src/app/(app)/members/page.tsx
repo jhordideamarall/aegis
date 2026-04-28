@@ -38,7 +38,7 @@ import {
 import { Label } from "@/components/ui/label"
 
 export default function MembersPage() {
-  const { business, loading } = useAuth()
+  const { business } = useAuth()
   const [members, setMembers] = useState<Member[]>([])
   const [fetching, setFetching] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -48,7 +48,7 @@ export default function MembersPage() {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const limit = 20
-  const isLoading = loading || fetching
+  const isLoading = fetching
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(searchQuery), 300)
@@ -56,8 +56,8 @@ export default function MembersPage() {
   }, [searchQuery])
 
   useEffect(() => {
-    if (!loading && business) fetchMembers()
-  }, [loading, business, debouncedSearch, page])
+    if (business) fetchMembers()
+  }, [business, debouncedSearch, page])
 
   const fetchMembers = async () => {
     if (!business) return

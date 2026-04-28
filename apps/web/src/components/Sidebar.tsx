@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { getBusinessDisplayName, getBusinessInitials } from '@/lib/businessBranding'
+import { cn } from '@/lib/utils'
 import {
   LayoutGrid,
   ShoppingCart,
@@ -37,9 +38,10 @@ interface Business {
 interface SidebarProps {
   business?: Business | null
   onLogout?: () => void
+  isLoading?: boolean
 }
 
-export default function Sidebar({ business, onLogout }: SidebarProps) {
+export default function Sidebar({ business, onLogout, isLoading }: SidebarProps) {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
   
@@ -82,34 +84,46 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
       )}
 
       {/* Sidebar */}
-      <aside className={`
-        bg-white border-r border-slate-100 h-screen w-52 xl:w-64 flex flex-col fixed md:fixed md:inset-y-0 left-0
-        transition-transform duration-300 ease-in-out z-50
-        ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-      `}>
+      <aside className={cn(
+        "bg-white border-r border-slate-100 h-screen w-52 xl:w-64 flex flex-col fixed md:fixed md:inset-y-0 left-0",
+        "transition-transform duration-300 ease-in-out z-50",
+        isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+      )}>
         <div className="p-4 xl:p-6 border-b border-gray-50 desktop-sidebar-top">
           <div className="flex items-center gap-3">
-            {business?.logo_url ? (
-              <img
-                src={business.logo_url}
-                alt={business.business_name}
-                className="w-10 h-10 rounded-lg object-cover border border-gray-200 bg-white"
-              />
+            {isLoading ? (
+              <>
+                <div className="w-10 h-10 bg-slate-200 rounded-lg animate-pulse shrink-0"></div>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="h-4 bg-slate-200 rounded w-3/4 animate-pulse"></div>
+                  <div className="h-2.5 bg-slate-200 rounded w-1/2 animate-pulse"></div>
+                </div>
+              </>
             ) : (
-              <div className="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center">
-                <span className="text-white font-semibold text-sm">
-                  {getBusinessInitials(business?.business_name)}
-                </span>
-              </div>
+              <>
+                {business?.logo_url ? (
+                  <img
+                    src={business.logo_url}
+                    alt={business.business_name}
+                    className="w-10 h-10 rounded-lg object-cover border border-gray-200 bg-white shrink-0"
+                  />
+                ) : (
+                  <div className="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center shrink-0">
+                    <span className="text-white font-semibold text-sm">
+                      {getBusinessInitials(business?.business_name)}
+                    </span>
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <span className="font-bold text-gray-900 truncate block text-sm">
+                    {getBusinessDisplayName(business?.business_name)}
+                  </span>
+                  {business && (
+                    <p className="text-[10px] text-gray-500 truncate font-medium uppercase tracking-tight">Active Business</p>
+                  )}
+                </div>
+              </>
             )}
-            <div className="min-w-0">
-              <span className="font-bold text-gray-900 truncate block text-sm">
-                {getBusinessDisplayName(business?.business_name)}
-              </span>
-              {business && (
-                <p className="text-[10px] text-gray-500 truncate font-medium uppercase tracking-tight">Active Business</p>
-              )}
-            </div>
           </div>
         </div>
 
@@ -125,11 +139,12 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
                   <Link
                     href={item.href}
                     onClick={() => setIsOpen(false)}
-                    className={`flex items-center gap-2.5 px-3 py-1.5 xl:py-2 rounded-lg transition-all ${
+                    className={cn(
+                      "flex items-center gap-2.5 px-3 py-1.5 xl:py-2 rounded-lg transition-all",
                       isActive
-                        ? 'bg-gray-900 text-white shadow-sm'
-                        : 'text-gray-600 hover:bg-gray-50'
-                    }`}
+                        ? "bg-gray-900 text-white shadow-sm"
+                        : "text-gray-600 hover:bg-gray-50"
+                    )}
                   >
                     <Icon size={16} strokeWidth={isActive ? 2.5 : 2} />
                     <span className="text-xs xl:text-sm font-medium">{item.label}</span>
@@ -154,11 +169,12 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
                     <Link
                       href={item.href}
                       onClick={() => setIsOpen(false)}
-                      className={`flex items-center px-3 py-1.5 xl:py-2 rounded-lg transition-all ${
+                      className={cn(
+                        "flex items-center px-3 py-1.5 xl:py-2 rounded-lg transition-all",
                         isActive
-                          ? 'bg-gray-900 text-white shadow-sm'
-                          : 'text-gray-600 hover:bg-gray-50'
-                      }`}
+                          ? "bg-gray-900 text-white shadow-sm"
+                          : "text-gray-600 hover:bg-gray-50"
+                      )}
                     >
                       <span className="text-xs xl:text-sm font-medium">{item.label}</span>
                     </Link>
@@ -183,11 +199,12 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
                     <Link
                       href={item.href}
                       onClick={() => setIsOpen(false)}
-                      className={`flex items-center px-3 py-1.5 xl:py-2 rounded-lg transition-all ${
+                      className={cn(
+                        "flex items-center px-3 py-1.5 xl:py-2 rounded-lg transition-all",
                         isActive
-                          ? 'bg-gray-900 text-white shadow-sm'
-                          : 'text-gray-600 hover:bg-gray-50'
-                      }`}
+                          ? "bg-gray-900 text-white shadow-sm"
+                          : "text-gray-600 hover:bg-gray-50"
+                      )}
                     >
                       <span className="text-xs xl:text-sm font-medium">{item.label}</span>
                       {'badge' in item && item.badge && (
@@ -205,9 +222,10 @@ export default function Sidebar({ business, onLogout }: SidebarProps) {
           <Link
             href="/settings"
             onClick={() => setIsOpen(false)}
-            className={`flex items-center gap-2.5 px-3 py-1.5 xl:py-2 rounded-lg transition-all ${
-              pathname === '/settings' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
-            }`}
+            className={cn(
+              "flex items-center gap-2.5 px-3 py-1.5 xl:py-2 rounded-lg transition-all",
+              pathname === '/settings' ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-50"
+            )}
           >
             <Settings size={16} strokeWidth={2} />
             <span className="text-xs xl:text-sm font-medium">Settings</span>

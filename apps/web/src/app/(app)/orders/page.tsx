@@ -80,7 +80,7 @@ function OrdersContent() {
   const searchParams = useSearchParams()
   const { business, loading } = useAuth()
   const [orders, setOrders] = useState<Order[]>([])
-  const [fetching, setFetching] = useState(true)
+  const [fetching, setFetching] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [showReceipt, setShowReceipt] = useState(false)
   const [receiptSettings, setReceiptSettings] = useState<ReceiptSettings | null>(null)
@@ -122,7 +122,7 @@ function OrdersContent() {
   }, [])
 
   useEffect(() => {
-    if (!loading && business && tokenReady) {
+    if (business && tokenReady) {
       fetchOrders()
       fetchReceiptSettings()
       const printParam = searchParams.get('print')
@@ -144,7 +144,8 @@ function OrdersContent() {
   const fetchOrders = useCallback(async () => {
     if (!business) return
     const fetchId = ++fetchIdRef.current
-    setFetching(true)
+    // Only show loading if we don't have any orders yet
+    if (orders.length === 0) setFetching(true)
     try {
       const today = toLocalISODate()
       let startDate = ''

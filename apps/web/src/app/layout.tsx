@@ -3,6 +3,7 @@ import Script from "next/script";
 import { getSiteUrl } from "@/lib/site";
 import { validateEnvironment } from "@/lib/env";
 import { PwaRegistration } from "@/components/PwaRegistration";
+import { Providers } from "@/components/Providers";
 import "./globals.css";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
@@ -219,8 +220,10 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
       </head>
       <body className="antialiased font-sans bg-slate-50 text-slate-950">
-        <PwaRegistration />
-        {children}
+        <Providers>
+          <PwaRegistration />
+          {children}
+        </Providers>
         
         {/* Google Analytics - Replace with your ID */}
         {/* <Script

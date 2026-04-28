@@ -10,17 +10,17 @@ import { supabase } from '@/lib/supabase'
 export default function OrdersReportPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { business, loading } = useAuth()
+  const { business } = useAuth()
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
   const [reportHtml, setReportHtml] = useState('')
   const [reportLoading, setReportLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (!loading && business) {
+    if (business) {
       void loadReport()
     }
-  }, [loading, business, searchParams])
+  }, [business, searchParams])
 
   const loadReport = async () => {
     if (!business) return

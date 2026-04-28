@@ -300,16 +300,12 @@ export default function POSPage() {
 
   useEffect(() => {
     if (loading) {
-      setProductsLoading(true)
       return
     }
 
-    if (!business) {
-      setProductsLoading(false)
-      return
+    if (business) {
+      bootstrapPOSData()
     }
-
-    bootstrapPOSData()
   }, [loading, business])
 
   const bootstrapPOSData = async () => {
@@ -360,16 +356,15 @@ export default function POSPage() {
     const cached = getClientCache<Product[]>(cacheKey)
     const persistentCached = getPersistentClientCache<Product[]>(cacheKey)
 
+    // Only show loading if we don't have any cached data yet
     if (cached) {
       setProducts(cached)
       setProductsLoading(false)
     } else if (persistentCached) {
       setProducts(persistentCached)
       setProductsLoading(false)
-    } else {
-      setProducts([])
-      setProductsLoading(true)
     }
+    // Don't set loading(true) here - let the fetch complete in background while showing current data
 
     try {
       const res = await fetch(`/api/products?business_id=${business.id}&limit=1000`, {
