@@ -44,14 +44,32 @@ export function extractTenantSubdomain(host: string) {
   const hostname = stripPort(host)
   const mainHostname = getMainAppHostname()
 
+  // Handle localhost
   if (hostname.endsWith('.localhost')) {
     const subdomain = hostname.slice(0, -'.localhost'.length)
     if (!subdomain || subdomain.includes('.')) return null
     return normalizeSubdomain(subdomain)
   }
 
-  if (!hostname.endsWith(`.${mainHostname}`)) return null
+  // Handle production custom domains
+  // If main app is aegis.socialbrand1980.com, base domain is socialbrand1980.com
+  const parts = mainHostname.split('.')
+  if (parts.length >= 3) {
+    const baseDomain = parts.slice(1).join('.') // e.g., "socialbrand1980.com"
+    const mainSub = parts[0] // e.g., "aegis"
+    
+    if (hostname.endsWith(`.${baseDomain}`)) {
+      const currentSub = hostname.slice(0, -(`.${baseDomain}`.length))
+      // If we are on the main app subdomain (e.g. "aegis"), it's NOT a tenant
+      if (currentSub === mainSub) return null
+      // If there are further dots, it's not a direct tenant subdomain
+      if (currentSub.includes('.')) return null
+      return normalizeSubdomain(currentSub)
+    }
+  }
 
+  // Fallback for standard subdomain pattern
+  if (!hostname.endsWith(`.${mainHostname}`)) return null
   const subdomain = hostname.slice(0, -(`.${mainHostname}`.length))
   if (!subdomain || subdomain.includes('.')) return null
 
