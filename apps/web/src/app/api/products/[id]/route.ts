@@ -62,15 +62,34 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       )
     }
 
+    // Get product materials to calculate HPP automatically
+    const { data: mappings } = await supabaseAdmin
+      .from('product_materials')
+      .select('qty_needed, raw_materials(cost_per_unit)')
+      .eq('product_id', id)
+      .eq('business_id', resolvedBusinessId)
+      .eq('is_active', true)
+
+    let calculatedHpp = hpp
+    if (mappings && mappings.length > 0) {
+      calculatedHpp = mappings.reduce((total: number, m: { qty_needed: number; raw_materials: unknown }) => {
+        const rawMaterialList = m.raw_materials as unknown as Array<{ cost_per_unit: number }> | null
+        const rawMaterial = rawMaterialList?.[0]
+        if (!rawMaterial) return total
+        return total + ((m.qty_needed || 0) * (rawMaterial.cost_per_unit || 0))
+      }, 0)
+    }
+
     const { data, error } = await supabaseAdmin
       .from('products')
       .update({
         name,
         price,
-        hpp,
+        hpp: (calculatedHpp || 0) > 0 ? calculatedHpp : hpp,
         stock,
         category,
         image_url,
+        auto_calculated_hpp: calculatedHpp,
         updated_at: new Date().toISOString()
       })
       .eq('id', id)

@@ -93,3 +93,24 @@ supabase/               ← SQL migrations & schema
 ---
 
 **Powered by [Socialbrand 1980](https://socialbrand1980.com)**
+
+
+Bener. UX yang ini lebih jelas:
+- User tau apa yang mereka input (250ml per bungkus)
+- User tau harga yang mereka bayar per bungkus
+- Kalkulasi auto tapi transparan
+---
+Form update-nya:
+Unit Size (per bungkus): [250] [ml]
+Qty Beli            : [27]
+Harga/Unit (per bungkus): [23000]
+───────────────────────────────
+Total Bayar:  Rp 621.000  (27 × 23.000)
+Stock     :  6.750 ml   (27 × 250)
+Cost/ml   :  Rp 92/ml    (621.000 ÷ 6.750)
+Display di table:
+- Stock: 6.750ml
+- Cost/ml: Rp 92/ml
+- Unit size: 250ml (hidden column atau tooltip)
+---
+Gas update form-nya sekarang?

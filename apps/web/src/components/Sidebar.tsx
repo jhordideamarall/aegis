@@ -16,7 +16,7 @@ import {
   X,
   Bell,
   MessageSquare,
-  Cpu
+  Cpu,
 } from 'lucide-react'
 import { useState } from 'react'
 

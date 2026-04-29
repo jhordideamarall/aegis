@@ -28,6 +28,82 @@ interface OrdersListRow {
   member?: { name: string; phone: string } | Array<{ name: string; phone: string }> | null
 }
 
+// Helper function to decrement raw materials stock
+async function decrementRawMaterials(
+  businessId: string,
+  items: Array<{ product_id: string; qty: number }>
+): Promise<{ success: boolean; error?: string }> {
+  // Get all product materials mappings
+  const productIds = items.map(i => i.product_id)
+  if (productIds.length === 0) {
+    return { success: true }
+  }
+  
+  const { data: mappings, error: mappingsError } = await supabaseAdmin
+    .from('product_materials')
+    .select('product_id, material_id, qty_needed, raw_materials(stock, name)')
+    .in('product_id', productIds)
+    .eq('is_active', true)
+    .eq('business_id', businessId)
+
+  if (mappingsError) {
+    return { success: false, error: 'Failed to fetch materials' }
+  }
+
+  if (!mappings || mappings.length === 0) {
+    return { success: true }
+  }
+
+  // Group by material and calculate total needed
+  const materialUsage: Record<string, { materialId: string; qtyNeeded: number; currentStock: number; name: string }> = {}
+  
+  for (const item of items) {
+    const itemMappings = mappings.filter(m => m.product_id === item.product_id)
+    for (const mapping of itemMappings) {
+      const materialId = mapping.material_id
+      
+      let rawMaterial: { stock: number; name: string } | null = null
+      if (Array.isArray(mapping.raw_materials)) {
+        rawMaterial = mapping.raw_materials[0] || null
+      } else if (mapping.raw_materials) {
+        rawMaterial = mapping.raw_materials as { stock: number; name: string }
+      }
+      
+      if (!rawMaterial) continue
+      
+      const qtyNeeded = Number(mapping.qty_needed) || 0
+      
+      if (!materialUsage[materialId]) {
+        materialUsage[materialId] = {
+          materialId,
+          qtyNeeded: 0,
+          currentStock: rawMaterial.stock,
+          name: rawMaterial.name
+        }
+      }
+      materialUsage[materialId].qtyNeeded += qtyNeeded * item.qty
+    }
+  }
+
+  // Decrement each material
+  for (const [materialId, usage] of Object.entries(materialUsage)) {
+    const newStock = usage.currentStock - usage.qtyNeeded
+    
+    const { error } = await supabaseAdmin
+      .from('raw_materials')
+      .update({ stock: newStock, updated_at: new Date().toISOString() })
+      .eq('id', materialId)
+      .eq('business_id', businessId)
+    
+    if (error) {
+      console.error('Error updating material:', error)
+      return { success: false, error: `Failed to update material ${usage.name}` }
+    }
+  }
+
+  return { success: true }
+}
+
 // Helper to parse YYYY-MM-DD to UTC Date
 function parseLocalDateToUTC(dateString: string, includeTime: 'start' | 'end' = 'start'): Date | null {
   // Validate format first
@@ -555,6 +631,13 @@ export async function POST(request: Request) {
     if (itemsError) {
       await rollback()
       throw itemsError
+    }
+
+// Decrement raw materials based on product materials mapping
+    try {
+      await decrementRawMaterials(resolvedBusinessId, items as Array<{ product_id: string; qty: number }>)
+    } catch (matErr: any) {
+      console.error('Material decrement error:', matErr)
     }
 
     // Apply member points in parallel (transactions + member update together)
