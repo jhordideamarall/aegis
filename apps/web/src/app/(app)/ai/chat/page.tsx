@@ -97,6 +97,7 @@ function OrderPreviewCard({ params, onConfirm, onCancel }: {
   const serviceAmount = Number(params.service_amount) || 0
   const subtotal = Number(params.subtotal) || 0
   const paymentMethod = String(params.payment_method || 'cash')
+  const member = params.member as { id: string; name: string } | undefined
   const taxRate = Number(params.tax_rate) || 0
   const serviceRate = Number(params.service_rate) || 0
 
@@ -105,6 +106,7 @@ function OrderPreviewCard({ params, onConfirm, onCancel }: {
       <div className="px-3 py-2.5 flex items-center justify-between border-b border-slate-100">
         <span className="text-[12px] font-semibold text-slate-800">Preview Order</span>
         <div className="flex gap-1.5 items-center">
+          {member && <span className="text-[11px] font-medium text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded mr-1">👤 {member.name}</span>}
           <span className="text-[11px] font-medium text-slate-400 capitalize mr-2">{paymentMethod}</span>
           <button onClick={onCancel} className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest rounded-md bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">Esc</button>
           <button onClick={onConfirm} className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest rounded-md text-white bg-slate-900 hover:bg-slate-800 transition-colors">Enter</button>

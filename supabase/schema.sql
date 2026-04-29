@@ -316,6 +316,26 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'products',
+  'products',
+  true,
+  5242880,
+  ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml']
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'business-logos',
+  'business-logos',
+  true,
+  3145728,
+  ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml']
+)
+ON CONFLICT (id) DO NOTHING;
+
 -- ============================================
 -- END OF SCHEMA
 -- ============================================

@@ -27,6 +27,15 @@ export interface ReportOrder {
   order_items?: ReportOrderItem[]
 }
 
+export interface ReportOrderItem {
+  id: string
+  product_id: string
+  qty: number
+  price: number
+  cost_price?: number
+  product?: { name?: string | null } | null
+}
+
 export interface ReportMeta {
   businessName: string
   businessAddress?: string | null
@@ -45,6 +54,8 @@ export interface ReportMetrics {
   totalTax: number
   totalService: number
   netRevenue: number
+  totalCost: number
+  totalProfit: number
   totalOrders: number
   averageOrderValue: number
   totalItemsSold: number
@@ -120,6 +131,12 @@ export function buildReportMetrics(orders: ReportOrder[]): ReportMetrics {
   const totalTax = orders.reduce((s, o) => s + (Number(o.tax_amount) || 0), 0)
   const totalService = orders.reduce((s, o) => s + (Number(o.service_amount) || 0), 0)
   const netRevenue = totalRevenue - totalTax - totalService
+  
+  const totalCost = orders.reduce((s, o) => {
+    const itemsCost = o.order_items?.reduce((is, i) => is + ((i.cost_price || 0) * i.qty), 0) || 0
+    return s + itemsCost
+  }, 0)
+  const totalProfit = netRevenue - totalCost
 
   const totalOrders = orders.length
   const totalItemsSold = orders.reduce((s, o) => s + (o.order_items?.reduce((is, i) => is + i.qty, 0) || 0), 0)
@@ -131,6 +148,8 @@ export function buildReportMetrics(orders: ReportOrder[]): ReportMetrics {
     totalTax,
     totalService,
     netRevenue,
+    totalCost,
+    totalProfit,
     totalOrders,
     averageOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
     totalItemsSold,
@@ -153,7 +172,8 @@ export function buildReportNarrative(_meta: ReportMeta, orders: ReportOrder[], m
   const qrisShare = metrics.totalOrders > 0 ? (qrisCount / metrics.totalOrders) * 100 : 0
 
   const summaryParagraphs = [
-    `${metrics.totalOrders} transaksi dengan total omzet ${formatIDR(metrics.totalRevenue)} dan rata-rata ${formatIDR(metrics.averageOrderValue)} per order.`,
+    `${metrics.totalOrders} transaksi dengan total omzet ${formatIDR(metrics.totalRevenue)}, net revenue ${formatIDR(metrics.netRevenue)}, dan profit ${formatIDR(metrics.totalProfit)}. Rata-rata ${formatIDR(metrics.averageOrderValue)} per order.`,
+    `HPP: ${formatIDR(metrics.totalCost)} | Pajak: ${formatIDR(metrics.totalTax)} | Service: ${formatIDR(metrics.totalService)}`,
     topMethod
       ? `Metode dominan: ${topMethod.label} (${topMethod.count} transaksi, ${topMethod.percentage.toFixed(0)}%).${topProvider ? ` QRIS provider utama: ${topProvider.label}.` : ''}`
       : 'Belum ada metode dominan pada periode ini.',

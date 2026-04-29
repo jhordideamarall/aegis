@@ -11,6 +11,9 @@ import {
 interface DashboardOrder {
   id: string
   total: number
+  discount: number
+  tax_amount: number
+  service_amount: number
   payment_method: string
   payment_provider?: string | null
   created_at: string
@@ -99,6 +102,9 @@ export async function GET(request: Request) {
     const dashboardOrdersSelect = [
       'id',
       'total',
+      'discount',
+      'tax_amount',
+      'service_amount',
       'payment_method',
       paymentColumnSupport.provider ? 'payment_provider' : null,
       'created_at',
@@ -156,23 +162,34 @@ export async function GET(request: Request) {
     if (ordersError) throw ordersError
 
     const normalizedOrders = ((orders || []) as unknown) as DashboardOrder[]
-    const normalizedPrevOrders = ((prevOrders || []) as unknown) as Array<{ total: number; order_items: Array<{ qty: number; price: number; cost_price: number }> }>
+    const normalizedPrevOrders = ((prevOrders || []) as unknown) as DashboardOrder[]
 
-    // Calculations
+    // Calculations — Net Revenue = cash paid - tax - service (IGNORE points discount)
+    // Points redemption adalah value dari customer, bukan pengurang revenue kita
+    const getCashPaid = (order: DashboardOrder) => {
+      const tax = order.tax_amount || 0
+      const service = order.service_amount || 0
+      return order.total - tax - service
+    }
+
     const totalSales = normalizedOrders.reduce((sum, order) => sum + order.total, 0)
+    const totalNetRevenue = normalizedOrders.reduce((sum, order) => sum + getCashPaid(order), 0)
     const totalOrders = normalizedOrders.length
     const totalItems = normalizedOrders.reduce((sum, order) => sum + (order.order_items?.length || 0), 0)
     
     const totalNetProfit = normalizedOrders.reduce((sum, order) => {
-      const orderProfit = order.order_items?.reduce((oSum, item) => oSum + ((item.price - item.cost_price) * item.qty), 0) || 0
-      return sum + orderProfit
+      const cashPaid = getCashPaid(order)
+      const orderCost = order.order_items?.reduce((oSum, item) => oSum + ((item.cost_price || 0) * item.qty), 0) || 0
+      return sum + (cashPaid - orderCost)
     }, 0)
 
     const prevTotalSales = normalizedPrevOrders.reduce((sum, order) => sum + order.total, 0)
+    const prevTotalNetRevenue = normalizedPrevOrders.reduce((sum, order) => sum + getCashPaid(order), 0)
     const prevTotalOrders = normalizedPrevOrders.length
     const prevTotalNetProfit = normalizedPrevOrders.reduce((sum, order) => {
-      const orderProfit = order.order_items?.reduce((oSum, item) => oSum + ((item.price - item.cost_price) * item.qty), 0) || 0
-      return sum + orderProfit
+      const cashPaid = getCashPaid(order)
+      const orderCost = order.order_items?.reduce((oSum, item) => oSum + ((item.cost_price || 0) * item.qty), 0) || 0
+      return sum + (cashPaid - orderCost)
     }, 0)
 
     // Top Lists
@@ -233,10 +250,12 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       totalSales,
+      totalNetRevenue,
       totalOrders,
       totalItems,
       totalNetProfit,
       prevTotalSales,
+      prevTotalNetRevenue,
       prevTotalOrders,
       prevTotalNetProfit,
       newMembers: newMembers || 0,

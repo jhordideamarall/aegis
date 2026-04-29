@@ -401,6 +401,7 @@ export function useAutomation({ onMessage, onStepStart, onStepDone }: UseAutomat
     if (intent === 'create_order') {
       const items = params.items as Array<{ product_name: string; qty: number }> | undefined
       const paymentMethod = String(params.payment_method || 'cash')
+      const memberName = params.member_name as string | undefined
       if (!items?.length) {
         onMessage('Sebutkan produk dan jumlahnya.')
         return
@@ -411,7 +412,7 @@ export function useAutomation({ onMessage, onStepStart, onStepDone }: UseAutomat
         const res = await fetch('/api/ai/order-preview', {
           method: 'POST',
           headers,
-          body: JSON.stringify({ items, payment_method: paymentMethod }),
+          body: JSON.stringify({ items, payment_method: paymentMethod, member_name: memberName }),
         })
         const data = await res.json()
         if (!res.ok) {
@@ -496,7 +497,13 @@ export function useAutomation({ onMessage, onStepStart, onStepDone }: UseAutomat
       const orderData = automation.params as {
         items: Array<{ product_id: string; product_name: string; qty: number; unit_price: number; subtotal: number }>
         total: number
+        subtotal: number
+        tax_amount: number
+        tax_rate: number
+        service_amount: number
+        service_rate: number
         payment_method: string
+        member?: { id: string; name: string }
       }
       try {
         const headers = await getClientAuthHeaders({ 'Content-Type': 'application/json' })
@@ -510,7 +517,13 @@ export function useAutomation({ onMessage, onStepStart, onStepDone }: UseAutomat
               price: i.unit_price,
             })),
             total: orderData.total,
+            subtotal: orderData.subtotal,
+            tax_amount: orderData.tax_amount,
+            tax_rate: orderData.tax_rate,
+            service_amount: orderData.service_amount,
+            service_rate: orderData.service_rate,
             payment_method: orderData.payment_method,
+            member_id: orderData.member?.id || null,
           })
         })
         const data = await res.json()

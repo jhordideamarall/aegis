@@ -69,6 +69,8 @@ function renderMetricCards(metrics: ReportMetrics): string {
   const cards = [
     { label: 'Gross Omzet', value: formatIDR(metrics.totalRevenue) },
     { label: 'Net Revenue', value: formatIDR(metrics.netRevenue) },
+    { label: 'Total HPP', value: formatIDR(metrics.totalCost) },
+    { label: 'Net Profit', value: formatIDR(metrics.totalProfit) },
     { label: 'Total Pajak', value: formatIDR(metrics.totalTax) },
     { label: 'Total Service', value: formatIDR(metrics.totalService) },
     { label: 'Transaksi', value: String(metrics.totalOrders) },
@@ -77,7 +79,7 @@ function renderMetricCards(metrics: ReportMetrics): string {
   return cards.map((c) => `
     <div class="metric-card">
       <div class="metric-label">${escapeHtml(c.label)}</div>
-      <div class="metric-value" style="font-size: ${c.label.includes('Omzet') || c.label.includes('Revenue') ? '14px' : '15px'}">${escapeHtml(c.value)}</div>
+      <div class="metric-value" style="font-size: ${c.label.includes('Omzet') || c.label.includes('Revenue') || c.label.includes('Profit') ? '14px' : '15px'}">${escapeHtml(c.value)}</div>
     </div>`).join('')
 }
 
@@ -125,19 +127,36 @@ function renderTransactionTable(orders: ReportOrder[]): string {
       <tbody>
         ${chunk.map((o) => {
           const subtotal = o.total - (Number(o.tax_amount) || 0) - (Number(o.service_amount) || 0)
+          
+          let itemsHtml = ''
+          if (o.order_items && o.order_items.length > 0) {
+            itemsHtml = `
+              <tr>
+                <td colspan="8" style="padding: 4px 12px 12px 12px; border-bottom: 1px solid var(--line);">
+                  <div style="font-size: 10px; color: var(--muted); margin-top: 2px;">
+                    <strong>Item Detail:</strong>
+                    <ul style="margin: 2px 0 0 16px; padding: 0;">
+                      ${o.order_items.map(i => `<li>${i.qty}x ${escapeHtml(i.product?.name || 'Item Terhapus')} @ ${escapeHtml(formatIDR(i.price))}</li>`).join('')}
+                    </ul>
+                  </div>
+                </td>
+              </tr>
+            `
+          }
+
           return `
-          <tr>
-            <td class="mono">#${escapeHtml(o.id.slice(0, 8).toUpperCase())}</td>
-            <td class="muted small">${escapeHtml(formatDateTime(o.created_at))}</td>
-            <td>${escapeHtml(o.member?.name || 'Umum')}</td>
-            <td class="small">
+          <tr ${itemsHtml ? 'style="border-bottom: none;"' : ''}>
+            <td class="mono" ${itemsHtml ? 'style="border-bottom: none;"' : ''}>#${escapeHtml(o.id.slice(0, 8).toUpperCase())}</td>
+            <td class="muted small" ${itemsHtml ? 'style="border-bottom: none;"' : ''}>${escapeHtml(formatDateTime(o.created_at))}</td>
+            <td ${itemsHtml ? 'style="border-bottom: none;"' : ''}>${escapeHtml(o.member?.name || 'Umum')}</td>
+            <td class="small" ${itemsHtml ? 'style="border-bottom: none;"' : ''}>
               ${escapeHtml(formatPaymentDisplay(o.payment_method, o.payment_provider))}
             </td>
-            <td style="text-align:right" class="muted small">${escapeHtml(formatIDR(subtotal))}</td>
-            <td style="text-align:right" class="muted small">${o.tax_amount ? escapeHtml(formatIDR(o.tax_amount)) : '–'}</td>
-            <td style="text-align:right" class="muted small">${o.service_amount ? escapeHtml(formatIDR(o.service_amount)) : '–'}</td>
-            <td style="text-align:right;font-weight:600">${escapeHtml(formatIDR(o.total))}</td>
-          </tr>`}).join('')}
+            <td style="text-align:right${itemsHtml ? '; border-bottom: none;' : ''}" class="muted small">${escapeHtml(formatIDR(subtotal))}</td>
+            <td style="text-align:right${itemsHtml ? '; border-bottom: none;' : ''}" class="muted small">${o.tax_amount ? escapeHtml(formatIDR(o.tax_amount)) : '–'}</td>
+            <td style="text-align:right${itemsHtml ? '; border-bottom: none;' : ''}" class="muted small">${o.service_amount ? escapeHtml(formatIDR(o.service_amount)) : '–'}</td>
+            <td style="text-align:right;font-weight:600${itemsHtml ? '; border-bottom: none;' : ''}">${escapeHtml(formatIDR(o.total))}</td>
+          </tr>${itemsHtml}`}).join('')}
       </tbody>
     </table>`).join('')
 }

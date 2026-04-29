@@ -45,7 +45,7 @@ export async function POST(request: Request) {
 
     const { businessId } = businessContext
     const body = await request.json()
-    const { items, payment_method: rawPayment = 'cash' }: { items: OrderItem[]; payment_method: string } = body
+    const { items, payment_method: rawPayment = 'cash', member_name } = body
     // Normalize payment method to valid values
     const paymentNorm: Record<string, string> = { transfer: 'bank_transfer', bca: 'bank_transfer', bni: 'bank_transfer', mandiri: 'bank_transfer', kredit: 'debit', credit: 'debit' }
     const payment_method = paymentNorm[rawPayment.toLowerCase()] || rawPayment
@@ -62,6 +62,21 @@ export async function POST(request: Request) {
 
     if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 })
     if (!products?.length) return NextResponse.json({ error: 'Tidak ada produk' }, { status: 404 })
+
+    // Match member if provided
+    let member: { id: string; name: string } | null = null
+    if (member_name) {
+      const { data: members } = await supabaseAdmin
+        .from('members')
+        .select('id, name')
+        .eq('business_id', businessId)
+      
+      if (members && members.length > 0) {
+        const scores = members.map(m => ({ m, score: matchScore(member_name, m.name) }))
+        const best = scores.sort((a, b) => b.score - a.score)[0]
+        if (best.score >= 40) member = best.m
+      }
+    }
 
     // Fetch settings for tax/service
     const { data: settingsRows } = await supabaseAdmin
@@ -126,6 +141,7 @@ export async function POST(request: Request) {
       service_enabled: serviceEnabled,
       tax_rate: Number(settings.tax_rate) || 0,
       service_rate: Number(settings.service_rate) || 0,
+      member,
     })
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unknown error'

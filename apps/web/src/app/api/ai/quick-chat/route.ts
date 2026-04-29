@@ -56,15 +56,20 @@ export async function POST(request: Request) {
     const { businessId, user } = businessContext
     const userId = user.id
 
-    // Always get persona (lightweight — 2 rows only)
-    const persona = await getPersonaSettings(businessId)
+    // Always get persona and PIC name
+    const [persona, biz] = await Promise.all([
+      getPersonaSettings(businessId),
+      supabaseAdmin.from('businesses').select('pic_name').eq('id', businessId).single()
+    ])
+    
+    const userName = biz.data?.pic_name?.split(' ')[0] || null
 
     // Conversation setup runs in background — don't block AI call
     const convPromise = setupConversationAndHistory(businessId, userId, prompt)
 
     // Only build full context when needed
     const businessData = withContext ? await getCachedContext(businessId) : null
-    const systemPrompt = buildSystemPrompt(businessData, persona)
+    const systemPrompt = buildSystemPrompt(businessData, persona, userName)
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -316,11 +321,12 @@ async function calcPeriodStats(businessId: string, fromDate: Date | null) {
   return { count, revenue, profit: revenue - cost }
 }
 
-function buildSystemPrompt(context: string | null, persona: { name: string; instruction: string }): string {
-  const base = `Aku ${persona.name}, asisten bisnis untuk sistem POS (Point of Sale) AEGIS.
-Tugasku: bantu kelola toko — stok produk, harga, member, transaksi, dan laporan keuangan.
-Gaya: smart, to the point, sedikit Gen Z tapi tidak lebay. Bahasa Indonesia.
-Jawab hanya sesuai konteks bisnis POS. Jangan sebut platform luar (Shopee, Tokped, dll) kecuali user yang minta.${persona.instruction ? `\n${persona.instruction}` : ''}`
+function buildSystemPrompt(context: string | null, persona: { name: string; instruction: string }, userName: string | null): string {
+  const userCtx = userName ? `Nama user yang chat: ${userName}. Panggil kalau natural.` : ''
+  const base = `Aku ${persona.name}, asisten bisnis untuk sistem POS AEGIS. ${userCtx}
+Tugasku: bantu kelola toko — stok, harga, member, dan operasional.
+Gaya: smart, to the point, sedikit casual tapi profesional. Bahasa Indonesia.
+Jawab hanya sesuai konteks bisnis POS.${persona.instruction ? `\n${persona.instruction}` : ''}`
 
   if (!context) return `${base}
 

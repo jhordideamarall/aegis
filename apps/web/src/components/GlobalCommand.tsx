@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { getClientAuthHeaders } from '@/lib/clientAuth'
+import { useAutomation } from '@/hooks/useAutomation'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { COMMANDS, CommandDef, FieldDef, detectLocalIntent, resolvePronoun, parseIDNumber } from '@/lib/ai/commands'
@@ -277,20 +279,73 @@ function NativeConfirmCard({ automation, onConfirm, onCancel, onSelectMatch }: {
   )
 }
 
-function intentToActionType(intent: string): string {
-  return { update_stock: 'update_stock', update_price: 'update_product', delete_product: 'delete_product', update_member_points: 'update_member', delete_member: 'delete_member', update_settings: 'update_settings' }[intent] || intent
-}
+// --- OrderPreviewCard (copied from AI Chat page) ---
+function OrderPreviewCard({ params, onConfirm, onCancel }: {
+  params: Record<string, unknown>
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const fmtCurrency = (n: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n)
+  const items = params.items as Array<{ product_name: string; qty: number; unit_price: number; subtotal: number }> || []
+  const unmatched = params.unmatched as Array<{ query: string; qty: number }> || []
+  const total = Number(params.total) || 0
+  const taxAmount = Number(params.tax_amount) || 0
+  const serviceAmount = Number(params.service_amount) || 0
+  const subtotal = Number(params.subtotal) || 0
+  const paymentMethod = String(params.payment_method || 'cash')
+  const member = params.member as { id: string; name: string } | undefined
+  const taxRate = Number(params.tax_rate) || 0
+  const serviceRate = Number(params.service_rate) || 0
 
-function buildActionPayload(a: AutomationState): Record<string, unknown> {
-  switch (a.intent) {
-    case 'update_stock':         return { id: a.resolved.id, stock: Number(a.params.stock) }
-    case 'update_price':         return { id: a.resolved.id, price: Number(a.params.price) }
-    case 'delete_product':       return { id: a.resolved.id, name: a.resolved.name }
-    case 'update_member_points': return { id: a.resolved.id, points: Number(a.params.points) }
-    case 'delete_member':        return { id: a.resolved.id, name: a.resolved.name }
-    case 'update_settings':      return { key: a.params.key, value: a.params.value }
-    default: return {}
-  }
+  return (
+    <div className="mt-3 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm flex flex-col">
+      <div className="px-3 py-2.5 flex items-center justify-between border-b border-slate-100">
+        <span className="text-[12px] font-semibold text-slate-800">Preview Order</span>
+        <div className="flex gap-1.5 items-center">
+          {member && <span className="text-[11px] font-medium text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded mr-1">👤 {member.name}</span>}
+          <span className="text-[11px] font-medium text-slate-400 capitalize mr-2">{paymentMethod}</span>
+          <button onClick={onCancel} className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest rounded-md bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">Esc</button>
+          <button onClick={onConfirm} className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest rounded-md text-white bg-slate-900 hover:bg-slate-800 transition-colors">Enter</button>
+        </div>
+      </div>
+      <div className="px-3 py-2 bg-slate-50/50 space-y-1.5">
+        {items.map((item, i) => (
+          <div key={i} className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-[12px] text-slate-400 shrink-0 font-medium w-4">{item.qty}x</span>
+              <span className="text-[12px] text-slate-700 font-medium truncate">{item.product_name}</span>
+            </div>
+            <span className="text-[12px] text-slate-700 font-medium shrink-0">{fmtCurrency(item.subtotal)}</span>
+          </div>
+        ))}
+        {unmatched.length > 0 && (
+          <div className="pt-1 border-t border-amber-100 mt-2">
+            {unmatched.map((u, i) => (
+              <div key={i} className="text-[11px] text-amber-600">⚠ "{u.query}" tidak ditemukan</div>
+            ))}
+          </div>
+        )}
+        <div className="pt-2 mt-2 border-t border-slate-200/60 space-y-1">
+          <div className="flex justify-between text-[12px] text-slate-500">
+            <span>Subtotal</span><span>{fmtCurrency(subtotal)}</span>
+          </div>
+          {serviceAmount > 0 && (
+            <div className="flex justify-between text-[12px] text-slate-500">
+              <span>Service ({serviceRate}%)</span><span>{fmtCurrency(serviceAmount)}</span>
+            </div>
+          )}
+          {taxAmount > 0 && (
+            <div className="flex justify-between text-[12px] text-slate-500">
+              <span>Tax ({taxRate}%)</span><span>{fmtCurrency(taxAmount)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-[13px] font-bold text-slate-900 pt-1">
+            <span>Total</span><span>{fmtCurrency(total)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // --- Main component ---
@@ -299,7 +354,6 @@ export function GlobalCommand() {
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
-  const [pendingAutomation, setPendingAutomation] = useState<AutomationState | null>(null)
   const [activeCommand, setActiveCommand] = useState<CommandDef | null>(null)
   const [slashOpen, setSlashOpen] = useState(false)
   const [slashIndex, setSlashIndex] = useState(0)
@@ -308,6 +362,10 @@ export function GlobalCommand() {
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [mounted, setMounted] = useState(false)
   const [animating, setAnimating] = useState(false)
+  const router = useRouter()
+  const { pendingAutomation, setPendingAutomation, runAutomation, confirmAutomation, cancelAutomation, selectMatch } = useAutomation({
+    onMessage: (msg) => setMessages(prev => [...prev, { role: 'assistant', content: msg }])
+  })
 
   const filteredCommands = input.trim() === '/'
     ? COMMANDS
@@ -351,193 +409,7 @@ export function GlobalCommand() {
     if (t.startsWith('/')) setSlashIndex(0)
   }, [input])
 
-  const ALL_KEYWORDS = new Set(['semua', 'all', 'seluruh', 'daftar', 'list', 'semua produk', 'semua member', 'all member'])
-
-  const searchProducts = useCallback(async (headers: HeadersInit, q: string) => {
-    const isAll = ALL_KEYWORDS.has(q.toLowerCase().trim())
-    const tryFetch = async (query: string) => {
-      const url = query ? `/api/products?q=${encodeURIComponent(query)}&limit=10` : `/api/products?limit=50`
-      const res = await fetch(url, { headers })
-      return ((await res.json()).data || []) as Array<{ id: string; name: string; stock: number; price: number }>
-    }
-    if (isAll) return tryFetch('')
-    let results = await tryFetch(q)
-    if (results.length === 0) {
-      for (const token of q.split(/\s+/).filter(t => t.length >= 3)) {
-        results = await tryFetch(token)
-        if (results.length > 0) break
-      }
-    }
-    return results
-  }, [])
-
-  const searchMembers = useCallback(async (headers: HeadersInit, q: string) => {
-    const isAll = ALL_KEYWORDS.has(q.toLowerCase().trim())
-    const tryFetch = async (query: string) => {
-      const url = query ? `/api/members?q=${encodeURIComponent(query)}&limit=10` : `/api/members?limit=20`
-      const res = await fetch(url, { headers })
-      return ((await res.json()).data || []) as Array<{ id: string; name: string; points: number }>
-    }
-    if (isAll) return tryFetch('')
-    let results = await tryFetch(q)
-    if (results.length === 0) {
-      for (const token of q.split(/\s+/).filter(t => t.length >= 3)) {
-        results = await tryFetch(token)
-        if (results.length > 0) break
-      }
-    }
-    return results
-  }, [])
-
-  const resolveFromDB = useCallback(async (intent: string, params: Record<string, unknown>) => {
-    const headers = await getClientAuthHeaders()
-
-    // Strict fetch — never returns all records, always filters by name
-    const strictFetchProducts = async (q: string) => {
-      if (!q.trim()) return []
-      const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=10`, { headers: headers as HeadersInit })
-      return ((await res.json()).data || []) as Array<{ id: string; name: string; stock: number; price: number }>
-    }
-    const strictFetchMembers = async (q: string) => {
-      if (!q.trim()) return []
-      const res = await fetch(`/api/members?q=${encodeURIComponent(q)}&limit=10`, { headers: headers as HeadersInit })
-      return ((await res.json()).data || []) as Array<{ id: string; name: string; points: number }>
-    }
-
-    if (['update_stock', 'update_price', 'delete_product'].includes(intent)) {
-      const q = String(params.product_name || '')
-      let results = await strictFetchProducts(q)
-      // Token fallback — try each word if full query misses
-      if (results.length === 0) {
-        for (const token of q.split(/\s+/).filter(t => t.length >= 3)) {
-          results = await strictFetchProducts(token)
-          if (results.length > 0) break
-        }
-      }
-      if (results.length === 0) return null
-      return {
-        resolved: { id: results[0].id, name: results[0].name, currentValue: intent === 'update_price' ? results[0].price : results[0].stock },
-        multipleMatches: results.length > 1 ? results.slice(0, 6) : undefined
-      }
-    }
-
-    if (intent === 'update_member_points') {
-      const q = String(params.member_name || '')
-      // Bulk: "semua" / "all" / "seluruh" → update all members
-      if (ALL_KEYWORDS.has(q.toLowerCase().trim())) {
-        const res = await fetch('/api/members?limit=200', { headers: headers as HeadersInit })
-        const allMembers = ((await res.json()).data || []) as Array<{ id: string; name: string; points: number }>
-        if (allMembers.length === 0) return null
-        return { resolved: { name: 'semua member' }, isBulk: true, bulkItems: allMembers }
-      }
-      let results = await strictFetchMembers(q)
-      if (results.length === 0) {
-        for (const token of q.split(/\s+/).filter(t => t.length >= 3)) {
-          results = await strictFetchMembers(token)
-          if (results.length > 0) break
-        }
-      }
-      if (results.length === 0) return null
-      return {
-        resolved: { id: results[0].id, name: results[0].name, currentValue: results[0].points },
-        multipleMatches: results.length > 1 ? results.slice(0, 6) : undefined
-      }
-    }
-
-    if (intent === 'delete_member') {
-      const q = String(params.member_name || '')
-      // Block bulk delete — too destructive
-      if (ALL_KEYWORDS.has(q.toLowerCase().trim())) return null
-      let results = await strictFetchMembers(q)
-      if (results.length === 0) {
-        for (const token of q.split(/\s+/).filter(t => t.length >= 3)) {
-          results = await strictFetchMembers(token)
-          if (results.length > 0) break
-        }
-      }
-      if (results.length === 0) return null
-      return {
-        resolved: { id: results[0].id, name: results[0].name, currentValue: results[0].points },
-        multipleMatches: results.length > 1 ? results.slice(0, 6) : undefined
-      }
-    }
-
-    return { resolved: {}, multipleMatches: undefined }
-  }, [])
-
-  const fetchReadIntent = useCallback(async (intent: string, params: Record<string, unknown>): Promise<string> => {
-    const headers = await getClientAuthHeaders() as HeadersInit
-    if (intent === 'check_revenue') {
-      const period = String(params.period || 'today')
-      const periodMap: Record<string, string> = { 'hari ini': 'today', today: 'today', 'minggu ini': 'week', week: 'week', 'bulan ini': 'month', month: 'month', 'tahun ini': 'year', year: 'year', 'all time': 'all', all: 'all' }
-      const p = periodMap[period.toLowerCase()] || 'today'
-      const labels: Record<string, string> = { today: 'Hari Ini', week: '7 Hari Terakhir', month: 'Bulan Ini', year: 'Tahun Ini', all: 'All Time' }
-      const now = new Date(), toStr = (d: Date) => d.toISOString().split('T')[0], end = toStr(now)
-      let start = end
-      if (p === 'week') { const d = new Date(now); d.setDate(now.getDate() - 7); start = toStr(d) }
-      else if (p === 'month') start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-      else if (p === 'year') start = `${now.getFullYear()}-01-01`
-      else if (p === 'all') start = '2000-01-01'
-      const res = await fetch(`/api/dashboard?startDate=${start}&endDate=${end}`, { headers })
-      const d = await res.json()
-      return `**Revenue ${labels[p]}**\n${fmt(d.totalSales || 0)} · Profit ${fmt(d.totalNetProfit || 0)} · ${d.totalOrders || 0} order`
-    }
-    if (intent === 'find_product') {
-      const results = await searchProducts(headers, String(params.query || ''))
-      if (results.length === 0) return `Produk tidak ditemukan.`
-      return results.map(p => `**${p.name}** — ${fmt(p.price)} · Stok: ${p.stock}`).join('\n')
-    }
-    if (intent === 'find_member') {
-      const results = await searchMembers(headers, String(params.query || ''))
-      if (results.length === 0) return `Member tidak ditemukan.`
-      return (results as Array<{ name: string; points: number; phone?: string; total_purchases?: number }>).map(m =>
-        `**${m.name}** — ${m.phone || ''} · ${m.points} poin · ${fmt(m.total_purchases || 0)} total`
-      ).join('\n')
-    }
-    if (intent === 'low_stock_alert') {
-      const res = await fetch('/api/products?limit=200', { headers })
-      const data = await res.json()
-      const low: Array<{ name: string; stock: number }> = (data.data || []).filter((p: { stock: number }) => p.stock <= 5)
-      if (low.length === 0) return 'Semua produk stoknya aman 👍'
-      return `**Produk stok menipis (≤5):**\n${low.map(p => `- ${p.name}: ${p.stock} sisa`).join('\n')}`
-    }
-    return 'Tidak ada data.'
-  }, [searchProducts, searchMembers])
-
-  const runAutomation = useCallback(async (intent: string, params: Record<string, unknown>) => {
-    const readIntents = ['check_revenue', 'find_product', 'find_member', 'low_stock_alert']
-    if (readIntents.includes(intent)) {
-      const result = await fetchReadIntent(intent, params)
-      setMessages(prev => [...prev, { role: 'assistant', content: result }])
-      setLoading(false)
-      return
-    }
-    if (intent === 'update_settings') {
-      setPendingAutomation({ intent, params, resolved: {} })
-      setLoading(false)
-      return
-    }
-    const dbResult = await resolveFromDB(intent, params)
-    if (!dbResult) {
-      const nameParam = String(params.product_name || params.member_name || '').trim()
-      const isAllKeyword = ALL_KEYWORDS.has(nameParam.toLowerCase())
-      const name = String(params.product_name || params.member_name || '')
-      const errorMsg = isAllKeyword
-        ? intent === 'delete_member'
-          ? 'Hapus semua member tidak diizinkan. Masukkan nama member yang spesifik.'
-          : `Perlu nama yang spesifik — bulk tidak didukung untuk aksi ini.`
-        : name
-          ? `"${name}" tidak ditemukan. Cek ejaan dan coba lagi.`
-          : `Nama produk/member-nya apa?`
-      setMessages(prev => [...prev, { role: 'assistant', content: errorMsg }])
-      setLoading(false)
-      return
-    }
-    setPendingAutomation({ intent, params, resolved: dbResult.resolved, multipleMatches: dbResult.multipleMatches, isBulk: dbResult.isBulk, bulkItems: dbResult.bulkItems })
-    setLoading(false)
-  }, [fetchReadIntent, resolveFromDB])
-
-  // Handle slash command form submit
+// Handle slash command form submit
   const handleCommandSubmit = useCallback(async (values: Record<string, string>) => {
     if (!activeCommand) return
     const { intent } = activeCommand
@@ -560,12 +432,24 @@ export function GlobalCommand() {
     setActiveCommand(null)
     setMessages(prev => [...prev, { role: 'user', content: label }])
     setLoading(true)
-    await runAutomation(intent, params)
+    try {
+      await runAutomation(intent, params)
+    } finally {
+      setLoading(false)
+    }
   }, [activeCommand, runAutomation])
 
   const selectCommand = useCallback((cmd: CommandDef) => {
     setSlashOpen(false)
     setInput('')
+
+    // For create_order, pre-fill input so user types naturally (same as AI Chat)
+    if (cmd.intent === 'create_order') {
+      setInput('catat ')
+      setTimeout(() => inputRef.current?.focus(), 50)
+      return
+    }
+
     if (cmd.fields.length === 0) {
       // Run immediately (e.g. stokmin)
       setMessages(prev => [...prev, { role: 'user', content: cmd.label }])
@@ -594,56 +478,6 @@ export function GlobalCommand() {
   const handleCancelAction = (idx: number) => {
     setMessages(prev => prev.map((m, i) => i === idx ? { ...m, actionStatus: 'cancelled' } : m))
     setMessages(prev => [...prev, { role: 'assistant', content: 'Oke, dibatalin.' }])
-  }
-
-  const handleConfirmAutomation = async () => {
-    if (!pendingAutomation) return
-    const automation = pendingAutomation
-    setPendingAutomation(null)
-
-    // Bulk execution
-    if (automation.isBulk && automation.bulkItems) {
-      const type = intentToActionType(automation.intent)
-      const items = automation.bulkItems
-      try {
-        const headers = await getClientAuthHeaders({ 'Content-Type': 'application/json' })
-        let successCount = 0
-        let failCount = 0
-        for (const item of items) {
-          const bulkAutomation = { ...automation, resolved: { id: item.id, name: item.name } }
-          const payload = buildActionPayload(bulkAutomation)
-          const res = await fetch('/api/ai/action', { method: 'POST', headers, body: JSON.stringify({ type, payload }) })
-          if (res.ok) successCount++
-          else failCount++
-        }
-        const msg = failCount === 0
-          ? `✓ ${successCount} member berhasil diupdate`
-          : `${successCount} berhasil, ${failCount} gagal`
-        setMessages(prev => [...prev, { role: 'assistant', content: msg }])
-      } catch { setMessages(prev => [...prev, { role: 'assistant', content: 'Error saat eksekusi bulk.' }]) }
-      return
-    }
-
-    // Single execution
-    const type = intentToActionType(automation.intent)
-    const payload = buildActionPayload(automation)
-    try {
-      const headers = await getClientAuthHeaders({ 'Content-Type': 'application/json' })
-      const res = await fetch('/api/ai/action', { method: 'POST', headers, body: JSON.stringify({ type, payload }) })
-      const data = await res.json()
-      setMessages(prev => [...prev, { role: 'assistant', content: res.ok ? `✓ ${data.message || 'Berhasil'}` : `Gagal: ${data.error}` }])
-    } catch { setMessages(prev => [...prev, { role: 'assistant', content: 'Error saat eksekusi.' }]) }
-  }
-
-  const handleCancelAutomation = () => {
-    setPendingAutomation(null)
-    setMessages(prev => [...prev, { role: 'assistant', content: 'Oke, dibatalin.' }])
-  }
-
-  const handleSelectMatch = (match: { id: string; name: string; [key: string]: unknown }) => {
-    if (!pendingAutomation) return
-    const cv = (pendingAutomation.intent === 'update_price' ? match.price : pendingAutomation.intent === 'update_member_points' ? match.points : match.stock) as number
-    setPendingAutomation({ ...pendingAutomation, resolved: { id: match.id, name: match.name, currentValue: cv }, multipleMatches: undefined })
   }
 
   const handleSubmit = async () => {
@@ -798,7 +632,11 @@ export function GlobalCommand() {
             ))}
             {pendingAutomation && (
               <div className="animate-in fade-in duration-200">
-                <NativeConfirmCard automation={pendingAutomation} onConfirm={handleConfirmAutomation} onCancel={handleCancelAutomation} onSelectMatch={handleSelectMatch} />
+                {pendingAutomation.intent === 'create_order' ? (
+                  <OrderPreviewCard params={pendingAutomation.params} onConfirm={confirmAutomation} onCancel={cancelAutomation} />
+                ) : (
+                  <NativeConfirmCard automation={pendingAutomation} onConfirm={confirmAutomation} onCancel={cancelAutomation} onSelectMatch={selectMatch} />
+                )}
               </div>
             )}
             <div ref={messagesEndRef} className="h-1" />
@@ -807,7 +645,7 @@ export function GlobalCommand() {
 
         {pendingAutomation && messages.length === 0 && (
           <div className="px-5 sm:px-6 pt-5 pb-2">
-            <NativeConfirmCard automation={pendingAutomation} onConfirm={handleConfirmAutomation} onCancel={handleCancelAutomation} onSelectMatch={handleSelectMatch} />
+            <NativeConfirmCard automation={pendingAutomation} onConfirm={confirmAutomation} onCancel={cancelAutomation} onSelectMatch={selectMatch} />
           </div>
         )}
 

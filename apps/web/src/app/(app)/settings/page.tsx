@@ -15,7 +15,9 @@ import {
   MapPin,
   Printer,
   Star,
-  Bot
+  Bot,
+  ImagePlus,
+  Trash2
 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -197,6 +199,7 @@ export default function SettingsPage() {
   const { business, loading: authLoading, refresh: refreshAuth } = useAuth()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [logoUploading, setLogoUploading] = useState(false)
   const [settings, setSettings] = useState<any>(null)
   const [businessData, setBusinessData] = useState<any>(null)
   const [message, setMessage] = useState({ type: '', text: '' })
@@ -208,7 +211,8 @@ export default function SettingsPage() {
         pic_name: business.pic_name || '',
         business_phone: business.phone || '',
         business_email: business.email || '',
-        business_address: business.address || ''
+        business_address: business.address || '',
+        logo_url: (business as any).logo_url || ''
       })
       fetchSettings()
     } else if (!authLoading && !business) {
@@ -222,6 +226,67 @@ export default function SettingsPage() {
       const res = await fetch(`/api/settings?business_id=${business.id}`, { headers: await getClientAuthHeaders() })
       if (res.ok) setSettings(await res.json())
     } catch (error) {} finally { setLoading(false) }
+  }
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !business) return
+    
+    setLogoUploading(true)
+    setMessage({ type: '', text: '' })
+    
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      
+      const authHeaders = await getClientAuthHeaders()
+      // We don't want to set Content-Type here, fetch will automatically set it to multipart/form-data with the correct boundary
+      const headers = new Headers(authHeaders as Record<string, string>)
+      headers.delete('Content-Type')
+
+      const res = await fetch('/api/businesses/my/logo', {
+        method: 'POST',
+        headers,
+        body: formData
+      })
+      
+      if (!res.ok) throw new Error('Failed to upload logo')
+      
+      const data = await res.json()
+      setBusinessData({ ...businessData, logo_url: data.business?.logo_url || '' })
+      setMessage({ type: 'success', text: 'Logo updated successfully' })
+      refreshAuth() // Refresh auth state to update business globally
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to upload logo. Ensure it is an image under 3MB.' })
+    } finally {
+      setLogoUploading(false)
+      e.target.value = '' // Reset file input
+    }
+  }
+
+  const handleLogoRemove = async () => {
+    if (!business || !confirm('Are you sure you want to remove the business logo?')) return
+    
+    setLogoUploading(true)
+    setMessage({ type: '', text: '' })
+    
+    try {
+      const headers = await getClientAuthHeaders()
+      const res = await fetch('/api/businesses/my/logo', {
+        method: 'DELETE',
+        headers
+      })
+      
+      if (!res.ok) throw new Error('Failed to remove logo')
+      
+      setBusinessData({ ...businessData, logo_url: '' })
+      setMessage({ type: 'success', text: 'Logo removed successfully' })
+      refreshAuth()
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to remove logo' })
+    } finally {
+      setLogoUploading(false)
+    }
   }
 
   const handleSave = async (e: React.FormEvent) => {
@@ -291,6 +356,51 @@ export default function SettingsPage() {
               <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-600">Business Profile</CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-5">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 pb-4 border-b border-slate-100">
+                <div className="relative group">
+                  <div className={`w-24 h-24 rounded-2xl border-2 border-dashed flex items-center justify-center overflow-hidden transition-all bg-slate-50 ${businessData?.logo_url ? 'border-slate-200' : 'border-slate-300'}`}>
+                    {logoUploading ? (
+                      <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
+                    ) : businessData?.logo_url ? (
+                      <img src={businessData.logo_url} alt="Business Logo" className="w-full h-full object-contain p-2" />
+                    ) : (
+                      <Building2 className="w-8 h-8 text-slate-300" />
+                    )}
+                  </div>
+                  <Label htmlFor="logo-upload" className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl cursor-pointer text-white">
+                    <ImagePlus className="w-5 h-5 mb-1" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest">{businessData?.logo_url ? 'Ganti' : 'Upload'}</span>
+                  </Label>
+                  <Input 
+                    id="logo-upload" 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    onChange={handleLogoUpload}
+                    disabled={logoUploading}
+                  />
+                </div>
+                <div className="space-y-2 flex-1">
+                  <h3 className="text-sm font-bold text-slate-800">Business Logo</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Upload your business logo. Recommended size: 512x512px. <br className="hidden sm:block" />
+                    Max size: 3MB. Formats: JPG, PNG, WEBP, SVG.
+                  </p>
+                  {businessData?.logo_url && (
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleLogoRemove}
+                      disabled={logoUploading}
+                      className="h-8 text-[11px] font-bold text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Remove Logo
+                    </Button>
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Business Name</Label>

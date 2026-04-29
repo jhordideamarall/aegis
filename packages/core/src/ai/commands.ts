@@ -94,7 +94,10 @@ export const COMMANDS: CommandDef[] = [
   {
     key: 'order', icon: '', label: 'Catat Order', description: 'Buat transaksi langsung dari chat',
     intent: 'create_order',
-    fields: []
+    fields: [
+      { name: 'items', label: 'Item (qty nama, ...)', placeholder: '2 Kopi, 1 Roti' },
+      { name: 'payment_method', label: 'Pembayaran', options: ['cash', 'qris', 'transfer'] }
+    ]
   },
   {
     key: 'hapus-produk', icon: '', label: 'Hapus Produk', description: 'Hapus produk dari sistem',

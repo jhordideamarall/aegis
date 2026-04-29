@@ -71,7 +71,7 @@ export async function GET(request: Request) {
       paymentColumnSupport.proof ? 'payment_proof_uploaded_at' : null,
       paymentColumnSupport.notes ? 'payment_notes' : null,
       'created_at',
-      'order_items(id, product_id, qty, price, product:products(name))',
+      'order_items(id, product_id, qty, price, cost_price, product:products(name))',
       'member:members(name, phone)'
     ]
       .filter(Boolean)
@@ -83,9 +83,13 @@ export async function GET(request: Request) {
     const parseDateToUTC = (dateString: string, includeTime: 'start' | 'end' = 'start'): Date => {
       const [year, month, day] = dateString.split('-').map(Number)
       if (includeTime === 'start') {
-        return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
+        const d = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
+        d.setHours(d.getHours() - 7) // WIB adjustment
+        return d
       } else {
-        return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999))
+        const d = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999))
+        d.setHours(d.getHours() - 7) // WIB adjustment
+        return d
       }
     }
 

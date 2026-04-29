@@ -79,11 +79,11 @@ export_report {period: "today"|"week"|"month"|"year"}
 - "download CSV transaksi"
 - "export data penjualan"
 
-create_order {items, payment_method}
+create_order {items, payment_method, member_name?}
 - "catat 2 kopi americano 1 latte bayar qris"
 - "order 3 nasi goreng 2 es teh tunai"
 - "transaksi 1 kopi susu bayar transfer"
-- "buat order 2 pocari 1 teh botol cash"
+- "buat order 2 pocari 1 teh botol cash member budi"
 
 update_settings {key, value}
 - "aktifkan program poin"
@@ -103,7 +103,7 @@ needs_context {}
 RULES:
 - Semua nilai numeric harus number bukan string
 - Untuk low_stock_alert dan predictive_restock tidak perlu params
-- Untuk create_order: items adalah array [{product_name, qty}], payment_method adalah "cash"|"qris"|"bank_transfer"|"debit" (gunakan "bank_transfer" untuk transfer/bca/bni/mandiri, default "cash" jika tidak jelas)
+- Untuk create_order: items adalah array [{product_name, qty}], payment_method adalah "cash"|"qris"|"bank_transfer"|"debit" (gunakan "bank_transfer" untuk transfer/bca/bni/mandiri, default "cash" jika tidak jelas). Jika user menyebut nama member/pelanggan, sertakan dalam "member_name".
 - Jika ambigu antara find_product dan low_stock_alert, pilih low_stock_alert jika menyebut "kosong", "habis", "menipis", "rendah"
 - Jika user menyebut "ini", "itu", "tadi", "yang tadi" → cari nama produk/member dari "Konteks pesan sebelumnya" yang diberikan, gunakan nama itu sebagai product_name atau member_name
 - Jika pertanyaan analitik/bisnis yang butuh data real tapi bukan intent di atas: {"intent":"needs_context"}

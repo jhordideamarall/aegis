@@ -33,10 +33,12 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 interface DashboardData {
   totalSales: number
+  totalNetRevenue: number
   totalOrders: number
   totalItems: number
   totalNetProfit: number
   prevTotalSales: number
+  prevTotalNetRevenue: number
   prevTotalOrders: number
   prevTotalNetProfit: number
   newMembers: number
@@ -185,10 +187,9 @@ export default function DashboardPage() {
     }
   }
 
-  const salesTrend = data ? buildTrend(data.totalSales, data.prevTotalSales) : null
+  const salesTrend = data ? buildTrend(data.totalNetRevenue, data.prevTotalNetRevenue) : null
   const ordersTrend = data ? buildTrend(data.totalOrders, data.prevTotalOrders) : null
   const profitTrend = data ? buildTrend(data.totalNetProfit, data.prevTotalNetProfit) : null
-  const membersTrend = data ? buildTrend(data.newMembers, data.prevNewMembers) : null
 
   const chartData = data?.salesChart?.map(item => {
     return { 
@@ -239,10 +240,10 @@ export default function DashboardPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
-        <StatCard title="Revenue" value={formatIDR(data?.totalSales || 0)} icon={TrendingUp} trend={salesTrend} />
+        <StatCard title="Gross Omset" value={formatIDR(data?.totalSales || 0)} icon={TrendingUp} trend={data ? buildTrend(data.totalSales, data.prevTotalSales) : null} />
+        <StatCard title="Net Revenue" value={formatIDR(data?.totalNetRevenue || 0)} icon={TrendingUp} trend={salesTrend} />
         <StatCard title="Net Profit" value={formatIDR(data?.totalNetProfit || 0)} icon={Wallet} trend={profitTrend} dark />
         <StatCard title="Total Orders" value={data?.totalOrders || 0} icon={ShoppingBag} trend={ordersTrend} />
-        <StatCard title="New Members" value={data?.newMembers || 0} icon={Users} trend={membersTrend} />
       </div>
 
       {/* Sales Performance Chart */}

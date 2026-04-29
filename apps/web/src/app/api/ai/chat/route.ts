@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const ctx = await getBusinessContextFromRequest(request)
     if (!ctx) return unauthorizedResponse()
 
-    const { businessId, user } = ctx
+    const { businessId, user, role } = ctx
     const body = await request.json() as { conversationId?: string; prompt: string }
     const { prompt } = body
     let { conversationId } = body
@@ -49,14 +49,18 @@ export async function POST(request: Request) {
 
     const convId = conversationId as string
 
-    const [businessData, historyData, bizMeta] = await Promise.all([
+    const [businessData, historyData, bizMeta, userDetails] = await Promise.all([
       fetchBusinessContext(businessId),
       loadHistory(convId, prompt),
-      supabaseAdmin.from('businesses').select('pic_name, business_name').eq('id', businessId).single()
+      supabaseAdmin.from('businesses').select('pic_name, business_name').eq('id', businessId).single(),
+      supabaseAdmin.from('business_users').select('role').eq('user_id', user.id).eq('business_id', businessId).single()
     ])
 
+    // Prioritaskan nama dari pic_name (yang sudah pasti ada), role dari business_users
     const userName = bizMeta.data?.pic_name?.split(' ')[0] || null
-    const systemPrompt = buildSystemPrompt(businessData, userName)
+    const userRole = role || userDetails?.data?.role || null
+
+    const systemPrompt = buildSystemPrompt(businessData, userName, userRole)
     const messages = [
       { role: 'system', content: systemPrompt },
       ...historyData,
@@ -273,8 +277,10 @@ async function calcStats(businessId: string, from: Date) {
   return { count: orderData.length, revenue, profit: net_revenue - cost, tax, service, net_revenue }
 }
 
-function buildSystemPrompt(context: string, userName: string | null): string {
-  const userCtx = userName ? `Nama user yang sedang chat: ${userName}. Panggil dengan nama ini kalau natural, jangan tiap kalimat.` : ''
+function buildSystemPrompt(context: string, userName: string | null, role: string | null): string {
+  const userCtx = userName
+    ? `Nama user yang sedang chat: ${userName}. Role: ${role || 'unknown'}. ${role === 'owner' ? 'Kamu sedang berbicara sebagai pemilik/pemilik bisnis.' : role === 'admin' ? 'Kamu adalah admin bisnismu.' : ''} Panggil dengan nama ini kalau natural, jangan tiap kalimat. Jawab pertanyaan tentang diri user (seperti "siapa aku?") berdasarkan info ini saja, jangan menambah info lain yang tidak ada.`
+    : ''
   return `Kamu adalah Aegis — business advisor AI di AEGIS POS, built-in langsung di sistem mereka.
 ${userCtx}
 
@@ -348,6 +354,7 @@ User: "Produk terlaris?"
 - Kalau data tidak ada → bilang jujur, sarankan cek menu Transactions
 - Hitung dari data yang ada, jangan bilang "tidak bisa dihitung" kalau datanya tersedia
 - Persentase selalu disertai konteks (naik/turun dari apa, dibanding periode mana)
+- JANGAN tambahkan info yang tidak ada di data bisnis. Kalau ga tau → bilang ga tau, jangan ngarang.
 
 ## DATA BISNIS SAAT INI
 ${context}`
