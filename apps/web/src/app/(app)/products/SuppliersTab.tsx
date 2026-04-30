@@ -24,7 +24,6 @@ interface Supplier {
 interface Props {
   suppliers: Supplier[]
   onRefresh: () => void
-  setShowModal: (val: boolean) => void
 }
 
 export function SuppliersTab({ suppliers, onRefresh }: Props) {

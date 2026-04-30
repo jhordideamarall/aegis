@@ -63,8 +63,6 @@ export default function ProductsPage() {
   const [fetching, setFetching] = useState(true)
   const [fetchingMaterials, setFetchingMaterials] = useState(true)
   const [showModal, setShowModal] = useState(false)
-  const [showMaterialModal, setShowMaterialModal] = useState(false)
-  const [showSupplierModal, setShowSupplierModal] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -373,11 +371,11 @@ export default function ProductsPage() {
         </TabsContent>
 
         <TabsContent value="materials" className="mt-6">
-          <RawMaterialsTab materials={materials} suppliers={suppliers} loading={fetchingMaterials} onRefresh={fetchMaterials} setShowModal={setShowMaterialModal} />
+          <RawMaterialsTab materials={materials} suppliers={suppliers} loading={fetchingMaterials} onRefresh={fetchMaterials} />
         </TabsContent>
 
         <TabsContent value="suppliers" className="mt-6">
-          <SuppliersTab suppliers={suppliers} onRefresh={fetchSuppliers} setShowModal={setShowSupplierModal} />
+          <SuppliersTab suppliers={suppliers} onRefresh={fetchSuppliers} />
         </TabsContent>
       </Tabs>
 
