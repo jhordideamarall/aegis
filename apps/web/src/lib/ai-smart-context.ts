@@ -52,9 +52,10 @@ export async function buildSmartContext(userId: string, businessId: string): Pro
   const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0)
   const weekStart = new Date(now); weekStart.setDate(now.getDate() - 7); weekStart.setHours(0, 0, 0, 0)
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const yearStart = new Date(now.getFullYear(), 0, 1)
 
   // Optimized queries - reduced limits
-  const [productsRes, membersRes, recentOrdersRes, statsToday, statsWeek, statsMonth, businessRes, settingsRes] = await Promise.all([
+  const [productsRes, membersRes, recentOrdersRes, statsToday, statsWeek, statsMonth, statsYear, topProductsYear, businessRes, settingsRes] = await Promise.all([
     // Reduced: top 10 products by stock value
     supabaseAdmin.from('products')
       .select('id, name, price, stock, category')
@@ -76,10 +77,17 @@ export async function buildSmartContext(userId: string, businessId: string): Pro
       .order('created_at', { ascending: false })
       .limit(10),
     
-    // Current stats only - no 12 month history
     calcStats(businessId, todayStart),
     calcStats(businessId, weekStart),
     calcStats(businessId, monthStart),
+    calcStats(businessId, yearStart),
+    
+    // Top products by sales this year
+    supabaseAdmin.from('order_items')
+      .select('product_id, qty, price, product:products(name)')
+      .eq('business_id', businessId)
+      .gte('created_at', yearStart.toISOString()),
+    
     supabaseAdmin.from('businesses').select('business_name, industry, city').eq('id', businessId).single(),
     supabaseAdmin.from('settings').select('key, value').eq('business_id', businessId).limit(10),
   ])
@@ -93,6 +101,19 @@ export async function buildSmartContext(userId: string, businessId: string): Pro
     return acc 
   }, {})
 
+  // Process top products this year
+  const productSales: Record<string, { name: string; qty: number; revenue: number }> = {}
+  for (const item of (topProductsYear.data || [])) {
+    const p = item.product as { name: string } | null
+    const name = p?.name || 'Unknown'
+    if (!productSales[name]) productSales[name] = { name, qty: 0, revenue: 0 }
+    productSales[name].qty += item.qty || 0
+    productSales[name].revenue += (item.price || 0) * (item.qty || 0)
+  }
+  const topProductsByYear = Object.values(productSales)
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 10)
+
   const fmt = (n: number) => `Rp${n.toLocaleString('id-ID')}`
   const fmtS = (s: { count: number; revenue: number; profit: number; net_revenue: number }) =>
     `${s.count} order | ${fmt(s.revenue)} revenue | ${fmt(s.net_revenue)} net`
@@ -100,11 +121,15 @@ export async function buildSmartContext(userId: string, businessId: string): Pro
   // Build compact context
   const sections = [
     `[PROFIL] ${biz?.business_name || '-'} (${biz?.industry || '-'}) | ${biz?.city || '-'}`,
-    `[STAT] Hari ini: ${fmtS(statsToday)} | 7 hari: ${fmtS(statsWeek)} | Bulan ini: ${fmtS(statsMonth)}`,
+    `[STAT] Hari ini: ${fmtS(statsToday)} | 7 hari: ${fmtS(statsWeek)} | Bulan ini: ${fmtS(statsMonth)} | Tahun ini: ${fmtS(statsYear)}`,
   ]
 
   if (products.length > 0) {
     sections.push(`[PRODUK TOP] ${products.slice(0, 5).map(p => `${p.name}(stok:${p.stock})`).join(', ')}`)
+  }
+
+  if (topProductsByYear.length > 0) {
+    sections.push(`[PRODUK TERJUAL TAHUN INI] ${topProductsByYear.map(p => `${p.name}:${p.qty}pcs(${fmt(p.revenue)})`).join(', ')}`)
   }
 
   if (members.length > 0) {
