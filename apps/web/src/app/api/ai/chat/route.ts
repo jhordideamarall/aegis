@@ -86,6 +86,9 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const errorText = await response.text()
+      if (response.status === 429) {
+        return NextResponse.json({ error: 'Limit harian AI tercapai. Coba lagi besok ya~ atau hubungi admin untuk upgrade.' }, { status: 429 })
+      }
       return NextResponse.json({ error: `AI Error: ${errorText}` }, { status: response.status })
     }
 
