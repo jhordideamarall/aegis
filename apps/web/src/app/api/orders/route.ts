@@ -372,10 +372,10 @@ export async function GET(request: Request) {
 
     if (error) throw error
 
-    // Calculate summary for non-search queries
+// Calculate summary for non-search queries
     let summaryQuery = supabaseAdmin
       .from('orders')
-      .select('total', { count: 'exact' })
+      .select('id', { count: 'exact', head: true })
       .eq('business_id', resolvedBusinessId)
 
     if (rangeStart) {
@@ -390,10 +390,51 @@ export async function GET(request: Request) {
       summaryQuery = summaryQuery.eq('payment_method', paymentMethod)
     }
 
-    const { data: summaryData, count: summaryCount, error: summaryError } = await summaryQuery
-    if (summaryError) throw summaryError
+    // Get count
+    const { count: summaryCount, error: countError } = await summaryQuery
+    if (countError) throw countError
 
-    const totalRevenue = summaryData?.reduce((sum, order) => sum + order.total, 0) || 0
+    // Calculate sum using RPC function with date filters
+    const startDateISO = rangeStart ? rangeStart.toISOString() : null
+    const endDateISO = rangeEnd ? rangeEnd.toISOString() : null
+    const paymentMethodFilter = paymentMethod && paymentMethod !== 'all' ? paymentMethod : null
+
+    const { data: sumResult, error: sumError } = await supabaseAdmin.rpc('get_order_summary_by_dates', {
+      p_business_id: resolvedBusinessId,
+      p_start_date: startDateISO,
+      p_end_date: endDateISO,
+      p_payment_method: paymentMethodFilter
+    })
+
+    let totalRevenue = 0
+    if (sumError || !sumResult || sumResult.length === 0) {
+      // Fallback: iterate through all pages if RPC fails
+      let allData: any[] = []
+      let page = 0
+      let hasMore = true
+      while (hasMore) {
+        let query = supabaseAdmin
+          .from('orders')
+          .select('total')
+          .eq('business_id', resolvedBusinessId)
+          .range(page * 1000, (page + 1) * 1000 - 1)
+        
+        if (rangeStart) query = query.gte('created_at', rangeStart.toISOString())
+        if (rangeEnd) query = query.lte('created_at', rangeEnd.toISOString())
+        if (paymentMethod && paymentMethod !== 'all') query = query.eq('payment_method', paymentMethod)
+
+        const { data: batch } = await query
+        if (batch && batch.length > 0) {
+          allData.push(...batch)
+          page++
+        } else {
+          hasMore = false
+        }
+      }
+      totalRevenue = allData.reduce((sum, o) => sum + (Number(o.total) || 0), 0)
+    } else if (sumResult && sumResult.length > 0) {
+      totalRevenue = Number(sumResult[0].total_revenue) || 0
+    }
 
     return NextResponse.json({
       data: data || [],

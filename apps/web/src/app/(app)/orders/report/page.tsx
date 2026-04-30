@@ -32,16 +32,14 @@ export default function OrdersReportPage() {
       const reportUrl = new URL('/api/orders/report', window.location.origin)
       reportUrl.searchParams.set('business_id', business.id)
 
-      const filter = searchParams.get('filter') || 'all'
       const paymentMethod = searchParams.get('payment_method') || 'all'
       const q = searchParams.get('q') || ''
       const startDate = searchParams.get('startDate') || ''
       const endDate = searchParams.get('endDate') || ''
 
-      if (filter === 'today' || filter === 'week' || filter === 'custom') {
-        if (startDate) reportUrl.searchParams.set('startDate', startDate)
-        if (endDate) reportUrl.searchParams.set('endDate', endDate)
-      }
+      // Always apply date filters if present (new DateFilterSelect sends dates directly)
+      if (startDate) reportUrl.searchParams.set('startDate', startDate)
+      if (endDate) reportUrl.searchParams.set('endDate', endDate)
 
       if (paymentMethod !== 'all') {
         reportUrl.searchParams.set('payment_method', paymentMethod)
@@ -64,7 +62,15 @@ export default function OrdersReportPage() {
       const result = await res.json()
       const orders = (result.data || []) as ReportOrder[]
 
-      const filterLabel = searchParams.get('filterLabel') || 'All Orders'
+      // Build filter label based on date range
+      let filterLabel = 'All Orders'
+      if (startDate && endDate) {
+        if (startDate === endDate) {
+          filterLabel = `Tanggal ${startDate}`
+        } else {
+          filterLabel = `${startDate} - ${endDate}`
+        }
+      }
 
       setReportHtml(
         generateReportHtml(

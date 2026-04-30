@@ -22,8 +22,7 @@ import {
   Loader2,
   Calendar as CalendarIcon
 } from 'lucide-react'
-import { DateRangePicker } from '@/components/DateRangePicker'
-import { DateRange } from 'react-day-picker'
+import { DateFilterSelect } from '@/components/ui/date-filter-select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -87,29 +86,17 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [fetching, setFetching] = useState(true)
   
-  const [dateRangeFilter, setDateRangeFilterState] = useState<'today' | 'week' | 'month' | 'custom'>(() => {
-    const urlFilter = searchParams.get('filter') as 'today' | 'week' | 'month' | 'custom'
-    if (urlFilter) return urlFilter
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('dashboard_filter')
-      if (stored === 'today' || stored === 'week' || stored === 'month' || stored === 'custom') return stored
+  const getToday = () => {
+    const now = new Date()
+    return {
+      year: String(now.getFullYear()),
+      month: String(now.getMonth() + 1).padStart(2, '0'),
+      week: '',
+      day: String(now.getDate()).padStart(2, '0')
     }
-    return 'today'
-  })
+  }
+  const [dateFilter, setDateFilter] = useState(getToday)
   const [chartMode, setChartMode] = useState<'sales' | 'profit'>('sales')
-  
-  const setDateRangeFilter = useCallback((filter: 'today' | 'week' | 'month' | 'custom') => {
-    setDateRangeFilterState(filter)
-    localStorage.setItem('dashboard_filter', filter)
-    const url = new URL(window.location.href)
-    url.searchParams.set('filter', filter)
-    window.history.replaceState({}, '', url.toString())
-  }, [])
-  
-  const [customDate, setCustomDate] = useState<DateRange | undefined>({
-    from: new Date(),
-    to: new Date()
-  })
   
   const isLoading = loading || fetching
 
@@ -121,25 +108,40 @@ export default function DashboardPage() {
     let startDate: string
     let endDate: string
 
-    if (dateRangeFilter === 'custom') {
-      startDate = customDate?.from ? toLocalISODate(customDate.from) : toLocalISODate()
-      endDate = customDate?.to ? toLocalISODate(customDate.to) : startDate
-    } else {
-      const now = new Date()
-
-      if (dateRangeFilter === 'today') {
-        startDate = toLocalISODate(now)
-        endDate = toLocalISODate(now)
-      } else if (dateRangeFilter === 'week') {
-        const currentDay = now.getDay()
-        const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currentDay)
-        startDate = toLocalISODate(weekStart)
-        endDate = toLocalISODate(now)
-      } else { 
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-        startDate = toLocalISODate(monthStart)
-        endDate = toLocalISODate(now)
+    // Convert dateFilter to startDate/endDate
+    if (dateFilter.year) {
+      if (dateFilter.month) {
+        const month = dateFilter.month.padStart(2, '0')
+        if (dateFilter.week) {
+          const year = parseInt(dateFilter.year)
+          const monthNum = parseInt(dateFilter.month)
+          const weekNum = parseInt(dateFilter.week)
+          const firstDayOfMonth = new Date(year, monthNum - 1, 1)
+          const firstSunday = new Date(firstDayOfMonth)
+          firstSunday.setDate(firstSunday.getDate() + (7 - firstSunday.getDay()) % 7)
+          const weekStart = new Date(firstSunday)
+          weekStart.setDate(weekStart.getDate() + (weekNum - 1) * 7)
+          const weekEnd = new Date(weekStart)
+          weekEnd.setDate(weekEnd.getDate() + 6)
+          startDate = toLocalISODate(weekStart)
+          endDate = toLocalISODate(weekEnd)
+        } else if (dateFilter.day) {
+          const day = dateFilter.day.padStart(2, '0')
+          startDate = `${dateFilter.year}-${month}-${day}`
+          endDate = startDate
+        } else {
+          startDate = `${dateFilter.year}-${month}-01`
+          const lastDay = new Date(parseInt(dateFilter.year), parseInt(dateFilter.month), 0).getDate()
+          endDate = `${dateFilter.year}-${month}-${lastDay}`
+        }
+      } else {
+        startDate = `${dateFilter.year}-01-01`
+        endDate = `${dateFilter.year}-12-31`
       }
+    } else {
+      // Default to today if no filter
+      startDate = toLocalISODate()
+      endDate = toLocalISODate()
     }
 
     const cacheKey = `dashboard:${business.id}:${startDate}:${endDate}`
@@ -152,6 +154,7 @@ export default function DashboardPage() {
     }
 
     try {
+      console.log('[DEBUG Dashboard] dateFilter:', dateFilter, 'startDate:', startDate, 'endDate:', endDate)
       const url = `/api/dashboard?business_id=${business.id}&startDate=${startDate}&endDate=${endDate}`
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch(url, {
@@ -161,6 +164,7 @@ export default function DashboardPage() {
       })
       if (res.ok) {
         const result = await res.json()
+        console.log('[DEBUG Dashboard] API response totalSales:', result.totalSales, 'totalOrders:', result.totalOrders)
         setData(result)
         setClientCache(cacheKey, result)
       }
@@ -169,13 +173,13 @@ export default function DashboardPage() {
     } finally {
       setFetching(false)
     }
-  }, [business, dateRangeFilter, customDate])
+  }, [business, dateFilter])
 
   useEffect(() => {
     if (business) {
       fetchDashboard()
     }
-  }, [business, dateRangeFilter, customDate, fetchDashboard])
+  }, [business, dateFilter, fetchDashboard])
 
   const buildTrend = (current: number, previous: number) => {
     if (previous === 0) return { label: '0%', direction: 'neutral' as const }
@@ -208,33 +212,10 @@ export default function DashboardPage() {
         </div>
         
         <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner transition-all">
-          {[
-            { id: 'today', label: 'Today' },
-            { id: 'week', label: 'Week' },
-            { id: 'month', label: 'Month' },
-            { id: 'custom', label: 'Range' }
-          ].map((opt) => (
-            <button
-              key={opt.id}
-              onClick={() => setDateRangeFilter(opt.id as any)}
-              className={`px-4 h-9 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 transform active:scale-95 ${
-                dateRangeFilter === opt.id 
-                  ? 'bg-white text-slate-900 shadow-md ring-1 ring-black/5' 
-                  : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200/50'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-          
-          {dateRangeFilter === 'custom' && (
-            <div className="animate-in fade-in slide-in-from-right-3 duration-500 ml-1">
-              <DateRangePicker 
-                date={customDate} 
-                onDateChange={setCustomDate} 
-              />
-            </div>
-          )}
+          <DateFilterSelect 
+            value={dateFilter} 
+            onChange={setDateFilter} 
+          />
         </div>
       </div>
 

@@ -79,6 +79,9 @@ export async function GET(request: Request) {
 
     let rangeStart = parseDateRange(startDate, 'start')
     let rangeEnd = parseDateRange(endDate, 'end')
+    
+    console.log('[DEBUG API Dashboard] startDate:', startDate, '-> rangeStart:', rangeStart.toISOString())
+    console.log('[DEBUG API Dashboard] endDate:', endDate, '-> rangeEnd:', rangeEnd.toISOString())
 
     if (rangeEnd < rangeStart) {
       const temp = rangeStart
@@ -130,13 +133,15 @@ export async function GET(request: Request) {
         .eq('business_id', resolvedBusinessId)
         .gte('created_at', currentStartDate)
         .lte('created_at', currentEndDate)
+        .limit(100000)
         .order('created_at', { ascending: false }),
       supabaseAdmin
         .from('orders')
         .select('total, order_items(qty, price, cost_price)')
         .eq('business_id', resolvedBusinessId)
         .gte('created_at', prevStartDate)
-        .lte('created_at', prevEndDate),
+        .lte('created_at', prevEndDate)
+        .limit(100000),
       supabaseAdmin
         .from('products')
         .select('*', { count: 'exact', head: true })
@@ -164,33 +169,44 @@ export async function GET(request: Request) {
     const normalizedOrders = ((orders || []) as unknown) as DashboardOrder[]
     const normalizedPrevOrders = ((prevOrders || []) as unknown) as DashboardOrder[]
 
-    // Calculations — Net Revenue = cash paid - tax - service (IGNORE points discount)
-    // Points redemption adalah value dari customer, bukan pengurang revenue kita
-    const getCashPaid = (order: DashboardOrder) => {
-      const tax = order.tax_amount || 0
-      const service = order.service_amount || 0
-      return order.total - tax - service
-    }
-
-    const totalSales = normalizedOrders.reduce((sum, order) => sum + order.total, 0)
-    const totalNetRevenue = normalizedOrders.reduce((sum, order) => sum + getCashPaid(order), 0)
-    const totalOrders = normalizedOrders.length
-    const totalItems = normalizedOrders.reduce((sum, order) => sum + (order.order_items?.length || 0), 0)
+    // Use comprehensive RPC to get all metrics
+    const { data: metrics } = await supabaseAdmin.rpc('get_dashboard_metrics', {
+      p_business_id: resolvedBusinessId,
+      p_start_date: currentStartDate,
+      p_end_date: currentEndDate
+    })
     
-    const totalNetProfit = normalizedOrders.reduce((sum, order) => {
-      const cashPaid = getCashPaid(order)
-      const orderCost = order.order_items?.reduce((oSum, item) => oSum + ((item.cost_price || 0) * item.qty), 0) || 0
-      return sum + (cashPaid - orderCost)
-    }, 0)
+    const { data: prevMetrics } = await supabaseAdmin.rpc('get_dashboard_metrics', {
+      p_business_id: resolvedBusinessId,
+      p_start_date: prevStartDate,
+      p_end_date: prevEndDate
+    })
 
-    const prevTotalSales = normalizedPrevOrders.reduce((sum, order) => sum + order.total, 0)
-    const prevTotalNetRevenue = normalizedPrevOrders.reduce((sum, order) => sum + getCashPaid(order), 0)
-    const prevTotalOrders = normalizedPrevOrders.length
-    const prevTotalNetProfit = normalizedPrevOrders.reduce((sum, order) => {
-      const cashPaid = getCashPaid(order)
-      const orderCost = order.order_items?.reduce((oSum, item) => oSum + ((item.cost_price || 0) * item.qty), 0) || 0
-      return sum + (cashPaid - orderCost)
-    }, 0)
+    const current = metrics?.[0] || {}
+    const prev = prevMetrics?.[0] || {}
+
+    // Calculations:
+    // - Net Revenue = total - tax - service
+    // - Net Profit = net revenue - cost
+    const totalSales = Number(current.total_revenue) || 0
+    const totalOrders = Number(current.total_orders) || 0
+    const totalTax = Number(current.total_tax) || 0
+    const totalService = Number(current.total_service) || 0
+    const totalCost = Number(current.total_cost) || 0
+    
+    const totalNetRevenue = totalSales - totalTax - totalService
+    const totalNetProfit = totalNetRevenue - totalCost
+    
+    const prevTotalSales = Number(prev.total_revenue) || 0
+    const prevTotalOrders = Number(prev.total_orders) || 0
+    const prevTotalTax = Number(prev.total_tax) || 0
+    const prevTotalService = Number(prev.total_service) || 0
+    const prevTotalCost = Number(prev.total_cost) || 0
+    
+    const prevTotalNetRevenue = prevTotalSales - prevTotalTax - prevTotalService
+    const prevTotalNetProfit = prevTotalNetRevenue - prevTotalCost
+
+    const totalItems = normalizedOrders.reduce((sum, order) => sum + (order.order_items?.length || 0), 0)
 
     // Top Lists
     const productSales: Record<string, { name: string; qty: number; revenue: number }> = {}

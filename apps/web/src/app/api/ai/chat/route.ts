@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getBusinessContextFromRequest, unauthorizedResponse } from '@/lib/requestAuth'
 import { supabaseAdmin } from '@/lib/supabase'
+import { buildSmartContext } from '@/lib/ai-smart-context'
 
 export const maxDuration = 60
 
@@ -49,18 +50,23 @@ export async function POST(request: Request) {
 
     const convId = conversationId as string
 
-    const [businessData, historyData, bizMeta, userDetails] = await Promise.all([
-      fetchBusinessContext(businessId),
+    // Skip hardcoded clarification - let reasoning model handle it
+    // const clarificationCheck = checkClarification(prompt)
+    // if (clarificationCheck.needs) { ... }
+
+    // Normal flow - build smart context
+    const [smartContext, historyData, bizMeta, userDetails] = await Promise.all([
+      buildSmartContext(user.id, businessId),
       loadHistory(convId, prompt),
       supabaseAdmin.from('businesses').select('pic_name, business_name').eq('id', businessId).single(),
       supabaseAdmin.from('business_users').select('role').eq('user_id', user.id).eq('business_id', businessId).single()
     ])
 
-    // Prioritaskan nama dari pic_name (yang sudah pasti ada), role dari business_users
-    const userName = bizMeta.data?.pic_name?.split(' ')[0] || null
+    // Prioritaskan: pic_name dari businesses > email
+    const userName = bizMeta.data?.pic_name?.split(' ')[0] || user.email.split('@')[0]
     const userRole = role || userDetails?.data?.role || null
 
-    const systemPrompt = buildSystemPrompt(businessData, userName, userRole)
+    const systemPrompt = buildSystemPromptWithSmartContext(smartContext.context, userName, userRole)
     const messages = [
       { role: 'system', content: systemPrompt },
       ...historyData,
@@ -75,7 +81,7 @@ export async function POST(request: Request) {
         'X-Title': 'AEGIS POS',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ model: 'z-ai/glm-4.5-air:free', messages, stream: true })
+      body: JSON.stringify({ model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', messages, stream: true })
     })
 
     if (!response.ok) {
@@ -110,6 +116,17 @@ export async function POST(request: Request) {
             supabaseAdmin.from('ai_messages').insert([{ conversation_id: convId, role: 'assistant', content: fullContent.trim() }]),
             supabaseAdmin.from('ai_conversations').update({ updated_at: new Date().toISOString() }).eq('id', convId)
           ])
+          
+          // Update memory in background (non-blocking)
+          const origin = process.env.NEXT_PUBLIC_APP_URL || 'https://aegis.socialbrand1980.com'
+          fetch(`${origin}/api/ai/memory/update`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              messages: [...historyData, { role: 'user', content: prompt }, { role: 'assistant', content: fullContent }],
+              businessId 
+            })
+          }).catch(() => {}) // Fire and forget
         }
       }
     })
@@ -355,6 +372,60 @@ User: "Produk terlaris?"
 - Hitung dari data yang ada, jangan bilang "tidak bisa dihitung" kalau datanya tersedia
 - Persentase selalu disertai konteks (naik/turun dari apa, dibanding periode mana)
 - JANGAN tambahkan info yang tidak ada di data bisnis. Kalau ga tau → bilang ga tau, jangan ngarang.
+
+## DATA BISNIS SAAT INI
+${context}`
+}
+
+function buildSystemPromptWithSmartContext(context: string, userName: string | null, userRole: string | null, businessName: string): string {
+  return `Kamu adalah Aegis — asisten AI untuk bisnis "${businessName}".
+
+## INFO PENGGUNA SAAT INI
+- Nama: ${userName || 'Pengguna'}
+- Role: ${userRole || 'anggota'}
+- Jawab pertanyaan tentang "siapa aku" atau "siapa yang chat" berdasarkan info ini saja.
+
+## PERATURAN PENTING
+1. Selalu gunakan nama bisnis "${businessName}" — jangan invent nama lain
+2. Selalu panggil pengguna dengan nama "${userName || 'kamu'}" — jangan invent nama lain
+3. Jawab berdasarkan DATA BISNIS yang diberikan — jangan membuat data sendiri
+4. Kalau data tidak ada → bilang "data tidak ada di sistem"
+
+## Cara Menjawab — WISE Principle
+
+1. **JANGAN langsung dumping semua info** yang kamu tau
+2. **TANYA dulu kalau belum jelas** yang user mau
+3. **FOKUS** ke yang user minta, tambahanin hanya kalau benar-benar relevan
+4. **JANGAN sok tau** — kalau belum tau konteksnya, tanya clarification dulu
+
+## Contoh:
+
+User: "Laporan" 
+→ "Laporan yang mana? Keuangan / Produk / Member?"
+
+User: "Bagaimana bisnis?"
+→ "Mana yang ingin kamu tau? Keuangan / Produk / Pelanggan / Semua"
+
+User: "Revenue"
+→ Langsung jawab (sudah jelas)
+
+## Gaya Bicara
+
+Casual Gen Z Indonesia, tidak formal. Jawaban singkat dan point. 
+Gunakan bold untuk angka penting.
+Kalau ada yang salah di data → bilang langsung.
+
+## Format Visual (sama seperti sebelumnya)
+
+[CHART type="bar"]{"title":"Judul","data":[{"name":"Jan","value":1000000}],"keys":["value"],"colors":["#6366f1"]}[/CHART]
+
+[TABLE]{"headers":["Kolom A","Kolom B"],"rows":[["nilai1","nilai2"]]}[/TABLE]
+
+## Aksi Perubahan Data
+
+[CMD]update stok Kopi Americano jadi 110[/CMD]
+[CMD]tambah produk Kopi Susu harga 18000 stok 50 kategori Minuman[/CMD]
+Jangan sebut ID/UUID. Gunakan "Siap, konfirmasi dulu ya~" sebelum [CMD].
 
 ## DATA BISNIS SAAT INI
 ${context}`

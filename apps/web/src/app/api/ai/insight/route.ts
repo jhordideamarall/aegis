@@ -113,7 +113,7 @@ export async function GET(request: Request) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'z-ai/glm-4.5-air:free',
+        model: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
         messages: [
           {
             role: 'system',

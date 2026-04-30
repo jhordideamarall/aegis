@@ -760,6 +760,25 @@ export default function ChatAegisPage() {
         headers: await getClientAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ conversationId: conversationId ?? undefined, prompt: pendingCtx ? `${pendingCtx}\n\n${userInput}` : userInput })
       })
+      const contentType = res.headers.get('content-type') || ''
+      
+      // Handle non-streaming clarification response
+      if (contentType.includes('application/json')) {
+        const json = await res.json()
+        if (json.isClarification) {
+          const newConvId = res.headers.get('X-Conversation-Id')
+          if (newConvId && !conversationId) { setConversationId(newConvId); setRefreshTrigger(n => n + 1) }
+          setMessages(prev => {
+            const last = prev[prev.length - 1]
+            return [...prev.slice(0, -1), { ...last, content: json.message }]
+          })
+          setLoading(false)
+          setTimeout(() => textareaRef.current?.focus(), 50)
+          return
+        }
+        if (json.error) throw new Error(json.error)
+      }
+
       if (!res.ok || !res.body) {
         const errText = await res.text().catch(() => '')
         let errMsg = 'Stream failed'
@@ -864,9 +883,13 @@ export default function ChatAegisPage() {
                   <div className="w-full">
                     <div className="text-slate-900 min-w-0 pt-2 pb-4">
                       {!m.content && loading && i === messages.length - 1 ? (
-                        <div className="flex items-center gap-2 py-1 text-[13px] text-slate-400 animate-pulse">
-                          <Loader2 size={14} className="animate-spin text-slate-300" />
-                          <span>Aegis sedang berpikir...</span>
+                        <div className="flex items-center gap-2 py-3 px-4 bg-slate-50 rounded-lg border border-slate-200 w-fit">
+                          <div className="flex gap-1">
+                            <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                          </div>
+                          <span className="text-[13px] text-slate-500">Aegis sedang mengetik...</span>
                         </div>
                       ) : m.content && loading && i === messages.length - 1 ? (
                         <OutputRenderer content={m.content + ' ▍'} />

@@ -118,31 +118,41 @@ export async function GET(request: Request) {
       query = query.eq('payment_method', paymentMethod)
     }
 
-    query = query.order('created_at', { ascending: false })
+    query = query.limit(100000).order('created_at', { ascending: false })
 
     const allOrders: ReportRow[] = []
-    const pageSize = 500
-    const MAX_REPORT_ROWS = 10000
+    const pageSize = 1000
+    const MAX_REPORT_ROWS = 65000
     let from = 0
     let shouldContinue = true
+    let totalFetched = 0
 
-    while (shouldContinue) {
+    while (shouldContinue && totalFetched < MAX_REPORT_ROWS) {
       const { data, error } = await query.range(from, from + pageSize - 1)
 
       if (error) throw error
 
       const batch = ((data || []) as unknown) as ReportRow[]
       allOrders.push(...batch)
+      totalFetched += batch.length
 
-      if (allOrders.length >= MAX_REPORT_ROWS) {
-        return NextResponse.json(
-          { error: `Terlalu banyak data (lebih dari ${MAX_REPORT_ROWS.toLocaleString()} transaksi). Persempit rentang tanggal untuk membuat laporan.` },
-          { status: 400 }
-        )
+      if (batch.length < pageSize || totalFetched >= MAX_REPORT_ROWS) {
+        shouldContinue = false
+      } else {
+        from += pageSize
       }
+    }
 
-      shouldContinue = batch.length === pageSize
-      from += pageSize
+    if (totalFetched >= MAX_REPORT_ROWS) {
+      return NextResponse.json(
+        { 
+          warning: `Menampilkan ${MAX_REPORT_ROWS.toLocaleString()} data terbaru. Untuk melihat data lengkap, gunakan filter rentang tanggal.`,
+          data: allOrders,
+          total: allOrders.length,
+          truncated: true
+        },
+        { status: 200 }
+      )
     }
 
     let orders = allOrders

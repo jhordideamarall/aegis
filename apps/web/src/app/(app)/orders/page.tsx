@@ -10,7 +10,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { formatIDR, toLocalISODate } from '@/lib/utils'
 import ReceiptPrinter from '@/components/ReceiptPrinter'
-import { Search, ShoppingCart, TrendingUp, DollarSign, Loader2 } from 'lucide-react'
+import { Search, ShoppingCart, TrendingUp, DollarSign, Loader2, FileText } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { DateFilterSelect } from "@/components/ui/date-filter-select"
 import { Card } from "@/components/ui/card"
 import {
   Table,
@@ -84,7 +85,16 @@ function OrdersContent() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [showReceipt, setShowReceipt] = useState(false)
   const [receiptSettings, setReceiptSettings] = useState<ReceiptSettings | null>(null)
-  const [filter, setFilter] = useState<'all' | 'today' | 'week' | 'custom'>('all')
+  const getToday = () => {
+    const now = new Date()
+    return {
+      year: String(now.getFullYear()),
+      month: String(now.getMonth() + 1).padStart(2, '0'),
+      week: '',
+      day: String(now.getDate()).padStart(2, '0')
+    }
+  }
+  const [dateFilter, setDateFilter] = useState(getToday)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [searchQuery, setSearchQuery] = useState('')
@@ -92,10 +102,7 @@ function OrdersContent() {
   const [summaryTotalRevenue, setSummaryTotalRevenue] = useState(0)
   const [summaryTotalOrders, setSummaryTotalOrders] = useState(0)
   const [paymentMethod, setPaymentMethod] = useState<string>('all')
-  const [customDate, setCustomDate] = useState<DateRange | undefined>({
-    from: new Date(),
-    to: new Date()
-  })
+  
   const tokenRef = useRef<string>('')
   const fetchIdRef = useRef(0)
   const [tokenReady, setTokenReady] = useState(false)
@@ -129,7 +136,7 @@ function OrdersContent() {
       const orderId = searchParams.get('id')
       if (printParam === 'true' && orderId) fetchOrderDetail(orderId)
     }
-  }, [loading, business, tokenReady, filter, page, debouncedSearch, customDate, paymentMethod])
+  }, [loading, business, tokenReady, dateFilter, page, debouncedSearch, paymentMethod])
 
   const fetchReceiptSettings = async () => {
     if (!business) return
@@ -147,16 +154,45 @@ function OrdersContent() {
     // Only show loading if we don't have any orders yet
     if (orders.length === 0) setFetching(true)
     try {
-      const today = toLocalISODate()
       let startDate = ''
       let endDate = ''
 
-      if (filter === 'custom' && customDate?.from) {
-        startDate = toLocalISODate(customDate.from)
-        endDate = customDate.to ? toLocalISODate(customDate.to) : startDate
+      // Convert dateFilter to startDate/endDate
+      if (dateFilter.year) {
+        if (dateFilter.month) {
+          const month = dateFilter.month.padStart(2, '0')
+          if (dateFilter.week) {
+            // Week specific - calculate start/end of week
+            const year = parseInt(dateFilter.year)
+            const monthNum = parseInt(dateFilter.month)
+            const weekNum = parseInt(dateFilter.week)
+            const firstDayOfMonth = new Date(year, monthNum - 1, 1)
+            const firstSunday = new Date(firstDayOfMonth)
+            firstSunday.setDate(firstSunday.getDate() + (7 - firstSunday.getDay()) % 7)
+            const weekStart = new Date(firstSunday)
+            weekStart.setDate(weekStart.getDate() + (weekNum - 1) * 7)
+            const weekEnd = new Date(weekStart)
+            weekEnd.setDate(weekEnd.getDate() + 6)
+            startDate = toLocalISODate(weekStart)
+            endDate = toLocalISODate(weekEnd)
+          } else if (dateFilter.day) {
+            // Specific day
+            startDate = `${dateFilter.year}-${month}-${dateFilter.day.padStart(2, '0')}`
+            endDate = startDate
+          } else {
+            // All month
+            startDate = `${dateFilter.year}-${month}-01`
+            const lastDay = new Date(parseInt(dateFilter.year), parseInt(dateFilter.month), 0).getDate()
+            endDate = `${dateFilter.year}-${month}-${lastDay}`
+          }
+        } else {
+          // All year
+          startDate = `${dateFilter.year}-01-01`
+          endDate = `${dateFilter.year}-12-31`
+        }
       }
 
-      const url = buildOrdersApiUrl({ businessId: business.id, page, limit, today, filter, startDate, endDate, paymentMethod, searchQuery: debouncedSearch })
+      const url = buildOrdersApiUrl({ businessId: business.id, page, limit, startDate, endDate, paymentMethod, searchQuery: debouncedSearch })
       const res = await fetch(url, { headers: tokenRef.current ? { Authorization: `Bearer ${tokenRef.current}` } : {} })
       if (res.ok && fetchId === fetchIdRef.current) {
         const result = await res.json()
@@ -168,7 +204,7 @@ function OrdersContent() {
     } catch { } finally {
       if (fetchId === fetchIdRef.current) setFetching(false)
     }
-  }, [business, filter, page, debouncedSearch, customDate, paymentMethod])
+  }, [business, dateFilter, page, debouncedSearch, paymentMethod])
 
   const fetchOrderDetail = async (orderId: string) => {
     if (!business) return
@@ -190,8 +226,10 @@ function OrdersContent() {
     url.searchParams.set('business_id', params.businessId)
     url.searchParams.set('page', String(params.page || 1))
     url.searchParams.set('limit', String(params.limit || limit))
-    if (params.filter === 'today') { url.searchParams.set('startDate', params.today); url.searchParams.set('endDate', params.today); }
-    if (params.filter === 'custom' && params.startDate && params.endDate) { url.searchParams.set('startDate', params.startDate); url.searchParams.set('endDate', params.endDate); }
+    if (params.startDate && params.endDate) {
+      url.searchParams.set('startDate', params.startDate)
+      url.searchParams.set('endDate', params.endDate)
+    }
     if (params.paymentMethod !== 'all') url.searchParams.set('payment_method', params.paymentMethod)
     if (params.searchQuery) url.searchParams.set('q', params.searchQuery)
     return `${url.pathname}${url.search}`
@@ -199,17 +237,40 @@ function OrdersContent() {
 
   const handleDownloadReport = async () => {
     if (!business) return
-    const reportParams = new URLSearchParams({ filter, business_id: business.id })
+    const reportParams = new URLSearchParams({ business_id: business.id })
     if (paymentMethod !== 'all') reportParams.set('payment_method', paymentMethod)
     if (searchQuery) reportParams.set('q', searchQuery)
     
-    if (filter === 'today') {
-      const today = toLocalISODate()
-      reportParams.set('startDate', today)
-      reportParams.set('endDate', today)
-    } else if (filter === 'custom' && customDate?.from) {
-      reportParams.set('startDate', toLocalISODate(customDate.from))
-      if (customDate.to) reportParams.set('endDate', toLocalISODate(customDate.to))
+    // Use dateFilter to calculate startDate/endDate
+    if (dateFilter.year) {
+      if (dateFilter.month) {
+        const month = dateFilter.month.padStart(2, '0')
+        if (dateFilter.week) {
+          const year = parseInt(dateFilter.year)
+          const monthNum = parseInt(dateFilter.month)
+          const weekNum = parseInt(dateFilter.week)
+          const firstDayOfMonth = new Date(year, monthNum - 1, 1)
+          const firstSunday = new Date(firstDayOfMonth)
+          firstSunday.setDate(firstSunday.getDate() + (7 - firstSunday.getDay()) % 7)
+          const weekStart = new Date(firstSunday)
+          weekStart.setDate(weekStart.getDate() + (weekNum - 1) * 7)
+          const weekEnd = new Date(weekStart)
+          weekEnd.setDate(weekEnd.getDate() + 6)
+          reportParams.set('startDate', toLocalISODate(weekStart))
+          reportParams.set('endDate', toLocalISODate(weekEnd))
+        } else if (dateFilter.day) {
+          const day = dateFilter.day.padStart(2, '0')
+          reportParams.set('startDate', `${dateFilter.year}-${month}-${day}`)
+          reportParams.set('endDate', `${dateFilter.year}-${month}-${day}`)
+        } else {
+          reportParams.set('startDate', `${dateFilter.year}-${month}-01`)
+          const lastDay = new Date(parseInt(dateFilter.year), parseInt(dateFilter.month), 0).getDate()
+          reportParams.set('endDate', `${dateFilter.year}-${month}-${lastDay}`)
+        }
+      } else {
+        reportParams.set('startDate', `${dateFilter.year}-01-01`)
+        reportParams.set('endDate', `${dateFilter.year}-12-31`)
+      }
     }
     
     router.push(`/orders/report?${reportParams.toString()}`)
@@ -223,9 +284,12 @@ function OrdersContent() {
           <h1 className="text-2xl font-bold text-slate-900 font-black tracking-tight uppercase">Transactions</h1>
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">History &amp; Reports</p>
         </div>
-        <Button onClick={handleDownloadReport} disabled={isLoading} className="h-10 px-6 rounded-xl font-black bg-slate-900 text-[10px] uppercase tracking-widest shadow-lg shadow-slate-200 transition-all hover:scale-105 active:scale-95">
-          Export Report
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handleDownloadReport} disabled={isLoading} className="h-10 px-6 rounded-xl font-black bg-slate-900 text-[10px] uppercase tracking-widest shadow-lg shadow-slate-200 transition-all hover:scale-105 active:scale-95">
+            <FileText className="w-4 h-4 mr-2" />
+            PDF
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -242,33 +306,11 @@ function OrdersContent() {
               <Input placeholder="Search ID..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-10 text-xs bg-white rounded-xl border-slate-200 shadow-sm" />
             </div>
             
-            <div className="flex items-center gap-2 bg-slate-200/50 p-1 rounded-xl">
-              {[
-                { id: 'all', label: 'All' },
-                { id: 'today', label: 'Today' },
-                { id: 'custom', label: 'Range' }
-              ].map((opt) => (
-                <button
-                  key={opt.id}
-                  onClick={() => { setFilter(opt.id as any); setPage(1); }}
-                  className={`px-4 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                    filter === opt.id 
-                      ? 'bg-white text-slate-900 shadow-sm' 
-                      : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-              
-              {filter === 'custom' && (
-                <div className="animate-in fade-in zoom-in-95 duration-200 ml-1">
-                  <DateRangePicker 
-                    date={customDate} 
-                    onDateChange={setCustomDate} 
-                  />
-                </div>
-              )}
+            <div className="flex items-center gap-2">
+              <DateFilterSelect 
+                value={dateFilter} 
+                onChange={(val) => { setDateFilter(val); setPage(1); }} 
+              />
             </div>
 
             <Select value={paymentMethod} onValueChange={(val) => { if (val) { setPaymentMethod(val); setPage(1); } }}>
