@@ -104,7 +104,7 @@ export async function buildSmartContext(userId: string, businessId: string): Pro
   // Process top products this year
   const productSales: Record<string, { name: string; qty: number; revenue: number }> = {}
   for (const item of (topProductsYear.data || [])) {
-    const p = item.product as { name: string } | null
+    const p = (item.product as { name: string }[] | null)?.[0]
     const name = p?.name || 'Unknown'
     if (!productSales[name]) productSales[name] = { name, qty: 0, revenue: 0 }
     productSales[name].qty += item.qty || 0
