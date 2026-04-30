@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     const userName = bizMeta.data?.pic_name?.split(' ')[0] || user.email.split('@')[0]
     const userRole = role || userDetails?.data?.role || null
 
-    const systemPrompt = buildSystemPromptWithSmartContext(smartContext.context, userName, userRole)
+    const systemPrompt = buildSystemPromptWithSmartContext(smartContext.context, userName, userRole, bizMeta.data?.business_name || 'Bisnis')
     const messages = [
       { role: 'system', content: systemPrompt },
       ...historyData,
