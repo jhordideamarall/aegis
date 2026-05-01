@@ -29,32 +29,25 @@ import { nanoid } from 'nanoid'
  * Fixed for Vercel Build & Stability
  */
 
-// Define a simple transport interface for our manual streaming
-interface Transport {
-  send(message: any): Promise<void>;
-  onClose?: () => void;
-  onMessage?: (message: any) => void;
-}
-
 const sessions = new Map<string, { 
-  server: Server, 
+  server: any, 
   controller: ReadableStreamDefaultController,
   businessId: string 
 }>()
 
-const createMcpServer = () => {
+function createMcpServer() {
   return new Server(
-    { name: "aegis-mcp-server", version: "1.4.2" },
+    { name: "aegis-mcp-server", version: "1.4.3" },
     { capabilities: { tools: {} } }
   )
 }
 
-const setupHandlers = (server: Server, businessId: string) => {
+function setupHandlers(server: any, businessId: string) {
   server.setRequestHandler(InitializeRequestSchema, async () => {
     return {
       protocolVersion: "2025-11-25",
       capabilities: { tools: {} },
-      serverInfo: { name: "aegis-mcp-server", version: "1.4.2" },
+      serverInfo: { name: "aegis-mcp-server", version: "1.4.3" },
     }
   })
 
@@ -212,7 +205,7 @@ const setupHandlers = (server: Server, businessId: string) => {
     }
   })
 
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
     const { name, arguments: args } = request.params
     let result: unknown
     try {
@@ -260,13 +253,11 @@ export async function GET(req: NextRequest) {
         const server = createMcpServer()
         setupHandlers(server, businessId)
         
-        // Connect the server to our manual stream-based transport
-        // MCP Server uses transport.send to send messages back to client
-        (server as any).transport = {
+        server.transport = {
           send: async (message: any) => {
             controller.enqueue(`event: message\ndata: ${JSON.stringify(message)}\n\n`)
           }
-        }
+        } as any
 
         sessions.set(sessionId, { server, controller, businessId })
         
@@ -309,8 +300,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const message = await req.json()
-    // Use handleMessage with any cast to bypass TypeScript property check while keeping SDK logic
-    await (session.server as any).handleMessage(message)
+    await session.server.handleMessage(message)
     return new Response('OK', { status: 200 })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
