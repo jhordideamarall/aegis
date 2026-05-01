@@ -25,10 +25,10 @@ User tidak perlu mengunduh aplikasi terpisah. Onyx akan menjadi bagian integral 
 *   **Detail:** Menggunakan protokol OAuth2/SAML agar user yang sudah login di Aegis tidak perlu login lagi di Onyx.
 *   **Logic:** Onyx akan menerima *Context* identitas (seperti `user_id` dan `business_id`) setiap kali sesi chat dimulai.
 
-### Tahap 3: Membangun MCP Server (Action Layer)
+### Tahap 3: Membangun MCP Server (Action Layer) - ✅ SELESAI
 *   **Aksi:** Mengimplementasikan **Model Context Protocol (MCP)** di dalam folder `apps/web/src/app/api/mcp`.
 *   **Detail:** Menghubungkan fitur-fitur di `packages/core/src/ai/commands.ts` ke Onyx.
-*   **Logic:** Ini adalah "Penerjemah". Saat Onyx mendeteksi perintah "Ubah stok", dia akan memanggil endpoint MCP ini untuk melakukan aksi nyata ke database.
+*   **Logic:** Menggunakan `@modelcontextprotocol/sdk` dengan SSE Transport. Logic di-refactor ke `apps/web/src/lib/ai/tools-logic.ts`.
 
 ### Tahap 4: Pengetahuan Bisnis (Knowledge Layer)
 *   **Aksi:** Menghubungkan database Supabase ke **Postgres Connector** Onyx.
