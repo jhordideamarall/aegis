@@ -209,15 +209,14 @@ export default function MCPServerPage() {
                     
                     <div className="flex items-center gap-2 text-slate-900">
                       <div className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">2</div>
-                      <p className="text-sm font-bold">Add Aegis to "mcpServers"</p>
+                      <p className="text-sm font-bold">Add Aegis to "mcpServers" using Native SSE</p>
                     </div>
                     <div className="relative group">
                       <pre className="bg-slate-900 rounded-2xl p-6 font-mono text-xs text-slate-300 overflow-x-auto">
 {`{
   "mcpServers": {
     "aegis-pos": {
-      "command": "curl",
-      "args": ["-N", "${mcpUrl}"]
+      "url": "${mcpUrl}"
     }
   }
 }`}
@@ -229,8 +228,7 @@ export default function MCPServerPage() {
                         onClick={() => copyToClipboard(`{
   "mcpServers": {
     "aegis-pos": {
-      "command": "curl",
-      "args": ["-N", "${mcpUrl}"]
+      "url": "${mcpUrl}"
     }
   }
 }`, 'Config')}
@@ -244,7 +242,7 @@ export default function MCPServerPage() {
                 <TabsContent value="cursor" className="space-y-6 focus-visible:outline-none">
                   <div className="space-y-4">
                     <p className="text-sm text-slate-600 leading-relaxed font-medium">
-                      Cursor IDE supports MCP natively. You can add Aegis as an endpoint to allow Cursor to read your POS data for coding or analysis.
+                      Cursor IDE supports MCP natively via SSE. Follow these steps to connect:
                     </p>
                     <div className="space-y-3">
                       <div className="flex items-start gap-3 p-4 rounded-2xl border border-slate-100 bg-slate-50">
@@ -258,13 +256,13 @@ export default function MCPServerPage() {
                         <Zap className="w-4 h-4 text-slate-400 mt-1" />
                         <div>
                           <p className="text-sm font-bold text-slate-900">Add New MCP Server</p>
-                          <p className="text-xs text-slate-500 font-medium">Type: SSE • Name: Aegis POS</p>
+                          <p className="text-xs text-slate-500 font-medium">Name: Aegis POS • Type: <b>SSE</b></p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 p-4 rounded-2xl border border-slate-100 bg-slate-50">
                         <Link2 className="w-4 h-4 text-slate-400" />
                         <div className="flex-1 truncate">
-                          <p className="text-sm font-bold text-slate-900">Endpoint URL</p>
+                          <p className="text-sm font-bold text-slate-900">Paste URL</p>
                           <p className="text-xs text-slate-500 font-medium truncate">{mcpUrl}</p>
                         </div>
                         <Button 
