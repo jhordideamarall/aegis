@@ -26,7 +26,7 @@ import { nanoid } from 'nanoid'
 
 /**
  * MCP Multi-Tenant Server implementation for Next.js App Router
- * Fixed for Vercel Build & Stability
+ * Standard-compliant & Vercel-Safe
  */
 
 const sessions = new Map<string, { 
@@ -37,7 +37,7 @@ const sessions = new Map<string, {
 
 function createMcpServer() {
   return new Server(
-    { name: "aegis-mcp-server", version: "1.4.3" },
+    { name: "aegis-mcp-server", version: "1.4.4" },
     { capabilities: { tools: {} } }
   )
 }
@@ -47,7 +47,7 @@ function setupHandlers(server: any, businessId: string) {
     return {
       protocolVersion: "2025-11-25",
       capabilities: { tools: {} },
-      serverInfo: { name: "aegis-mcp-server", version: "1.4.3" },
+      serverInfo: { name: "aegis-mcp-server", version: "1.4.4" },
     }
   })
 
@@ -99,7 +99,7 @@ function setupHandlers(server: any, businessId: string) {
         },
         {
           name: "query_stats",
-          description: "Ambil statistik performa bisnis (revenue, profit, top products)",
+          description: "Ambil statistik performa bisnis",
           inputSchema: {
             type: "object",
             properties: {
@@ -123,66 +123,14 @@ function setupHandlers(server: any, businessId: string) {
         },
         {
           name: "update_product",
-          description: "Update data produk (harga, stok, nama)",
-          inputSchema: {
-            type: "object",
-            properties: {
-              id: { type: "string", description: "UUID Produk" },
-              name: { type: "string" },
-              price: { type: "number" },
-              stock: { type: "number" }
-            },
-            required: ["id"]
-          }
-        },
-        {
-          name: "create_raw_material",
-          description: "Tambah bahan baku baru",
-          inputSchema: {
-            type: "object",
-            properties: {
-              name: { type: "string" },
-              costPerUnit: { type: "number" },
-              unit: { type: "string" },
-              stock: { type: "number" }
-            },
-            required: ["name", "costPerUnit"]
-          }
-        },
-        {
-          name: "update_raw_material",
-          description: "Update stok atau harga beli bahan baku",
+          description: "Update data produk",
           inputSchema: {
             type: "object",
             properties: {
               id: { type: "string" },
               name: { type: "string" },
-              costPerUnit: { type: "number" },
+              price: { type: "number" },
               stock: { type: "number" }
-            },
-            required: ["id"]
-          }
-        },
-        {
-          name: "add_product_material",
-          description: "Hubungkan produk dengan bahan baku (Resep)",
-          inputSchema: {
-            type: "object",
-            properties: {
-              productId: { type: "string" },
-              materialId: { type: "string" },
-              qtyNeeded: { type: "number" }
-            },
-            required: ["productId", "materialId", "qtyNeeded"]
-          }
-        },
-        {
-          name: "sync_product_hpp",
-          description: "Hitung ulang HPP produk",
-          inputSchema: {
-            type: "object",
-            properties: {
-              id: { type: "string" }
             },
             required: ["id"]
           }
@@ -195,7 +143,6 @@ function setupHandlers(server: any, businessId: string) {
             properties: {
               total: { type: "number" },
               payment_method: { type: "string" },
-              member_id: { type: "string" },
               items: { type: "array", items: { type: "object" } }
             },
             required: ["total", "payment_method", "items"]
@@ -249,16 +196,22 @@ export async function GET(req: NextRequest) {
     const sessionId = nanoid()
 
     const stream = new ReadableStream({
-      start(controller) {
-        const server = createMcpServer()
+      async start(controller) {
+        const server: any = createMcpServer()
         setupHandlers(server, businessId)
         
-        server.transport = {
+        // Define manual transport to satisfy connect()
+        const transport = {
+          onClose: undefined,
+          onMessage: undefined,
+          start: async () => {},
           send: async (message: any) => {
             controller.enqueue(`event: message\ndata: ${JSON.stringify(message)}\n\n`)
-          }
-        } as any
+          },
+          close: async () => {}
+        }
 
+        await server.connect(transport)
         sessions.set(sessionId, { server, controller, businessId })
         
         const postUrl = new URL(req.url)
@@ -300,6 +253,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const message = await req.json()
+    // When message is handled, server will automatically call transport.send()
+    // which enqueues the response to our GET stream controller.
     await session.server.handleMessage(message)
     return new Response('OK', { status: 200 })
   } catch (err: any) {
