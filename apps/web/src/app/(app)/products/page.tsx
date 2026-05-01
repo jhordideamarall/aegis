@@ -504,7 +504,6 @@ function ProductFormModal({ product, materials, productMaterials, setProductMate
               <div className="h-11 px-3 flex items-center bg-slate-100 border border-slate-200 rounded-xl">
                 <span className="text-xs font-bold text-slate-600">{formatIDR(displayHpp)}</span>
               </div>
-              <p className="text-[10px] text-emerald-600 font-bold">Auto-calculated from materials</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="price" className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Price (Sell)</Label>
@@ -528,8 +527,8 @@ function ProductFormModal({ product, materials, productMaterials, setProductMate
           )}
           
           <div className="flex gap-2 pt-4">
-            <Button type="button" variant="outline" className="flex-1 h-12 text-xs font-black uppercase tracking-widest rounded-xl border-slate-200" onClick={onClose}>Cancel</Button>
-            <Button type="submit" className="flex-1 h-12 text-xs font-black uppercase tracking-widest bg-slate-900 rounded-xl" disabled={loading}>{loading ? 'Saving...' : 'Confirm Save'}</Button>
+            <Button type="button" variant="outline" className="flex-1 h-11 text-xs font-black uppercase tracking-widest rounded-xl border-slate-200" onClick={onClose}>Cancel</Button>
+            <Button type="submit" className="flex-1 h-11 text-xs font-black uppercase tracking-widest bg-slate-900 rounded-xl" disabled={loading}>{loading ? 'Saving...' : 'Confirm Save'}</Button>
           </div>
         </form>
       </DialogContent>

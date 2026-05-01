@@ -46,11 +46,15 @@ async function decrementRawMaterials(
     .eq('is_active', true)
     .eq('business_id', businessId)
 
+  console.log('[DEBUG Material] productIds:', productIds, 'mappings:', mappings?.length, 'error:', mappingsError)
+
   if (mappingsError) {
+    console.error('[DEBUG Material] fetch error:', mappingsError)
     return { success: false, error: 'Failed to fetch materials' }
   }
 
   if (!mappings || mappings.length === 0) {
+    console.log('[DEBUG Material] no mappings found')
     return { success: true }
   }
 
@@ -86,8 +90,10 @@ async function decrementRawMaterials(
   }
 
   // Decrement each material
+  console.log('[DEBUG Material] materialUsage:', materialUsage)
   for (const [materialId, usage] of Object.entries(materialUsage)) {
     const newStock = usage.currentStock - usage.qtyNeeded
+    console.log('[DEBUG Material] updating:', usage.name, 'from', usage.currentStock, 'to', newStock)
     
     const { error } = await supabaseAdmin
       .from('raw_materials')
@@ -96,7 +102,7 @@ async function decrementRawMaterials(
       .eq('business_id', businessId)
     
     if (error) {
-      console.error('Error updating material:', error)
+      console.error('[DEBUG Material] Error updating material:', error)
       return { success: false, error: `Failed to update material ${usage.name}` }
     }
   }
@@ -676,9 +682,10 @@ export async function POST(request: Request) {
 
 // Decrement raw materials based on product materials mapping
     try {
-      await decrementRawMaterials(resolvedBusinessId, items as Array<{ product_id: string; qty: number }>)
+      const matResult = await decrementRawMaterials(resolvedBusinessId, items as Array<{ product_id: string; qty: number }>)
+      console.log('[DEBUG Material] result:', matResult)
     } catch (matErr: any) {
-      console.error('Material decrement error:', matErr)
+      console.error('[DEBUG Material] catch error:', matErr)
     }
 
     // Apply member points in parallel (transactions + member update together)

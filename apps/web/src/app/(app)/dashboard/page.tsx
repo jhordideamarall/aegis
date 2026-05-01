@@ -85,6 +85,7 @@ export default function DashboardPage() {
   const searchParams = useSearchParams()
   const [data, setData] = useState<DashboardData | null>(null)
   const [fetching, setFetching] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   
   const getToday = () => {
     const now = new Date()
@@ -146,15 +147,11 @@ export default function DashboardPage() {
 
     const cacheKey = `dashboard:${business.id}:${startDate}:${endDate}`
     const cached = getClientCache<DashboardData>(cacheKey)
-    if (cached) {
-      setData(cached)
-      setFetching(false)
-    } else {
-      setFetching(true)
-    }
+    // Force fresh fetch - debug
+    setFetching(true)
 
     try {
-      console.log('[DEBUG Dashboard] dateFilter:', dateFilter, 'startDate:', startDate, 'endDate:', endDate)
+      console.log('[DEBUG Dashboard] dateFilter:', dateFilter, 'startDate:', startDate, 'endDate:', endDate, 'business:', business?.id)
       const url = `/api/dashboard?business_id=${business.id}&startDate=${startDate}&endDate=${endDate}`
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch(url, {
@@ -164,9 +161,13 @@ export default function DashboardPage() {
       })
       if (res.ok) {
         const result = await res.json()
-        console.log('[DEBUG Dashboard] API response totalSales:', result.totalSales, 'totalOrders:', result.totalOrders)
+        console.log('📊 DASHBOARD DATA:', result)
         setData(result)
         setClientCache(cacheKey, result)
+      } else {
+        const errorText = await res.text()
+        console.error('[DEBUG Dashboard] API error:', res.status, errorText)
+        setError(`Error ${res.status}: ${errorText}`)
       }
     } catch (error) {
       console.error('Error fetching dashboard:', error)
@@ -205,6 +206,7 @@ export default function DashboardPage() {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
+      {error && <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded-xl text-xs font-bold">{error}</div>}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase">Analytics</h1>

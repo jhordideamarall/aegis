@@ -138,18 +138,21 @@ export default function ReceiptPrinter({ order: providedOrder, onClose, business
   const taxableBase = Math.max(subtotal - discount, 0)
 
   // Use historical data if available, fallback to current settings
-  const taxRate = typeof order.tax_rate === 'number' ? order.tax_rate : (Number(settings?.tax_rate) || 0)
-  const serviceRate = typeof order.service_rate === 'number' ? order.service_rate : (Number(settings?.service_rate) || 0)
+  // Use customSettings directly for reactivity in preview mode
+  const taxRate = typeof order.tax_rate === 'number' ? order.tax_rate : (Number((customSettings || settings)?.tax_rate) || 0)
+  const serviceRate = typeof order.service_rate === 'number' ? order.service_rate : (Number((customSettings || settings)?.service_rate) || 0)
   
+  const taxBase = Math.max(subtotal - discount, 0)
   const taxAmount = typeof order.tax_amount === 'number' 
     ? order.tax_amount 
-    : (settings?.tax_enabled ? Math.round(taxableBase * taxRate / 100) : 0)
+    : ((customSettings || settings)?.tax_enabled ? Math.round(taxBase * taxRate / 100) : 0)
     
   const serviceAmount = typeof order.service_amount === 'number' 
     ? order.service_amount 
-    : (settings?.service_enabled ? Math.round(taxableBase * serviceRate / 100) : 0)
+    : ((customSettings || settings)?.service_enabled ? Math.round(taxBase * serviceRate / 100) : 0)
     
-  const grandTotal = order.total || (taxableBase + taxAmount + serviceAmount)
+  // For preview without order, calculate total dynamically
+  const grandTotal = providedOrder ? order.total : (subtotal - discount + taxAmount + serviceAmount)
   const paymentDisplay = formatPaymentDisplay(order.payment_method, order.payment_provider)
 
   // Explicit width values for smooth interpolation

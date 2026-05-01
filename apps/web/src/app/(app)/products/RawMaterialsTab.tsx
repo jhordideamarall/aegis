@@ -215,25 +215,34 @@ function MaterialFormModal({ material, suppliers, onClose, onSuccess }: Material
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-xs font-bold uppercase">Kategori</Label>
-              <Select value={formData.category} onValueChange={(val) => setFormData({ ...formData, category: val || 'consumable' })}>
-                <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="consumable" className="font-bold">Consumable</SelectItem>
-                  <SelectItem value="packaging" className="font-bold">Packaging</SelectItem>
-                  <SelectItem value="other" className="font-bold">Other</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} placeholder="consumable" className="rounded-xl" />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase">Supplier</Label>
-              <Select value={formData.supplier_id} onValueChange={(val) => setFormData({ ...formData, supplier_id: val || '' })}>
-                <SelectTrigger className="rounded-xl"><SelectValue placeholder="Pilih supplier" /></SelectTrigger>
+              <Label className="text-xs font-bold uppercase">Unit</Label>
+              <Select value={formData.unit || 'ml'} onValueChange={(val) => setFormData({ ...formData, unit: val || 'ml' })}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="" className="font-bold">Tanpa Supplier</SelectItem>
-                  {suppliers.map((s) => <SelectItem key={s.id} value={s.id} className="font-bold">{s.name}</SelectItem>)}
+                  <SelectItem value="ml" className="font-bold">ml</SelectItem>
+                  <SelectItem value="gram" className="font-bold">gram</SelectItem>
+                  <SelectItem value="kg" className="font-bold">kg</SelectItem>
+                  <SelectItem value="liter" className="font-bold">liter</SelectItem>
+                  <SelectItem value="pcs" className="font-bold">pcs</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-bold uppercase">Supplier</Label>
+            <Select value={formData.supplier_id} onValueChange={(val) => setFormData({ ...formData, supplier_id: val || '' })}>
+              <SelectTrigger className="rounded-xl"><SelectValue placeholder="Pilih supplier" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="" className="font-bold">Tanpa Supplier</SelectItem>
+                {suppliers.map((s) => <SelectItem key={s.id} value={s.id} className="font-bold">{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="border-t border-slate-100 pt-4">
@@ -241,46 +250,32 @@ function MaterialFormModal({ material, suppliers, onClose, onSuccess }: Material
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase">Unit Size</Label>
-                <div className="flex gap-1">
-                  <Input type="number" value={unitSize} onChange={(e) => setUnitSize(parseInt(e.target.value) || 0)} placeholder="250" className="rounded-xl flex-1" />
-                  <Select value={formData.unit} onValueChange={(val) => setFormData({ ...formData, unit: val || 'ml' })}>
-                    <SelectTrigger className="w-20 rounded-xl"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ml" className="font-bold">ml</SelectItem>
-                      <SelectItem value="gram" className="font-bold">gram</SelectItem>
-                      <SelectItem value="pcs" className="font-bold">pcs</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <p className="text-[10px] text-slate-400">per bungkus</p>
+                <Input type="text" inputMode="numeric" value={unitSize} onChange={(e) => setUnitSize(parseInt(e.target.value) || 0)} placeholder="250" className="rounded-xl" />
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase">Qty Beli</Label>
-                <Input type="number" value={qtyBeli} onChange={(e) => setQtyBeli(parseInt(e.target.value) || 0)} placeholder="27" className="rounded-xl" />
-                <p className="text-[10px] text-slate-400">jumlah bungkus</p>
+                <Input type="text" inputMode="numeric" value={qtyBeli} onChange={(e) => setQtyBeli(parseInt(e.target.value) || 0)} placeholder="27" className="rounded-xl" />
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase">Harga/Unit</Label>
-                <Input value={hargaPerUnitInput} onChange={handleHargaPerUnitChange} placeholder="23.000" className="rounded-xl" />
-                <p className="text-[10px] text-slate-400">per bungkus</p>
+                <Input value={hargaPerUnitInput} onChange={handleHargaPerUnitChange} placeholder="23000" className="rounded-xl" />
               </div>
             </div>
           </div>
 
           <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
-            <p className="text-[10px] font-bold text-emerald-600 uppercase">Hasil Kalkulasi</p>
-            <div className="grid grid-cols-3 gap-4 mt-2">
-              <div className="text-center">
-                <p className="text-[10px] text-emerald-500">Total Bayar</p>
-                <p className="text-base font-black text-emerald-700">{formatIDR(totalBayar)}</p>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <p className="text-[9px] font-bold text-emerald-500 uppercase">Total</p>
+                <p className="text-sm font-black text-emerald-700">{formatIDR(totalBayar)}</p>
               </div>
-              <div className="text-center">
-                <p className="text-[10px] text-emerald-500">Stock Total</p>
-                <p className="text-base font-black text-emerald-700">{totalStock.toLocaleString()} {formData.unit}</p>
+              <div>
+                <p className="text-[9px] font-bold text-emerald-500 uppercase">Stock</p>
+                <p className="text-sm font-black text-emerald-700">{totalStock} {formData.unit}</p>
               </div>
-              <div className="text-center">
-                <p className="text-[10px] text-emerald-500">Cost/{formData.unit}</p>
-                <p className="text-base font-black text-emerald-700">{formatIDR(costPerUnitSize)}</p>
+              <div>
+                <p className="text-[9px] font-bold text-emerald-500 uppercase">Cost</p>
+                <p className="text-sm font-black text-emerald-700">{formatIDR(costPerUnitSize)}</p>
               </div>
             </div>
           </div>
