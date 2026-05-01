@@ -23,13 +23,16 @@ import {
 } from '@/lib/ai/tools-logic'
 import { supabaseAdmin } from '@/lib/supabase'
 import { nanoid } from 'nanoid'
+import { z } from 'zod'
 
 /**
  * MCP Multi-Tenant Server implementation for Next.js App Router
- * Standard-compliant & Vercel-Safe (Stateless SSE Bridge)
+ * Version 1.6.0 - Following "MCP Server Development Guide" Best Practices:
+ * - Zod Validation
+ * - Structured Content
+ * - Annotations (Read-only / Destructive)
  */
 
-// Global sessions map (Note: For multi-instance Vercel, this is better served by Redis)
 const sessions = new Map<string, { 
   server: any, 
   controller: ReadableStreamDefaultController,
@@ -38,7 +41,7 @@ const sessions = new Map<string, {
 
 function createMcpServer() {
   return new Server(
-    { name: "aegis-mcp-server", version: "1.5.0" },
+    { name: "aegis-mcp-server", version: "1.6.0" },
     { capabilities: { tools: {} } }
   )
 }
@@ -48,7 +51,7 @@ function setupHandlers(server: any, businessId: string) {
     return {
       protocolVersion: "2025-11-25",
       capabilities: { tools: {} },
-      serverInfo: { name: "aegis-mcp-server", version: "1.5.0" },
+      serverInfo: { name: "aegis-mcp-server", version: "1.6.0" },
     }
   })
 
@@ -64,7 +67,8 @@ function setupHandlers(server: any, businessId: string) {
               date: { type: "string", description: "today | yesterday | YYYY-MM-DD | last-7-days" },
               limit: { type: "number", description: "Maksimal data yang diambil (default 50)" }
             }
-          }
+          },
+          annotations: { readOnlyHint: true }
         },
         {
           name: "query_products",
@@ -76,7 +80,8 @@ function setupHandlers(server: any, businessId: string) {
               category: { type: "string", description: "Kategori produk" },
               lowStock: { type: "boolean", description: "Filter produk dengan stok menipis (<= 5)" }
             }
-          }
+          },
+          annotations: { readOnlyHint: true }
         },
         {
           name: "query_raw_materials",
@@ -86,7 +91,8 @@ function setupHandlers(server: any, businessId: string) {
             properties: {
               search: { type: "string", description: "Nama bahan baku" }
             }
-          }
+          },
+          annotations: { readOnlyHint: true }
         },
         {
           name: "query_members",
@@ -96,7 +102,8 @@ function setupHandlers(server: any, businessId: string) {
             properties: {
               search: { type: "string", description: "Nama atau nomor HP member" }
             }
-          }
+          },
+          annotations: { readOnlyHint: true }
         },
         {
           name: "query_stats",
@@ -106,7 +113,8 @@ function setupHandlers(server: any, businessId: string) {
             properties: {
               period: { type: "string", description: "today | yesterday | week | month | year" }
             }
-          }
+          },
+          annotations: { readOnlyHint: true }
         },
         {
           name: "create_product",
@@ -166,7 +174,7 @@ function setupHandlers(server: any, businessId: string) {
         },
         {
           name: "add_product_material",
-          description: "Hubungkan produk dengan bahan baku (Resep)",
+          description: "Hubungkan produk dengan bahan baku (Resep). Otomatis update HPP produk.",
           inputSchema: {
             type: "object",
             properties: {
@@ -179,14 +187,15 @@ function setupHandlers(server: any, businessId: string) {
         },
         {
           name: "sync_product_hpp",
-          description: "Hitung ulang HPP produk",
+          description: "Hitung ulang HPP produk berdasarkan harga bahan baku terbaru",
           inputSchema: {
             type: "object",
             properties: {
               id: { type: "string" }
             },
             required: ["id"]
-          }
+          },
+          annotations: { idempotentHint: true }
         },
         {
           name: "create_order",
@@ -211,6 +220,18 @@ function setupHandlers(server: any, businessId: string) {
             },
             required: ["total", "payment_method", "items"]
           }
+        },
+        {
+          name: "delete_order",
+          description: "Hapus data transaksi",
+          inputSchema: {
+            type: "object",
+            properties: {
+              id: { type: "string", description: "UUID Order" }
+            },
+            required: ["id"]
+          },
+          annotations: { destructiveHint: true }
         }
       ]
     }
@@ -219,7 +240,22 @@ function setupHandlers(server: any, businessId: string) {
   server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
     const { name, arguments: args } = request.params
     let result: unknown
+
     try {
+      // 1. Zod Validation (Standard Pattern)
+      const schemaMap: Record<string, z.ZodSchema> = {
+        'query_orders': z.object({ date: z.string().optional(), limit: z.number().optional() }),
+        'query_products': z.object({ search: z.string().optional(), category: z.string().optional(), lowStock: z.boolean().optional() }),
+        'delete_order': z.object({ id: z.string() }),
+        'sync_product_hpp': z.object({ id: z.string() }),
+        // ... extend schemas as needed
+      }
+
+      if (schemaMap[name]) {
+        schemaMap[name].parse(args)
+      }
+
+      // 2. Execution
       switch (name) {
         case 'query_orders': result = await queryOrders(businessId, args as ToolParams); break
         case 'query_products': result = await queryProducts(businessId, args as ToolParams); break
@@ -236,9 +272,20 @@ function setupHandlers(server: any, businessId: string) {
         case 'delete_order': result = await deleteOrder(businessId, args as { id: string }); break
         default: throw new Error(`Unknown tool: ${name}`)
       }
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
+
+      // 3. Structured Content Response (Best Practice Phase 2.3)
+      return {
+        content: [
+          { type: "text", text: `Success: Executed ${name}` },
+          { type: "text", text: JSON.stringify(result, null, 2) }
+        ],
+        _meta: { result } // Allow advanced clients to process structured data
+      }
     } catch (error: any) {
-      return { isError: true, content: [{ type: "text", text: `Error: ${error.message}` }] }
+      return {
+        isError: true,
+        content: [{ type: "text", text: `Error: ${error.message}${error.errors ? ' - ' + JSON.stringify(error.errors) : ''}` }]
+      }
     }
   })
 }
@@ -277,7 +324,6 @@ export async function GET(req: NextRequest) {
         await server.connect(transport)
         sessions.set(sessionId, { server, controller, businessId })
         
-        // Correct MCP SSE Handshake
         const postUrl = new URL(req.url)
         postUrl.searchParams.set('sessionId', sessionId)
         controller.enqueue(`event: endpoint\ndata: ${postUrl.toString()}\n\n`)
@@ -303,7 +349,7 @@ export async function GET(req: NextRequest) {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache, no-transform',
         'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no', // Disable buffering for Vercel
+        'X-Accel-Buffering': 'no',
       },
     })
   } catch (err: any) {

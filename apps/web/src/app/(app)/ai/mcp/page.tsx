@@ -192,31 +192,25 @@ export default function MCPServerPage() {
                 <TabsList className="bg-slate-50 p-1 rounded-2xl w-full justify-start overflow-x-auto no-scrollbar mb-6">
                   <TabsTrigger value="claude" className="rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold uppercase text-[10px] px-6">Claude</TabsTrigger>
                   <TabsTrigger value="cursor" className="rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold uppercase text-[10px] px-6">Cursor</TabsTrigger>
+                  <TabsTrigger value="gemini" className="rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold uppercase text-[10px] px-6">Gemini CLI</TabsTrigger>
+                  <TabsTrigger value="codex" className="rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold uppercase text-[10px] px-6">Codex</TabsTrigger>
                   <TabsTrigger value="chatgpt" className="rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold uppercase text-[10px] px-6">ChatGPT</TabsTrigger>
-                  <TabsTrigger value="custom" className="rounded-xl data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold uppercase text-[10px] px-6">Custom</TabsTrigger>
                 </TabsList>
                 
-                <TabsContent value="claude" className="space-y-6 focus-visible:outline-none">
+                <TabsContent value="claude" className="space-y-8 focus-visible:outline-none">
+                  {/* Claude Desktop */}
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 text-slate-900">
-                      <div className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">1</div>
-                      <p className="text-sm font-bold">Open your Claude Desktop config file</p>
-                    </div>
-                    <div className="bg-slate-900 rounded-2xl p-4 font-mono text-xs text-slate-300 space-y-2">
-                      <p className="text-slate-500">// macOS</p>
-                      <p>~/Library/Application Support/Claude/claude_desktop_config.json</p>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 text-slate-900">
-                      <div className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-black">2</div>
-                      <p className="text-sm font-bold">Add Aegis to "mcpServers" using Native SSE</p>
+                      <Badge className="bg-slate-900 text-white rounded-lg">Claude Desktop</Badge>
+                      <p className="text-sm font-bold">Official App (Requires Bridge)</p>
                     </div>
                     <div className="relative group">
                       <pre className="bg-slate-900 rounded-2xl p-6 font-mono text-xs text-slate-300 overflow-x-auto">
 {`{
   "mcpServers": {
     "aegis-pos": {
-      "url": "${mcpUrl}"
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-bridge", "${mcpUrl}"]
     }
   }
 }`}
@@ -228,13 +222,26 @@ export default function MCPServerPage() {
                         onClick={() => copyToClipboard(`{
   "mcpServers": {
     "aegis-pos": {
-      "url": "${mcpUrl}"
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-bridge", "${mcpUrl}"]
     }
   }
-}`, 'Config')}
+}`, 'Claude Desktop Config')}
                       >
                         <Copy size={12} />
                       </Button>
+                    </div>
+                  </div>
+
+                  {/* Claude Code */}
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <div className="flex items-center gap-2 text-slate-900">
+                      <Badge className="bg-slate-900 text-white rounded-lg">Claude Code</Badge>
+                      <p className="text-sm font-bold">CLI Interface</p>
+                    </div>
+                    <div className="bg-slate-900 rounded-2xl p-4 font-mono text-xs text-slate-300">
+                      <p className="text-slate-500"># Connect directly via URL</p>
+                      <p className="text-emerald-400">claude mcp add aegis-pos --url "{mcpUrl}"</p>
                     </div>
                   </div>
                 </TabsContent>
@@ -242,7 +249,7 @@ export default function MCPServerPage() {
                 <TabsContent value="cursor" className="space-y-6 focus-visible:outline-none">
                   <div className="space-y-4">
                     <p className="text-sm text-slate-600 leading-relaxed font-medium">
-                      Cursor IDE supports MCP natively via SSE. Follow these steps to connect:
+                      Cursor IDE supports MCP natively via SSE.
                     </p>
                     <div className="space-y-3">
                       <div className="flex items-start gap-3 p-4 rounded-2xl border border-slate-100 bg-slate-50">
@@ -278,29 +285,65 @@ export default function MCPServerPage() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="chatgpt" className="space-y-6 focus-visible:outline-none">
+                <TabsContent value="gemini" className="space-y-6 focus-visible:outline-none">
                   <div className="space-y-4">
-                    <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100 text-amber-700">
-                      <p className="text-xs font-bold uppercase tracking-tight mb-1">Coming Soon</p>
-                      <p className="text-xs font-medium leading-relaxed">
-                        ChatGPT does not support the raw MCP protocol yet. To use Aegis with ChatGPT, you need to create a **Custom GPT** and add an **Action** using an OpenAPI schema.
-                      </p>
+                    <p className="text-sm text-slate-600 leading-relaxed font-medium">
+                      Add Aegis to your Gemini CLI configuration for terminal-based business management.
+                    </p>
+                    <div className="space-y-3">
+                      <div className="p-4 rounded-2xl border border-slate-100 bg-slate-50">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Settings Path</p>
+                        <code className="text-xs font-mono text-slate-700">.gemini/settings.json</code>
+                      </div>
+                      <div className="relative group">
+                        <pre className="bg-slate-900 rounded-2xl p-6 font-mono text-xs text-slate-300 overflow-x-auto">
+{`"mcpServers": {
+  "aegis-pos": {
+    "type": "sse",
+    "url": "${mcpUrl}"
+  }
+}`}
+                        </pre>
+                        <Button 
+                          variant="secondary" 
+                          size="icon" 
+                          className="absolute top-4 right-4 w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white"
+                          onClick={() => copyToClipboard(`"aegis-pos": {
+  "type": "sse",
+  "url": "${mcpUrl}"
+}`, 'Gemini CLI Config')}
+                        >
+                          <Copy size={12} />
+                        </Button>
+                      </div>
                     </div>
-                    <Button variant="outline" className="w-full rounded-2xl h-12 font-bold text-xs gap-2 border-slate-200">
-                      View OpenAPI Schema Guide <ExternalLink size={14} />
-                    </Button>
                   </div>
                 </TabsContent>
 
-                <TabsContent value="custom" className="space-y-6 focus-visible:outline-none">
+                <TabsContent value="codex" className="space-y-6 focus-visible:outline-none">
                   <div className="space-y-4">
-                    <p className="text-sm font-bold text-slate-900">Direct SSE Connection</p>
-                    <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                      If you are building your own AI UI or using OpenRouter, connect directly via SSE:
+                    <p className="text-sm text-slate-600 leading-relaxed font-medium">
+                      Integrate with Codex agentic framework using the SSE endpoint.
                     </p>
-                    <div className="bg-slate-900 rounded-2xl p-6 font-mono text-xs text-slate-300">
-                      <p className="text-slate-500"># Connect via curl</p>
-                      <p>curl -N "{mcpUrl}"</p>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 p-4 rounded-2xl border border-slate-100 bg-slate-50">
+                        <Link2 className="w-4 h-4 text-slate-400" />
+                        <div className="flex-1 truncate">
+                          <p className="text-sm font-bold text-slate-900">Codex MCP URL</p>
+                          <p className="text-xs text-slate-500 font-medium truncate">{mcpUrl}</p>
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="w-8 h-8 rounded-lg"
+                          onClick={() => copyToClipboard(mcpUrl, 'Codex URL')}
+                        >
+                          <Copy size={12} />
+                        </Button>
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center mt-4">
+                        Select "SSE" Transport in Codex Agent Settings
+                      </p>
                     </div>
                   </div>
                 </TabsContent>
