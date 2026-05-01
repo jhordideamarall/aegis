@@ -24,14 +24,14 @@ import {
 import { supabaseAdmin } from '@/lib/supabase'
 
 /**
- * MCP Multi-Tenant Server implementation
+ * MCP Multi-Tenant Server implementation for Next.js App Router
  */
 
 const createMcpServer = () => {
   return new Server(
     {
       name: "aegis-mcp-server",
-      version: "1.3.0",
+      version: "1.3.2",
     },
     {
       capabilities: {
@@ -41,9 +41,6 @@ const createMcpServer = () => {
   )
 }
 
-/**
- * Tool Definitions
- */
 const setupHandlers = (server: Server, businessId: string) => {
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
@@ -257,6 +254,7 @@ const setupHandlers = (server: Server, businessId: string) => {
 }
 
 // Map to store active transports in memory (limited lifetime in serverless)
+// Use a global to survive between requests if in the same instance
 const transports = new Map<string, SSEServerTransport>()
 
 export async function GET(req: NextRequest) {
@@ -266,53 +264,62 @@ export async function GET(req: NextRequest) {
     return new Response('Unauthorized: Missing token', { status: 401 })
   }
 
-  // 1. Validate token and get business_id
-  const { data: keyData, error } = await supabaseAdmin
-    .from('mcp_api_keys')
-    .select('business_id')
-    .eq('token', token)
-    .eq('is_active', true)
-    .single()
-
-  if (error || !keyData) {
-    // Fallback for global secret key during transition or for internal testing
-    const globalSecret = process.env.AEGIS_MCP_SECRET_KEY
-    if (!globalSecret || token !== globalSecret) {
-      return new Response('Unauthorized: Invalid token', { status: 401 })
-    }
-  }
-
-  const businessId = keyData?.business_id || process.env.TEST_BUSINESS_ID || "00000000-0000-0000-0000-000000000000"
-
-  // 2. Initialize MCP Server for this session
-  const server = createMcpServer()
-  setupHandlers(server, businessId)
-
-  // 3. Create transport
-  const transport = new SSEServerTransport("/api/mcp", req as any)
-  
-  // Update last_used_at
-  if (keyData) {
-    await supabaseAdmin
+  try {
+    // 1. Validate token and get business_id
+    const { data: keyData, error } = await supabaseAdmin
       .from('mcp_api_keys')
-      .update({ last_used_at: new Date().toISOString() })
+      .select('business_id')
       .eq('token', token)
+      .eq('is_active', true)
+      .single()
+
+    if (error || !keyData) {
+      const globalSecret = process.env.AEGIS_MCP_SECRET_KEY
+      if (!globalSecret || token !== globalSecret) {
+        return new Response('Unauthorized: Invalid token', { status: 401 })
+      }
+    }
+
+    const businessId = keyData?.business_id || process.env.TEST_BUSINESS_ID || "00000000-0000-0000-0000-000000000000"
+
+    // 2. Initialize MCP Server for this session
+    const server = createMcpServer()
+    setupHandlers(server, businessId)
+
+    // 3. Create transport using the native MCP SSE support
+    // We need to pass the endpoint for the POST requests
+    const transport = new SSEServerTransport("/api/mcp", req as any)
+    
+    // Connect server to transport
+    await server.connect(transport)
+
+    const sessionId = (transport as any).sessionId
+    if (sessionId) {
+      transports.set(sessionId, transport)
+      // Cleanup after 1 hour
+      setTimeout(() => transports.delete(sessionId), 3600000)
+    }
+
+    // Handle the request - SSEServerTransport.handle() returns a Response-like object or writes to res
+    // In Next.js App Router, we need to return a native Response.
+    // The handle() method in newer MCP SDK versions might be more flexible.
+    
+    const response = await (transport as any).handle(req)
+    
+    // Update last_used_at asynchronously
+    if (keyData) {
+      supabaseAdmin
+        .from('mcp_api_keys')
+        .update({ last_used_at: new Date().toISOString() })
+        .eq('token', token)
+        .then(() => {})
+    }
+
+    return response
+  } catch (err: any) {
+    console.error('MCP GET Error:', err)
+    return new Response(`Internal Server Error: ${err.message}`, { status: 500 })
   }
-
-  // Connect server to transport
-  await server.connect(transport)
-
-  // In a real serverless env, we need a way to correlate the POST messages.
-  // The SDK uses a sessionId in the URL for the POST requests.
-  // We need to keep the transport available for the subsequent POSTs.
-  const sessionId = (transport as any).sessionId
-  if (sessionId) {
-    transports.set(sessionId, transport)
-    // Optional: Cleanup old transports after some time
-    setTimeout(() => transports.delete(sessionId), 3600000) // 1 hour
-  }
-
-  return (transport as any).handle(req)
 }
 
 export async function POST(req: NextRequest) {
@@ -323,5 +330,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Session not found or expired" }, { status: 400 })
   }
   
-  return (transport as any).handle(req)
+  try {
+    return await (transport as any).handle(req)
+  } catch (err: any) {
+    console.error('MCP POST Error:', err)
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
 }
