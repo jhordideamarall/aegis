@@ -838,8 +838,8 @@ export default function ChatAegisPage() {
 
   if (restoring) {
     return (
-      <div className="flex flex-col h-screen bg-white">
-        <div className="h-14 border-b border-slate-100 flex items-center justify-between px-5 shrink-0 bg-white/80 backdrop-blur-sm sticky top-0 z-10" />
+      <div className="flex flex-col h-screen bg-slate-100" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.04) 1px, transparent 0)', backgroundSize: '24px 24px' }}>
+        <div className="h-14 flex items-center justify-between px-5 shrink-0 bg-slate-100/80 backdrop-blur-md sticky top-0 z-10" />
         <div className="flex-1 flex items-center justify-center">
           <div className="flex items-center gap-2 text-slate-300">
             <span className="w-1.5 h-1.5 rounded-full bg-slate-300 animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -852,9 +852,9 @@ export default function ChatAegisPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-white">
+    <div className="flex flex-col h-screen bg-slate-100" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.04) 1px, transparent 0)', backgroundSize: '24px 24px' }}>
       {/* Top Bar */}
-      <div className="h-14 border-b border-slate-100 flex items-center justify-between px-5 shrink-0 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+      <div className="h-14 flex items-center justify-between px-5 shrink-0 bg-slate-100/80 backdrop-blur-md sticky top-0 z-10">
         <HistoryTooltip activeId={conversationId} onSelect={loadConversation} onNew={handleNew} refreshTrigger={refreshTrigger} />
         <button onClick={handleNew} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors">
           <Plus size={15} />
@@ -864,7 +864,7 @@ export default function ChatAegisPage() {
       <div className="flex-1 relative overflow-hidden">
         {/* Messages */}
         <div className="absolute inset-0 overflow-y-auto">
-          <div className="max-w-4xl mx-auto px-5 pt-8 pb-36 space-y-6">
+          <div className="max-w-4xl mx-auto px-5 pt-8 pb-40 space-y-4">
             {proactiveInsight && (
               <div className="bg-slate-50/80 border border-slate-100 rounded-2xl p-5 mb-4">
                 <div className="flex items-center gap-2 text-[12px] font-bold text-slate-500 uppercase tracking-widest mb-3">
@@ -939,17 +939,17 @@ export default function ChatAegisPage() {
 
         {/* Backdrop — blocks messages scrolling behind composer */}
         {hasMessages && (
-          <div className="absolute bottom-0 left-0 right-0 bg-white z-10" style={{ height: '90px' }} />
+          <div className="absolute bottom-0 left-0 right-0 bg-slate-100 z-10" style={{ height: '50px' }} />
         )}
 
         {/* Composer */}
         <div
           className="absolute left-0 right-0 px-5 z-20 pointer-events-none"
           style={{
-            bottom: hasMessages ? 0 : 'calc(50% - 80px)',
+            bottom: hasMessages ? '16px' : 'calc(50% - 80px)',
             transition: 'bottom 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
-            paddingBottom: hasMessages ? '20px' : '0',
-            paddingTop: hasMessages ? '12px' : '0',
+            paddingBottom: hasMessages ? '12px' : '0',
+            paddingTop: hasMessages ? '8px' : '0',
           }}
         >
           <div className="w-full max-w-4xl mx-auto">
@@ -963,7 +963,7 @@ export default function ChatAegisPage() {
             <div className="pointer-events-auto">
               {/* Slash command panel */}
               {slashOpen && filteredCommands.length > 0 && (
-                <div className="mb-1 bg-white border border-slate-200 rounded-2xl shadow-lg overflow-hidden">
+                <div className="mb-1 bg-white/80 backdrop-blur-sm border border-slate-200/50 rounded-2xl shadow-sm overflow-hidden">
                   {filteredCommands.map((c, i) => (
                     <button key={c.key} onClick={() => selectCommand(c)}
                       className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${i === slashIndex ? 'bg-slate-50' : 'hover:bg-slate-50'}`}>
@@ -979,12 +979,12 @@ export default function ChatAegisPage() {
 
               {/* Command form */}
               {activeCommand && (
-                <div className="mb-1 bg-white border border-slate-200 rounded-2xl shadow-lg overflow-hidden">
+                <div className="mb-1 bg-white/80 backdrop-blur-sm border border-slate-200/50 rounded-2xl shadow-sm overflow-hidden">
                   <CommandForm command={activeCommand} onSubmit={handleCommandSubmit} onClose={() => setActiveCommand(null)} />
                 </div>
               )}
 
-              <div className={`relative rounded-2xl bg-white transition-all duration-300 shadow-[0_2px_24px_rgba(0,0,0,0.09)] border ${loading ? 'neon-blue-glow' : 'border-slate-200/80 hover:border-slate-300'}`}>
+              <div className={`relative rounded-2xl bg-white/60 backdrop-blur-sm transition-all duration-300 shadow-sm border ${loading ? 'neon-blue-glow' : 'border-slate-200/50 hover:border-slate-300/50'}`}>
                 <textarea
                   ref={textareaRef}
                   value={input}
