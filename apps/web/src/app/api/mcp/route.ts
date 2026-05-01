@@ -26,9 +26,10 @@ import { nanoid } from 'nanoid'
 
 /**
  * MCP Multi-Tenant Server implementation for Next.js App Router
- * Standard-compliant & Vercel-Safe
+ * Standard-compliant & Vercel-Safe (Stateless SSE Bridge)
  */
 
+// Global sessions map (Note: For multi-instance Vercel, this is better served by Redis)
 const sessions = new Map<string, { 
   server: any, 
   controller: ReadableStreamDefaultController,
@@ -37,7 +38,7 @@ const sessions = new Map<string, {
 
 function createMcpServer() {
   return new Server(
-    { name: "aegis-mcp-server", version: "1.4.4" },
+    { name: "aegis-mcp-server", version: "1.5.0" },
     { capabilities: { tools: {} } }
   )
 }
@@ -47,7 +48,7 @@ function setupHandlers(server: any, businessId: string) {
     return {
       protocolVersion: "2025-11-25",
       capabilities: { tools: {} },
-      serverInfo: { name: "aegis-mcp-server", version: "1.4.4" },
+      serverInfo: { name: "aegis-mcp-server", version: "1.5.0" },
     }
   })
 
@@ -99,7 +100,7 @@ function setupHandlers(server: any, businessId: string) {
         },
         {
           name: "query_stats",
-          description: "Ambil statistik performa bisnis",
+          description: "Ambil statistik performa bisnis (revenue, profit, top products)",
           inputSchema: {
             type: "object",
             properties: {
@@ -123,11 +124,11 @@ function setupHandlers(server: any, businessId: string) {
         },
         {
           name: "update_product",
-          description: "Update data produk",
+          description: "Update data produk (harga, stok, nama)",
           inputSchema: {
             type: "object",
             properties: {
-              id: { type: "string" },
+              id: { type: "string", description: "UUID Produk" },
               name: { type: "string" },
               price: { type: "number" },
               stock: { type: "number" }
@@ -136,14 +137,77 @@ function setupHandlers(server: any, businessId: string) {
           }
         },
         {
+          name: "create_raw_material",
+          description: "Tambah bahan baku baru (misal: Biji Kopi, Gula, Susu)",
+          inputSchema: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              costPerUnit: { type: "number" },
+              unit: { type: "string" },
+              stock: { type: "number" }
+            },
+            required: ["name", "costPerUnit"]
+          }
+        },
+        {
+          name: "update_raw_material",
+          description: "Update stok atau harga beli bahan baku",
+          inputSchema: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              name: { type: "string" },
+              costPerUnit: { type: "number" },
+              stock: { type: "number" }
+            },
+            required: ["id"]
+          }
+        },
+        {
+          name: "add_product_material",
+          description: "Hubungkan produk dengan bahan baku (Resep)",
+          inputSchema: {
+            type: "object",
+            properties: {
+              productId: { type: "string" },
+              materialId: { type: "string" },
+              qtyNeeded: { type: "number" }
+            },
+            required: ["productId", "materialId", "qtyNeeded"]
+          }
+        },
+        {
+          name: "sync_product_hpp",
+          description: "Hitung ulang HPP produk",
+          inputSchema: {
+            type: "object",
+            properties: {
+              id: { type: "string" }
+            },
+            required: ["id"]
+          }
+        },
+        {
           name: "create_order",
-          description: "Catat transaksi penjualan baru",
+          description: "Catat transaksi penjualan baru (Otomatis potong stok produk & bahan baku)",
           inputSchema: {
             type: "object",
             properties: {
               total: { type: "number" },
               payment_method: { type: "string" },
-              items: { type: "array", items: { type: "object" } }
+              member_id: { type: "string" },
+              items: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    product_id: { type: "string" },
+                    qty: { type: "number" },
+                    price: { type: "number" }
+                  }
+                }
+              }
             },
             required: ["total", "payment_method", "items"]
           }
@@ -181,7 +245,7 @@ function setupHandlers(server: any, businessId: string) {
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token')
-  if (!token) return new Response('Missing token', { status: 401 })
+  if (!token) return new Response('Unauthorized: Missing token', { status: 401 })
 
   try {
     const { data: keyData, error } = await supabaseAdmin
@@ -189,7 +253,7 @@ export async function GET(req: NextRequest) {
 
     if (error || !keyData) {
       const globalSecret = process.env.AEGIS_MCP_SECRET_KEY
-      if (!globalSecret || token !== globalSecret) return new Response('Invalid token', { status: 401 })
+      if (!globalSecret || token !== globalSecret) return new Response('Unauthorized: Invalid token', { status: 401 })
     }
 
     const businessId = keyData?.business_id || process.env.TEST_BUSINESS_ID || "00000000-0000-0000-0000-000000000000"
@@ -200,7 +264,6 @@ export async function GET(req: NextRequest) {
         const server: any = createMcpServer()
         setupHandlers(server, businessId)
         
-        // Define manual transport to satisfy connect()
         const transport = {
           onClose: undefined,
           onMessage: undefined,
@@ -214,6 +277,7 @@ export async function GET(req: NextRequest) {
         await server.connect(transport)
         sessions.set(sessionId, { server, controller, businessId })
         
+        // Correct MCP SSE Handshake
         const postUrl = new URL(req.url)
         postUrl.searchParams.set('sessionId', sessionId)
         controller.enqueue(`event: endpoint\ndata: ${postUrl.toString()}\n\n`)
@@ -239,6 +303,7 @@ export async function GET(req: NextRequest) {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache, no-transform',
         'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no', // Disable buffering for Vercel
       },
     })
   } catch (err: any) {
@@ -249,12 +314,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get('sessionId')
   const session = sessionId ? sessions.get(sessionId) : null
-  if (!session) return NextResponse.json({ error: "Session not found" }, { status: 400 })
+  if (!session) return NextResponse.json({ error: "Session not found or expired" }, { status: 400 })
 
   try {
     const message = await req.json()
-    // When message is handled, server will automatically call transport.send()
-    // which enqueues the response to our GET stream controller.
     await session.server.handleMessage(message)
     return new Response('OK', { status: 200 })
   } catch (err: any) {
