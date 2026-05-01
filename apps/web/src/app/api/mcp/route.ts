@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Server } from "@modelcontextprotocol/sdk/server/index.js"
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js"
 import { 
   ListToolsRequestSchema, 
   CallToolRequestSchema,
+  InitializeRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js"
 import { 
   queryOrders, 
@@ -22,16 +22,26 @@ import {
   ToolParams 
 } from '@/lib/ai/tools-logic'
 import { supabaseAdmin } from '@/lib/supabase'
+import { nanoid } from 'nanoid'
 
 /**
  * MCP Multi-Tenant Server implementation for Next.js App Router
+ * Optimized for Vercel Serverless / Edge compatibility
  */
+
+// In-memory session store (Note: In high-scale serverless, this should move to Redis/KV)
+// But for typical SSE usage in a single region, this global works for the instance lifetime.
+const sessions = new Map<string, { 
+  server: Server, 
+  controller: ReadableStreamDefaultController,
+  businessId: string 
+}>()
 
 const createMcpServer = () => {
   return new Server(
     {
       name: "aegis-mcp-server",
-      version: "1.3.2",
+      version: "1.4.1",
     },
     {
       capabilities: {
@@ -42,6 +52,21 @@ const createMcpServer = () => {
 }
 
 const setupHandlers = (server: Server, businessId: string) => {
+  // Standard Initialize Handler
+  server.setRequestHandler(InitializeRequestSchema, async (request) => {
+    return {
+      protocolVersion: "2025-11-25",
+      capabilities: {
+        tools: {},
+      },
+      serverInfo: {
+        name: "aegis-mcp-server",
+        version: "1.4.1",
+      },
+    }
+  })
+
+  // Tools List Handler
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
       tools: [
@@ -219,6 +244,7 @@ const setupHandlers = (server: Server, businessId: string) => {
     }
   })
 
+  // Tool Call Handler
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params
     let result: unknown
@@ -253,19 +279,12 @@ const setupHandlers = (server: Server, businessId: string) => {
   })
 }
 
-// Map to store active transports in memory (limited lifetime in serverless)
-// Use a global to survive between requests if in the same instance
-const transports = new Map<string, SSEServerTransport>()
-
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token')
-  
-  if (!token) {
-    return new Response('Unauthorized: Missing token', { status: 401 })
-  }
+  if (!token) return new Response('Unauthorized: Missing token', { status: 401 })
 
   try {
-    // 1. Validate token and get business_id
+    // 1. Authenticate Tenant
     const { data: keyData, error } = await supabaseAdmin
       .from('mcp_api_keys')
       .select('business_id')
@@ -281,57 +300,79 @@ export async function GET(req: NextRequest) {
     }
 
     const businessId = keyData?.business_id || process.env.TEST_BUSINESS_ID || "00000000-0000-0000-0000-000000000000"
+    const sessionId = nanoid()
 
-    // 2. Initialize MCP Server for this session
+    // 2. Setup MCP Server for this session
     const server = createMcpServer()
     setupHandlers(server, businessId)
 
-    // 3. Create transport using the native MCP SSE support
-    // We need to pass the endpoint for the POST requests
-    const transport = new SSEServerTransport("/api/mcp", req as any)
-    
-    // Connect server to transport
-    await server.connect(transport)
+    // 3. Create SSE Stream
+    const stream = new ReadableStream({
+      start(controller) {
+        sessions.set(sessionId, { server, controller, businessId })
+        
+        // Initial MCP Endpoint message (Required by spec)
+        const postUrl = new URL(req.url)
+        postUrl.searchParams.set('sessionId', sessionId)
+        controller.enqueue(`event: endpoint\ndata: ${postUrl.toString()}\n\n`)
 
-    const sessionId = (transport as any).sessionId
-    if (sessionId) {
-      transports.set(sessionId, transport)
-      // Cleanup after 1 hour
-      setTimeout(() => transports.delete(sessionId), 3600000)
-    }
+        // Keep-alive Heartbeat
+        const heartbeat = setInterval(() => {
+          try {
+            controller.enqueue(': heartbeat\n\n')
+          } catch (e) {
+            clearInterval(heartbeat)
+          }
+        }, 15000)
 
-    // Handle the request - SSEServerTransport.handle() returns a Response-like object or writes to res
-    // In Next.js App Router, we need to return a native Response.
-    // The handle() method in newer MCP SDK versions might be more flexible.
-    
-    const response = await (transport as any).handle(req)
-    
-    // Update last_used_at asynchronously
+        req.signal.addEventListener('abort', () => {
+          clearInterval(heartbeat)
+          sessions.delete(sessionId)
+        })
+      },
+      cancel() {
+        sessions.delete(sessionId)
+      }
+    })
+
+    // Update last used
     if (keyData) {
-      supabaseAdmin
-        .from('mcp_api_keys')
-        .update({ last_used_at: new Date().toISOString() })
-        .eq('token', token)
-        .then(() => {})
+      supabaseAdmin.from('mcp_api_keys').update({ last_used_at: new Date().toISOString() }).eq('token', token).then(() => {})
     }
 
-    return response
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+      },
+    })
   } catch (err: any) {
     console.error('MCP GET Error:', err)
-    return new Response(`Internal Server Error: ${err.message}`, { status: 500 })
+    return new Response(`Error: ${err.message}`, { status: 500 })
   }
 }
 
 export async function POST(req: NextRequest) {
   const sessionId = req.nextUrl.searchParams.get('sessionId')
-  const transport = sessionId ? transports.get(sessionId) : null
+  const session = sessionId ? sessions.get(sessionId) : null
 
-  if (!transport) {
+  if (!session) {
     return NextResponse.json({ error: "Session not found or expired" }, { status: 400 })
   }
-  
+
   try {
-    return await (transport as any).handle(req)
+    const message = await req.json()
+    
+    // Process message using the server instance
+    // We handle the response manually to send it through the SSE stream
+    const response = await session.server.handleMessage(message)
+    
+    if (response) {
+      session.controller.enqueue(`event: message\ndata: ${JSON.stringify(response)}\n\n`)
+    }
+
+    return new Response('OK', { status: 200 })
   } catch (err: any) {
     console.error('MCP POST Error:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
