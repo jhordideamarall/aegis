@@ -818,6 +818,91 @@ export default function ChatAegisPage() {
         setMessages(prev => { const last = prev[prev.length - 1]; return [...prev.slice(0, -1), { ...last, content: cleanText }] })
         const cmdIntent = detectLocalIntent(cmdMatch[1].trim())
         if (cmdIntent) { await runAutomation(cmdIntent.intent, cmdIntent.params); return }
+      }
+
+      // [TOOL] → execute tool and continue with data
+      const toolMatch = rawContent.match(/\[TOOL\]([\s\S]*?)\[\/TOOL\]/)
+      if (toolMatch) {
+        const cleanText = rawContent.replace(/\[TOOL\][\s\S]*?\[\/TOOL\]/, '').trim()
+        setMessages(prev => { const last = prev[prev.length - 1]; return [...prev.slice(0, -1), { ...last, content: cleanText || 'Mengecek data...' }] })
+        
+        try {
+          // Parse tool call - handle both JSON and JS-like format from AI
+          let toolCall
+          const toolContent = toolMatch[1].trim()
+          try {
+            toolCall = JSON.parse(toolContent)
+          } catch {
+            // Handle JS-like format: query_stats({period: "yesterday"})
+            const match = toolContent.match(/^(\w+)\((.*)\)$/)
+            if (match) {
+              const toolName = match[1]
+              const paramsStr = match[2]
+              // Parse params like {period: "yesterday"} or {period: "yesterday", limit: 50}
+              const params: Record<string, unknown> = {}
+              const paramPairs = paramsStr.replace(/[{}]/g, '').split(',')
+              for (const pair of paramPairs) {
+                const [key, ...valueParts] = pair.split(':')
+                if (key && valueParts.length) {
+                  const value = valueParts.join(':').trim().replace(/['"]/g, '')
+                  params[key.trim()] = value
+                }
+              }
+              toolCall = { tool: toolName, params }
+            } else {
+              throw new Error('Invalid tool format')
+            }
+          }
+          
+          const headers = await getClientAuthHeaders()
+          const toolRes = await fetch('/api/ai/tools', {
+            method: 'POST',
+            headers: { ...headers, 'Content-Type': 'application/json' },
+            body: JSON.stringify(toolCall)
+          })
+          const toolResult = await toolRes.json()
+          
+          if (toolResult.success && toolResult.data) {
+            // Continue dengan data dari tool - send as follow-up
+            const dataContext = JSON.stringify(toolResult.data, null, 2)
+            const followUpRes = await fetch('/api/ai/chat', {
+              method: 'POST',
+              headers: { ...headers, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                conversationId,
+                prompt: `Berdasarkan data berikut: ${dataContext}. Lanjutkan回答 user sebelumnya dengan data yang benar.`
+              })
+            })
+            // Handle the follow-up response similarly
+            if (followUpRes.ok) {
+              const reader = followUpRes.body?.getReader()
+              const decoder = new TextDecoder()
+              let toolContent = ''
+              let toolBuffer = ''
+              while (true) {
+                const { done, value } = await reader!.read()
+                if (done) break
+                toolBuffer += decoder.decode(value, { stream: true })
+                const lines = toolBuffer.split('\n'); toolBuffer = lines.pop() || ''
+                for (const line of lines) {
+                  const trimmed = line.trim()
+                  if (!trimmed || trimmed === 'data: [DONE]') continue
+                  if (trimmed.startsWith('data: ')) {
+                    try {
+                      toolContent += JSON.parse(trimmed.slice(6)).choices[0]?.delta?.content || ''
+                    } catch { /* ignore */ }
+                  }
+                }
+              }
+              // Update message with final response
+              const finalText = (toolContent.match(/\[TOOL\]([\s\S]*?)\[\/TOOL\]/) ? rawContent.replace(/\[TOOL\][\s\S]*?\[\/TOOL\]/, '').trim() : toolContent).trim()
+              setMessages(prev => { const last = prev[prev.length - 1]; return [...prev.slice(0, -1), { ...last, content: finalText || toolContent }] })
+            }
+          }
+        } catch (toolErr) {
+          console.error('Tool execution error:', toolErr)
+        }
+        return
       } else {
         // [ACTION] fallback — only for cases where CMD wasn't used
         const { text, action } = parseAction(rawContent)
@@ -892,7 +977,7 @@ export default function ChatAegisPage() {
                           <span className="text-[13px] text-slate-500">Aegis sedang mengetik...</span>
                         </div>
                       ) : m.content && loading && i === messages.length - 1 ? (
-                        <OutputRenderer content={m.content + ' ▍'} />
+                        <><OutputRenderer content={m.content} /><span className="inline-block w-0.5 h-5 bg-slate-400 animate-pulse ml-0.5 align-middle" /></>
                       ) : (
                         <>
                           <OutputRenderer content={m.content} />
